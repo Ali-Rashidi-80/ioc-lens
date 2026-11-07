@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.sp
 import io.github.mrcoder20.ioclens.core.components.CyberPolygonBackground
 import io.github.mrcoder20.ioclens.core.components.LiquidmorphicBackground
 import io.github.mrcoder20.ioclens.core.components.LottiePreloader
-import io.github.mrcoder20.ioclens.core.components.SlideAnimatedGraphic
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.presentation.intro.IntroSlideData
@@ -118,25 +117,7 @@ fun SplashScreen(
                 )
         )
 
-        // 4. Hidden Offscreen Pre-renderer for 4 Intro Slides
-        Box(
-            modifier = Modifier
-                .graphicsLayer {
-                    alpha = 0.001f
-                }
-                .size(1.dp)
-        ) {
-            val slides = IntroSlideData.getSlides(appLanguage)
-            slides.forEach { slide ->
-                SlideAnimatedGraphic(
-                    slideId = slide.id,
-                    emoji = slide.iconEmoji,
-                    size = 100.dp
-                )
-            }
-        }
-
-        // 5. Ultra-Minimalist Main Splash Content
+        // 4. Ultra-Minimalist Main Splash Content
         Column(
             modifier = Modifier
                 .fillMaxSize()

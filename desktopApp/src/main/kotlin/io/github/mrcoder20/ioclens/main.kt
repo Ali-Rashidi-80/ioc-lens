@@ -35,10 +35,23 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
+import io.github.mrcoder20.ioclens.domain.security.SharedPayload
 import java.io.File
 import java.io.InputStream
 
-fun main() = application {
+fun main(args: Array<String>) = application {
+    remember {
+        val arg = args.firstOrNull()?.trim()
+        if (!arg.isNullOrBlank()) {
+            val file = File(arg)
+            if (file.exists() && file.isFile) {
+                SharePayloadReceiver.dispatch(SharedPayload(filePath = file.absolutePath, fileName = file.name))
+            } else {
+                SharePayloadReceiver.dispatch(SharedPayload(textOrUrl = arg))
+            }
+        }
+    }
     val windowState = rememberWindowState(width = 1040.dp, height = 740.dp)
 
     val iconPainter = remember {
@@ -66,6 +79,41 @@ fun main() = application {
         icon = iconPainter,
         undecorated = true
     ) {
+        androidx.compose.runtime.LaunchedEffect(window) {
+            window.dropTarget = object : java.awt.dnd.DropTarget() {
+                override fun drop(evt: java.awt.dnd.DropTargetDropEvent) {
+                    try {
+                        evt.acceptDrop(java.awt.dnd.DnDConstants.ACTION_COPY)
+                        val transferable = evt.transferable
+                        if (transferable.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor)) {
+                            val files = transferable.getTransferData(java.awt.datatransfer.DataFlavor.javaFileListFlavor) as? List<*>
+                            val firstFile = files?.firstOrNull() as? File
+                            if (firstFile != null && firstFile.exists()) {
+                                SharePayloadReceiver.dispatch(
+                                    SharedPayload(
+                                        filePath = firstFile.absolutePath,
+                                        fileName = firstFile.name
+                                    )
+                                )
+                                evt.dropComplete(true)
+                                return
+                            }
+                        } else if (transferable.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)) {
+                            val text = transferable.getTransferData(java.awt.datatransfer.DataFlavor.stringFlavor) as? String
+                            if (!text.isNullOrBlank()) {
+                                SharePayloadReceiver.dispatch(SharedPayload(textOrUrl = text.trim()))
+                                evt.dropComplete(true)
+                                return
+                            }
+                        }
+                        evt.dropComplete(false)
+                    } catch (_: Exception) {
+                        evt.dropComplete(false)
+                    }
+                }
+            }
+        }
+
         IOCLensTheme {
             Column(modifier = Modifier.fillMaxSize().background(Color(0xFF041C24))) {
                 // Custom Dead-Centered Window Title Bar

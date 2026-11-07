@@ -68,7 +68,8 @@ fun MainScreen(
                     if (isCompleted) {
                         HomeScreen(
                             viewModel = homeViewModel,
-                            settingsRepository = settingsRepository
+                            settingsRepository = settingsRepository,
+                            introViewModel = introViewModel
                         )
                     } else {
                         AnimatedContent(

@@ -8,7 +8,14 @@ import io.github.mrcoder20.ioclens.getSystemLanguage
 data class HomeUiState(
     val queryInput: String = "",
     val isLoading: Boolean = false,
+    val isHashingFile: Boolean = false,
+    val hashingFileName: String? = null,
     val activeVerdict: TriageVerdict? = null,
+    val scanHistory: List<TriageVerdict> = emptyList(),
+    val isProviderDeckExpanded: Boolean = true,
+    val isHistorySheetOpen: Boolean = false,
+    val isSettingsSheetOpen: Boolean = false,
+    val isGuideOverlayOpen: Boolean = false,
     val errorMessage: String? = null,
     val appTheme: AppTheme = AppTheme.DARK,
     val appLanguage: AppLanguage = getSystemLanguage()

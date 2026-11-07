@@ -47,19 +47,20 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mrcoder20.ioclens.core.components.AppBackHandler
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
+import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.SecondaryTeal
 import io.github.mrcoder20.ioclens.core.theme.VerdictClean
 import io.github.mrcoder20.ioclens.core.theme.VerdictLowRisk
 import io.github.mrcoder20.ioclens.core.theme.VerdictMalicious
@@ -69,28 +70,34 @@ import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
+import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
+import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
 import kotlinx.coroutines.launch
-
-enum class HomeTab {
-    TRIAGE,
-    SETTINGS
-}
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
     settingsRepository: SettingsRepository,
+    introViewModel: IntroViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
-    var currentTab by remember { mutableStateOf(HomeTab.TRIAGE) }
 
-    // Drawer Header Gradient Matches Status Bar Accent Colors
-    val drawerHeaderGradient = listOf(Color(0xFF090D16), Color(0xFF131B2E))
+    // Android Back Button / Gesture Interceptor
+    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.activeVerdict != null
+    AppBackHandler(enabled = isAnySheetOpen) {
+        when {
+            uiState.isGuideOverlayOpen -> viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+            uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+            uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+            drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
+            uiState.activeVerdict != null -> viewModel.onEvent(HomeEvent.ClearClicked)
+        }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -109,7 +116,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(brush = Brush.verticalGradient(colors = drawerHeaderGradient))
+                            .background(brush = Brush.verticalGradient(colors = listOf(Color(0xFF090D16), Color(0xFF131B2E))))
                             .statusBarsPadding()
                             .padding(20.dp)
                     ) {
@@ -121,7 +128,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.primaryContainer
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(text = "🔍", fontSize = 22.sp)
+                                        Text(text = "🛡️", fontSize = 22.sp)
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -146,9 +153,7 @@ fun HomeScreen(
                                     }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = strings.appTagline,
                                 style = MaterialTheme.typography.bodySmall,
@@ -158,55 +163,41 @@ fun HomeScreen(
                     }
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Navigation Items
                     NavigationDrawerItem(
-                        icon = { Text(text = "🏠", fontSize = 18.sp) },
+                        icon = { Text(text = "🔍", fontSize = 18.sp) },
                         label = { Text(text = strings.menuHome, fontWeight = FontWeight.SemiBold) },
-                        selected = currentTab == HomeTab.TRIAGE,
+                        selected = !uiState.isSettingsSheetOpen && !uiState.isHistorySheetOpen && !uiState.isGuideOverlayOpen,
                         onClick = {
-                            currentTab = HomeTab.TRIAGE
+                            viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                            viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
                             coroutineScope.launch { drawerState.close() }
                         },
                         colors = NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                         ),
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text(text = "📜", fontSize = 18.sp) },
+                        label = { Text(text = "Scan History (${uiState.scanHistory.size})", fontWeight = FontWeight.SemiBold) },
+                        selected = uiState.isHistorySheetOpen,
+                        onClick = {
+                            viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
+                            coroutineScope.launch { drawerState.close() }
+                        },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
 
                     NavigationDrawerItem(
                         icon = { Text(text = "⚙️", fontSize = 18.sp) },
                         label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
-                        selected = currentTab == HomeTab.SETTINGS,
+                        selected = uiState.isSettingsSheetOpen,
                         onClick = {
-                            currentTab = HomeTab.SETTINGS
-                            coroutineScope.launch { drawerState.close() }
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text(text = "🔑", fontSize = 18.sp) },
-                        label = { Text(text = strings.menuProviders, fontWeight = FontWeight.SemiBold) },
-                        selected = false,
-                        onClick = {
-                            currentTab = HomeTab.SETTINGS
-                            coroutineScope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text(text = "🛡️", fontSize = 18.sp) },
-                        label = { Text(text = strings.menuPrivacyGuard, fontWeight = FontWeight.SemiBold) },
-                        selected = false,
-                        onClick = {
-                            currentTab = HomeTab.SETTINGS
+                            viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
                             coroutineScope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp)
@@ -215,18 +206,16 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         icon = { Text(text = "💡", fontSize = 18.sp) },
                         label = { Text(text = strings.menuGuide, fontWeight = FontWeight.SemiBold) },
-                        selected = false,
+                        selected = uiState.isGuideOverlayOpen,
                         onClick = {
-                            viewModel.onEvent(HomeEvent.ReopenIntroClicked)
+                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
                             coroutineScope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
 
                     Spacer(modifier = Modifier.weight(1f))
-
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
                     Box(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = strings.versionLabel,
@@ -239,175 +228,325 @@ fun HomeScreen(
         },
         modifier = modifier
     ) {
-        if (currentTab == HomeTab.SETTINGS) {
-            SettingsScreen(
-                settingsRepository = settingsRepository,
-                onClose = { currentTab = HomeTab.TRIAGE }
-            )
-        } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Ambient Top Glow
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                // Top Ambient Background Glow
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(320.dp)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                                    MaterialTheme.colorScheme.background
-                                )
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                PrimaryCyan.copy(alpha = 0.18f),
+                                MaterialTheme.colorScheme.background
                             )
                         )
-                )
+                    )
+            )
 
-                Column(
+            // Main Dashboard Content
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header Bar (☰ Hamburger, Title, Actions)
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .padding(top = 8.dp, start = 12.dp, end = 12.dp, bottom = 8.dp)
-                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Header with Hamburger Button & Title
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 20.dp),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Hamburger Menu Button (☰)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    coroutineScope.launch {
-                                        if (drawerState.isClosed) drawerState.open() else drawerState.close()
-                                    }
-                                },
+                                .clickable { coroutineScope.launch { drawerState.open() } },
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = "☰",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = PrimaryCyan
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(14.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
 
-                        Column {
+                        Row {
                             Text(
-                                text = "🔍 ${strings.appTitle}",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
+                                text = "IOC ",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                letterSpacing = 1.sp
                             )
                             Text(
-                                text = strings.appTagline,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "LENS",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = PrimaryCyan,
+                                letterSpacing = 1.sp
                             )
                         }
                     }
 
-                    // Trend Glassmorphism Search Input Card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(18.dp)) {
-                            OutlinedTextField(
-                                value = uiState.queryInput,
-                                onValueChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text(strings.searchPlaceholder, color = MaterialTheme.colorScheme.outline) },
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // History Action Button with Counter
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true)) },
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(text = "📜", fontSize = 14.sp)
+                                if (uiState.scanHistory.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${uiState.scanHistory.size}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryCyan
+                                    )
+                                }
+                            }
+                        }
+
+                        // Settings Action Button
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true)) },
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                        ) {
+                            Text(
+                                text = "⚙️",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                // File Hashing Progress Banner (if active)
+                AnimatedVisibility(visible = uiState.isHashingFile) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131F38)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = PrimaryCyan,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "⚡ Stream Hashing (64KB chunks): ${uiState.hashingFileName ?: "file"}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = PrimaryCyan,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(3.dp),
+                                color = PrimaryCyan,
+                                trackColor = Color(0xFF0A1226)
+                            )
+                        }
+                    }
+                }
+
+                // Unified Indicator Search & Action Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        OutlinedTextField(
+                            value = uiState.queryInput,
+                            onValueChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(
+                                    text = "Paste IP, URL, Hash, Domain, or drop file...",
+                                    color = MaterialTheme.colorScheme.outline,
+                                    fontSize = 14.sp
+                                )
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = PrimaryCyan,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Zero-Key instant scan ready",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VerdictClean,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (uiState.queryInput.isNotEmpty()) {
                                     TextButton(
                                         onClick = { viewModel.onEvent(HomeEvent.ClearClicked) }
                                     ) {
-                                        Text(strings.clear, color = MaterialTheme.colorScheme.outline)
+                                        Text(strings.clear, color = MaterialTheme.colorScheme.outline, fontSize = 13.sp)
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                 }
 
                                 Button(
                                     onClick = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                                    shape = RoundedCornerShape(10.dp),
                                     enabled = !uiState.isLoading,
-                                    modifier = Modifier.height(44.dp)
+                                    modifier = Modifier.height(40.dp)
                                 ) {
                                     if (uiState.isLoading) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            strokeWidth = 2.5.dp
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color.Black,
+                                            strokeWidth = 2.dp
                                         )
                                     } else {
                                         Text(
-                                            strings.analyzeInstant,
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            text = "⚡ SCAN PAYLOAD",
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp,
+                                            letterSpacing = 0.5.sp
                                         )
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    uiState.errorMessage?.let { error ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = error,
-                            color = VerdictMalicious,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
+                uiState.errorMessage?.let { error ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = error,
+                        color = VerdictMalicious,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Instant Overall Verdict Banner (if verdict available)
+                AnimatedVisibility(
+                    visible = uiState.activeVerdict != null,
+                    enter = fadeIn(tween(350)) + expandVertically(tween(350)),
+                    exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
+                ) {
+                    uiState.activeVerdict?.let { verdict ->
+                        OverallVerdictCard(verdict = verdict)
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Smooth Entrance Animation for Verdict Card
-                    AnimatedVisibility(
-                        visible = uiState.activeVerdict != null,
-                        enter = fadeIn(tween(400)) + expandVertically(tween(400)),
-                        exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
-                    ) {
-                        uiState.activeVerdict?.let { verdict ->
-                            VerdictCard(verdict = verdict, strings = strings)
+                // Collapsible Live Provider Deck (10 Threat Intel Engines)
+                LiveProviderDeck(
+                    uiState = uiState,
+                    onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // History Sheet Overlay
+            if (uiState.isHistorySheetOpen) {
+                HistorySheet(
+                    history = uiState.scanHistory,
+                    onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
+                    onClear = { viewModel.onEvent(HomeEvent.ClearHistory) },
+                    onClose = { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false)) }
+                )
+            }
+
+            // Settings Sheet Overlay
+            if (uiState.isSettingsSheetOpen) {
+                SettingsScreen(
+                    settingsRepository = settingsRepository,
+                    onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) }
+                )
+            }
+
+            // Guide Overlay
+            if (uiState.isGuideOverlayOpen && introViewModel != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF06080D))
+                ) {
+                    IntroScreen(
+                        viewModel = introViewModel,
+                        onIntroFinished = {
+                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
                         }
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(16.dp)
+                            .clip(CircleShape)
+                            .clickable { viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false)) },
+                        color = Color.White.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "✕",
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
@@ -416,10 +555,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun VerdictCard(
-    verdict: TriageVerdict,
-    strings: io.github.mrcoder20.ioclens.core.localization.AppStrings
-) {
+private fun OverallVerdictCard(verdict: TriageVerdict) {
     val verdictColor = when (verdict.overallVerdict) {
         VerdictLevel.CLEAN -> VerdictClean
         VerdictLevel.LOW_RISK -> VerdictLowRisk
@@ -430,63 +566,76 @@ private fun VerdictCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.8f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = verdict.indicator.rawValue,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = verdict.indicator.rawValue,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "Type: ${verdict.indicator.type.name}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
 
                 Surface(
                     color = verdictColor.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor)
                 ) {
                     Text(
                         text = verdict.overallVerdict.name,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         color = verdictColor,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         fontSize = 12.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = verdict.summaryDescription,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Confidence Score Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Confidence Score: ${verdict.confidenceScore}%",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = "Threat Confidence Score",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${verdict.confidenceScore}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = verdictColor,
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
                 progress = { verdict.confidenceScore / 100f },
                 modifier = Modifier
@@ -496,22 +645,87 @@ private fun VerdictCard(
                 color = verdictColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
+        }
+    }
+}
 
-            if (verdict.sourceResults.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(18.dp))
+@Composable
+private fun LiveProviderDeck(
+    uiState: HomeUiState,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle() },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🌐 THREAT INTEL PROVIDERS",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = PrimaryCyan.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "10 Engines",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PrimaryCyan,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
 
                 Text(
-                    text = strings.threatIntelSourcesResults,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    text = if (uiState.isProviderDeckExpanded) "▲" else "▼",
+                    color = MaterialTheme.colorScheme.outline,
+                    fontSize = 12.sp
                 )
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            AnimatedVisibility(visible = uiState.isProviderDeckExpanded) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
+                    val activeMap = activeSources.associateBy { it.providerName }
 
-                verdict.sourceResults.forEach { source ->
-                    SourceResultRow(source = source)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    val allProviders = listOf(
+                        "URLhaus (abuse.ch)" to true,
+                        "MalwareBazaar (abuse.ch)" to true,
+                        "ThreatFox (abuse.ch)" to true,
+                        "RDAP / Registry" to true,
+                        "Cloudflare DoH" to true,
+                        "VirusTotal" to false,
+                        "AbuseIPDB" to false,
+                        "AlienVault OTX" to false,
+                        "Pulsedive" to false,
+                        "IPQualityScore" to false
+                    )
+
+                    allProviders.forEach { (name, isZeroKey) ->
+                        val result = activeMap[name]
+                        ProviderRow(
+                            name = name,
+                            isZeroKey = isZeroKey,
+                            isLoading = uiState.isLoading,
+                            result = result
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                 }
             }
         }
@@ -519,37 +733,208 @@ private fun VerdictCard(
 }
 
 @Composable
-private fun SourceResultRow(source: SourceResult) {
+private fun ProviderRow(
+    name: String,
+    isZeroKey: Boolean,
+    isLoading: Boolean,
+    result: SourceResult?
+) {
+    val statusColor = when (result?.verdict) {
+        VerdictLevel.CLEAN -> VerdictClean
+        VerdictLevel.LOW_RISK -> VerdictLowRisk
+        VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+        VerdictLevel.MALICIOUS -> VerdictMalicious
+        VerdictLevel.NO_DATA, null -> VerdictNoData
+    }
+
+    val statusText = when {
+        isLoading -> "Scanning..."
+        result != null -> result.verdict.name
+        isZeroKey -> "Ready (Zero-Key)"
+        else -> "Key Required"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-            .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-            .padding(12.dp),
+            .background(Color(0xFF0D1424), RoundedCornerShape(10.dp))
+            .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = source.providerName,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = source.summary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (isZeroKey) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "● Free",
+                        color = VerdictClean,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            if (result != null) {
+                Text(
+                    text = result.summary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        Text(
-            text = source.verdict.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
+        Surface(
+            color = if (isLoading) PrimaryCyan.copy(alpha = 0.15f) else statusColor.copy(alpha = 0.18f),
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Text(
+                text = statusText,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                color = if (isLoading) PrimaryCyan else statusColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistorySheet(
+    history: List<TriageVerdict>,
+    onSelect: (TriageVerdict) -> Unit,
+    onClear: () -> Unit,
+    onClose: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+            .clickable { onClose() },
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = false) {}
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📜 Recent Scans (${history.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row {
+                        if (history.isNotEmpty()) {
+                            TextButton(onClick = onClear) {
+                                Text(text = "Clear", color = VerdictMalicious, fontSize = 12.sp)
+                            }
+                        }
+                        TextButton(onClick = onClose) {
+                            Text(text = "✕", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (history.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No scan history yet. Scan an indicator or share a file to get started.",
+                            color = MaterialTheme.colorScheme.outline,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        history.forEach { item ->
+                            val itemColor = when (item.overallVerdict) {
+                                VerdictLevel.CLEAN -> VerdictClean
+                                VerdictLevel.LOW_RISK -> VerdictLowRisk
+                                VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+                                VerdictLevel.MALICIOUS -> VerdictMalicious
+                                VerdictLevel.NO_DATA -> VerdictNoData
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF0D1424))
+                                    .border(0.5.dp, itemColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                    .clickable { onSelect(item) }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.indicator.rawValue,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${item.indicator.type} • Score: ${item.confidenceScore}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+
+                                Surface(
+                                    color = itemColor.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = item.overallVerdict.name,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        color = itemColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

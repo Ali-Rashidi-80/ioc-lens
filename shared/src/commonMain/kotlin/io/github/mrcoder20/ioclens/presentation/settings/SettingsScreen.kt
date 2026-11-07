@@ -55,6 +55,8 @@ fun SettingsScreen(
     var vtKey by remember(settingsState.virusTotalApiKey) { mutableStateOf(settingsState.virusTotalApiKey) }
     var abuseKey by remember(settingsState.abuseIpDbApiKey) { mutableStateOf(settingsState.abuseIpDbApiKey) }
     var alienKey by remember(settingsState.alienVaultApiKey) { mutableStateOf(settingsState.alienVaultApiKey) }
+    var pulseKey by remember(settingsState.pulsediveApiKey) { mutableStateOf(settingsState.pulsediveApiKey) }
+    var ipqsKey by remember(settingsState.ipQualityScoreApiKey) { mutableStateOf(settingsState.ipQualityScoreApiKey) }
     var showSavedMessage by remember { mutableStateOf(false) }
 
     Column(
@@ -278,11 +280,31 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(10.dp)
                 )
 
+                OutlinedTextField(
+                    value = pulseKey,
+                    onValueChange = { pulseKey = it },
+                    label = { Text("Pulsedive API Key (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = ipqsKey,
+                    onValueChange = { ipqsKey = it },
+                    label = { Text("IPQualityScore API Key (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+
                 Button(
                     onClick = {
                         settingsRepository.updateApiKey("virustotal", vtKey)
                         settingsRepository.updateApiKey("abuseipdb", abuseKey)
                         settingsRepository.updateApiKey("alienvault", alienKey)
+                        settingsRepository.updateApiKey("pulsedive", pulseKey)
+                        settingsRepository.updateApiKey("ipqualityscore", ipqsKey)
                         showSavedMessage = true
                     },
                     modifier = Modifier.fillMaxWidth(),

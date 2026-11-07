@@ -121,3 +121,4 @@ $RECYCLE.BIN/
 coverage/
 node_modules/
 .cache/
+graphify-out/

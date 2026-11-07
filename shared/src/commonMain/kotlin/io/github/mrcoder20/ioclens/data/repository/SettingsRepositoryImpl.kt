@@ -23,6 +23,8 @@ class SettingsRepositoryImpl(
     private val KEY_VT_API = "key_vt_api"
     private val KEY_ABUSEIPDB_API = "key_abuseipdb_api"
     private val KEY_ALIENVAULT_API = "key_alienvault_api"
+    private val KEY_PULSEDIVE_API = "key_pulsedive_api"
+    private val KEY_IPQUALITYSCORE_API = "key_ipqualityscore_api"
 
     private val _settingsState = MutableStateFlow(loadSettingsFromStorage())
     override val settingsState: StateFlow<AppSettings> = _settingsState.asStateFlow()
@@ -56,6 +58,8 @@ class SettingsRepositoryImpl(
             "virustotal" -> storage.setString(KEY_VT_API, key)
             "abuseipdb" -> storage.setString(KEY_ABUSEIPDB_API, key)
             "alienvault" -> storage.setString(KEY_ALIENVAULT_API, key)
+            "pulsedive" -> storage.setString(KEY_PULSEDIVE_API, key)
+            "ipqualityscore" -> storage.setString(KEY_IPQUALITYSCORE_API, key)
         }
         _settingsState.value = loadSettingsFromStorage()
     }
@@ -76,7 +80,9 @@ class SettingsRepositoryImpl(
             appLanguage = language,
             virusTotalApiKey = storage.getString(KEY_VT_API, ""),
             abuseIpDbApiKey = storage.getString(KEY_ABUSEIPDB_API, ""),
-            alienVaultApiKey = storage.getString(KEY_ALIENVAULT_API, "")
+            alienVaultApiKey = storage.getString(KEY_ALIENVAULT_API, ""),
+            pulsediveApiKey = storage.getString(KEY_PULSEDIVE_API, ""),
+            ipQualityScoreApiKey = storage.getString(KEY_IPQUALITYSCORE_API, "")
         )
     }
 }

@@ -12,5 +12,7 @@ data class AppSettings(
     val appLanguage: AppLanguage = getSystemLanguage(),
     val virusTotalApiKey: String = "",
     val abuseIpDbApiKey: String = "",
-    val alienVaultApiKey: String = ""
+    val alienVaultApiKey: String = "",
+    val pulsediveApiKey: String = "",
+    val ipQualityScoreApiKey: String = ""
 )

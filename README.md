@@ -56,13 +56,30 @@ Checking a suspicious indicator usually means copying it, opening several websit
 
 ## ✨ Highlights
 
-- ⚡ **Instant**: check what you just copied in about a second
-- 🌐 **Many sources, one answer**: results from several free threat-intelligence services, combined and explained
-- 🔎 **Explainable**: every verdict shows which sources contributed and why
-- 🛡️ **Privacy-first**: internal indicators never leave your machine
-- 🔑 **Your keys, your control**: no account, no telemetry, keys stay local
+- ⚡ **Instant Zero-Key Triage**: check indicators immediately using 4 free unauthenticated community feeds (abuse.ch URLhaus, MalwareBazaar, ThreatFox, and RDAP) with **zero API keys required** out of the box
+- 🌐 **10 Threat-Intel Providers**: combines live telemetry from URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH, VirusTotal, AbuseIPDB, AlienVault OTX, Pulsedive, and IPQualityScore
+- 🛡️ **Fault-Tolerant Parallel Aggregator**: parallel queries dispatched with strict 10s per-provider timeouts; skips filtered/blocked hosts without freezing or hanging
+- 🔒 **Memory-Safe Stream Hashing**: files up to 100MB+ are hashed via 64KB chunked streams on background worker threads without loading files into RAM or executing payloads
+- 📲 **Native Share Sheet Integration**: select "Share → IOC Lens" from Telegram, Eitaa, browsers, or file managers on Android/iOS/Desktop to auto-scan payloads in under 60 seconds
+- 🎯 **Cyberpunk Single-Hub Dashboard**: unified dashboard with expandable live engine status deck, instant verdict score, and persistent scan history
+- 🛡️ **Privacy Guard Subnet Security**: mathematically validates private IPv4/IPv6 subnets and local domains to keep internal assets strictly on your device
 - 🪶 **Light and native**: small, fast, for **Windows, macOS, Linux, Android and iOS**
 - 🔓 **Open source** under the MIT license
+
+## 🌐 Threat Intelligence Engine Inventory (10 Providers)
+
+| # | Provider | Auth Mode | Supported Indicators | Purpose |
+|---|---|---|---|---|
+| 1 | **URLhaus (abuse.ch)** | 🟢 Zero-Key Free | URLs, Domains, IPs | Active malware payload distribution URLs |
+| 2 | **MalwareBazaar (abuse.ch)** | 🟢 Zero-Key Free | Hashes (MD5, SHA1, SHA256) | Confirmed malware binary repository lookup |
+| 3 | **ThreatFox (abuse.ch)** | 🟢 Zero-Key Free | IPs, Domains, URLs, Hashes | Corroborated botnet C2 and malicious IOCs |
+| 4 | **RDAP / Network Registry** | 🟢 Zero-Key Free | IPs, Domains | ICANN, ARIN, RIPE, APNIC allocation metadata |
+| 5 | **Cloudflare DoH** | 🟢 Zero-Key Free | Domains, Hosts | Real-time DNS status & resolution validation |
+| 6 | **VirusTotal** | 🔑 API Key (Optional) | Hashes, IPs, Domains, URLs | Multivendor threat scanning across 70+ engines |
+| 7 | **AbuseIPDB** | 🔑 API Key (Optional) | IPv4, IPv6 | Community reports and abuse confidence score |
+| 8 | **AlienVault OTX** | 🔑 API Key (Optional) | Hashes, IPs, Domains, URLs | Open threat pulses and adversary campaigns |
+| 9 | **Pulsedive** | 🔑 API Key (Optional) | IPs, Domains, URLs | Risk level scoring and cyber threat context |
+| 10 | **IPQualityScore** | 🔑 API Key (Optional) | IPv4, IPv6 | Fraud scoring and VPN/Proxy detection |
 
 ## 📥 Install
 
@@ -129,9 +146,29 @@ iOS apps cannot be installed from a downloaded file. Use the **TestFlight / App 
 
 ## 🚀 Get started
 
-1. Open **Settings → Providers** and add a **free API key** for at least one source (for example VirusTotal, AbuseIPDB, AlienVault OTX or abuse.ch URLhaus). Each service offers free keys on its website.
-2. Copy any indicator: an IP, domain, URL or file hash.
-3. On desktop, use the shortcut shown in Settings or click the tray icon. On a phone, share the text to IOC Lens or paste it in the app. Your verdict appears in a moment.
+1. **Zero-Key Out-of-the-Box**: Open IOC Lens and immediately paste an indicator (or drop a file). The app automatically queries URLhaus, MalwareBazaar, ThreatFox, and RDAP without needing any configuration.
+2. **Optional API Keys**: Open **Settings → Providers** if you wish to configure personal API keys for VirusTotal, AbuseIPDB, or AlienVault OTX.
+3. **Share Sheet Workflow**: On Android, select text or a file in Telegram/Eitaa/browser, tap **Share → IOC Lens**. The app launches directly into the scan pipeline and provides an explainable verdict.
+4. **Desktop CLI & Drag-and-Drop**: On Windows/macOS/Linux, pass an indicator or file path directly as an argument (e.g. `./IOCLens "8.8.8.8"` or `./IOCLens sample.exe`).
+
+## 🛠️ Building & Automated Testing
+
+```bash
+# Run multiplatform unit tests (IOCParser, Aggregator, MockEngine)
+./gradlew :shared:jvmTest
+
+# Run Android host tests
+./gradlew :shared:testAndroidHostTest
+
+# Run 100MB synthetic stream hashing benchmark
+./gradlew :shared:jvmTest --tests "io.github.mrcoder20.ioclens.domain.security.ChunkedStreamHasherTest"
+
+# Build desktop application
+./gradlew :desktopApp:compileKotlin
+
+# Build Android debug APK
+./gradlew :androidApp:assembleDebug
+```
 
 ## 🎯 Understanding verdicts
 

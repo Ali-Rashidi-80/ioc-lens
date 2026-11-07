@@ -20,7 +20,7 @@ fun App() {
     // Composition Root / Dependency Injection (Persistent Settings Storage Across App Restarts)
     val keyValueStorage = remember { createPersistentKeyValueStorage() }
     val settingsRepository = remember { SettingsRepositoryImpl(keyValueStorage) }
-    val threatIntelRepository = remember { ThreatIntelRepositoryImpl() }
+    val threatIntelRepository = remember { ThreatIntelRepositoryImpl(settingsRepository) }
 
     val getAppSettingsUseCase = remember { GetAppSettingsUseCase(settingsRepository) }
     val setIntroCompletedUseCase = remember { SetIntroCompletedUseCase(settingsRepository) }

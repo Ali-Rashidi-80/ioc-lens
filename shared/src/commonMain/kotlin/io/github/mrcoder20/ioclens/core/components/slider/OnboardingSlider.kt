@@ -100,14 +100,6 @@ fun <T> OnboardingSlider(
         modifier = modifier
             .fillMaxSize()
             .background(containerBackgroundColor)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent()
-                        runCatching { focusRequester.requestFocus() }
-                    }
-                }
-            }
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
