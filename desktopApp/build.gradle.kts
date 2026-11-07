@@ -30,12 +30,20 @@ compose.desktop {
 
             windows {
                 iconFile.set(project.file("../docs/assets/logo/icon.ico"))
+                shortcut = true
+                menu = true
+                menuGroup = "IOC Lens"
+                dirChooser = true
             }
             macOS {
                 iconFile.set(project.file("../docs/assets/logo/icon.icns"))
+                dockName = "IOC Lens"
+                appCategory = "public.app-category.developer-tools"
             }
             linux {
                 iconFile.set(project.file("../docs/assets/logo/icon.png"))
+                shortcut = true
+                menuGroup = "Utility"
             }
         }
     }

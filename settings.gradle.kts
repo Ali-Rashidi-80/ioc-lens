@@ -1,4 +1,5 @@
 rootProject.name = "IOCLens"
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {

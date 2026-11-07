@@ -1,98 +1,243 @@
 name: Release
 
 # Publishes installers to GitHub Releases with STABLE file names, so the
-# README links  .../releases/latest/download/<name>  always work.
-# Trigger:  git tag v0.1.0 && git push origin v0.1.0   (or run manually)
+# README links .../releases/latest/download/<name> always work.
+# Trigger: git tag v0.1.0 && git push origin v0.1.0 (or run manually via Actions tab)
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release (e.g. v0.1.0)'
+        required: false
+        default: 'v0.1.0'
 
 permissions:
   contents: write
 
-jobs:
-  desktop:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            task: packageReleaseMsi
-            dir: msi
-            ext: msi
-            out: IOC-Lens-windows-x64.msi
-          - os: macos-latest            # Apple Silicon runner
-            task: packageReleaseDmg
-            dir: dmg
-            ext: dmg
-            out: IOC-Lens-macos-arm64.dmg
-          - os: ubuntu-latest
-            task: packageReleaseDeb
-            dir: deb
-            ext: deb
-            out: IOC-Lens-linux-amd64.deb
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Package
-        run: ./gradlew :desktopApp:${{ matrix.task }} --no-daemon
-      - name: Rename to stable name
-        shell: bash
-        run: |
-          mkdir -p dist
-          cp desktopApp/build/compose/binaries/main-release/${{ matrix.dir }}/*.${{ matrix.ext }} "dist/${{ matrix.out }}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.out }}
-          path: dist/${{ matrix.out }}
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
-  android:
+jobs:
+  build-windows:
+    name: Package Windows MSI (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Package Windows MSI
+        run: ./gradlew.bat :desktopApp:packageReleaseMsi --no-daemon --stacktrace
+
+      - name: Locate and Stage Windows MSI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          $msi = Get-ChildItem -Path desktopApp/build -Recurse -Filter "*.msi" | Select-Object -First 1
+          if ($msi) {
+            Copy-Item -Path $msi.FullName -Destination "dist/IOC-Lens-windows-x64.msi"
+            Write-Host "Staged: dist/IOC-Lens-windows-x64.msi (from $($msi.FullName))"
+          } else {
+            Write-Error "Windows MSI installer was not found in desktopApp/build."
+          }
+
+      - name: Upload Windows MSI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IOC-Lens-windows-x64.msi
+          path: dist/IOC-Lens-windows-x64.msi
+
+  build-linux:
+    name: Package Linux DEB (amd64)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
       - uses: gradle/actions/setup-gradle@v4
-      # Signing secrets: see docs/RELEASING.md (an unsigned APK cannot be installed)
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Package Linux DEB
+        run: ./gradlew :desktopApp:packageReleaseDeb --no-daemon --stacktrace
+
+      - name: Locate and Stage Linux DEB
+        run: |
+          mkdir -p dist
+          deb_file=$(find desktopApp/build -name "*.deb" | head -n 1)
+          if [ -n "$deb_file" ]; then
+            cp "$deb_file" "dist/IOC-Lens-linux-amd64.deb"
+            echo "Staged: dist/IOC-Lens-linux-amd64.deb"
+          else
+            echo "::error::Linux DEB installer was not found in desktopApp/build."
+            exit 1
+          fi
+
+      - name: Upload Linux DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IOC-Lens-linux-amd64.deb
+          path: dist/IOC-Lens-linux-amd64.deb
+
+  build-macos:
+    name: Package macOS DMG (Apple Silicon arm64)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Package macOS DMG
+        run: ./gradlew :desktopApp:packageReleaseDmg --no-daemon --stacktrace
+
+      - name: Locate and Stage macOS DMG
+        run: |
+          mkdir -p dist
+          dmg_file=$(find desktopApp/build -name "*.dmg" | head -n 1)
+          if [ -n "$dmg_file" ]; then
+            cp "$dmg_file" "dist/IOC-Lens-macos-arm64.dmg"
+            echo "Staged: dist/IOC-Lens-macos-arm64.dmg"
+          else
+            echo "::error::macOS DMG package was not found in desktopApp/build."
+            exit 1
+          fi
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IOC-Lens-macos-arm64.dmg
+          path: dist/IOC-Lens-macos-arm64.dmg
+
+  build-android:
+    name: Package Android Release APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Set up Android SDK platform and licenses
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --channel=3 "platforms;android-37.0" "build-tools;37.0.0" || true
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            cp -r "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37" || true
+          fi
+        shell: bash
+
+      # Signing secrets: see docs/RELEASING.md
       - name: Decode keystore
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-      - name: Build APK
+
+      - name: Build Android Release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease --no-daemon
-      - name: Rename
+        run: ./gradlew :androidApp:assembleRelease --no-daemon --stacktrace
+
+      - name: Locate and Stage Android APK
         run: |
           mkdir -p dist
-          cp androidApp/build/outputs/apk/release/*.apk dist/IOC-Lens-android.apk
-      - uses: actions/upload-artifact@v4
+          apk_file=$(find androidApp/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -n "$apk_file" ]; then
+            cp "$apk_file" "dist/IOC-Lens-android.apk"
+            echo "Staged: dist/IOC-Lens-android.apk"
+          else
+            echo "::error::Android APK was not found in androidApp/build/outputs/apk."
+            exit 1
+          fi
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: IOC-Lens-android.apk
           path: dist/IOC-Lens-android.apk
 
   publish:
-    needs: [desktop, android]
+    name: Publish Release & Checksums
+    needs: [build-windows, build-linux, build-macos, build-android]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all staged binary artifacts
+        uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Checksums
+
+      - name: Generate SHA256 Checksums
         working-directory: dist
-        run: sha256sum IOC-Lens-* > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+        run: |
+          sha256sum IOC-Lens-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Determine Release Body
+        id: release_notes
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            echo "has_changelog=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ github.ref_name || inputs.tag_name }}
+          name: "IOC Lens ${{ github.ref_name || inputs.tag_name }}"
+          body_path: ${{ steps.release_notes.outputs.has_changelog == 'true' && 'CHANGELOG.md' || '' }}
           files: dist/*
           generate_release_notes: true
+          draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

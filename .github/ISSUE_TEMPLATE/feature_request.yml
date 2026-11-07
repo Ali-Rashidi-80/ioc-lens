@@ -1,11 +1,29 @@
-name: ✨ Feature request
-description: Suggest an idea
-labels: [enhancement]
+name: ✨ Feature Request
+description: Suggest an idea or enhancement for IOC Lens
+title: "[FEAT]: "
+labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        We love new ideas! Describe your suggested feature, intel provider, or enhancement.
   - type: textarea
     id: problem
-    attributes: { label: What analyst problem does this solve? }
-    validations: { required: true }
+    attributes:
+      label: Problem Statement / Analyst Need
+      description: What analyst workflow or problem does this solve?
+      placeholder: "When analyzing complex IOCs, I need..."
+    validations:
+      required: true
   - type: textarea
-    id: idea
-    attributes: { label: Proposed solution }
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution or new capability you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative tools, manual steps, or solutions you have considered.

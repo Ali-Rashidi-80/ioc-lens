@@ -31,6 +31,11 @@ kotlin {
        androidResources {
            enable = true
        }
+       packaging {
+           resources {
+               excludes += "/META-INF/INDEX.LIST"
+           }
+       }
        withHostTest {
            isIncludeAndroidResources = true
        }
