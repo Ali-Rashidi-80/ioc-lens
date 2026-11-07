@@ -11,6 +11,7 @@ sealed interface HomeEvent {
     data class FileDropped(val filePath: String, val fileName: String) : HomeEvent
     data class HistoryItemClicked(val verdict: TriageVerdict) : HomeEvent
     data object AnalyzeClicked : HomeEvent
+    data object CancelScan : HomeEvent
     data object ClearClicked : HomeEvent
     data object ToggleProviderDeck : HomeEvent
     data class SetHistorySheetOpen(val isOpen: Boolean) : HomeEvent

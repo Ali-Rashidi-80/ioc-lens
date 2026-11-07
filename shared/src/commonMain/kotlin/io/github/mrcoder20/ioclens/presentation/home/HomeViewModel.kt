@@ -10,7 +10,9 @@ import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
 import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,14 +28,18 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val initialSettings = settingsRepository.getSettings()
+    private val initialHistory = settingsRepository.getScanHistory()
 
     private val _uiState = MutableStateFlow(
         HomeUiState(
             appTheme = initialSettings.appTheme,
-            appLanguage = initialSettings.appLanguage
+            appLanguage = initialSettings.appLanguage,
+            scanHistory = initialHistory
         )
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private var scanJob: Job? = null
 
     init {
         observeSettings()
@@ -99,7 +105,11 @@ class HomeViewModel(
             HomeEvent.AnalyzeClicked -> {
                 analyzeQuery()
             }
+            HomeEvent.CancelScan -> {
+                cancelScan()
+            }
             HomeEvent.ClearClicked -> {
+                cancelScan()
                 _uiState.update { it.copy(queryInput = "", activeVerdict = null, errorMessage = null) }
             }
             HomeEvent.ToggleProviderDeck -> {
@@ -115,9 +125,16 @@ class HomeViewModel(
                 _uiState.update { it.copy(isGuideOverlayOpen = event.isOpen) }
             }
             HomeEvent.ClearHistory -> {
+                settingsRepository.clearScanHistory()
                 _uiState.update { it.copy(scanHistory = emptyList()) }
             }
         }
+    }
+
+    private fun cancelScan() {
+        scanJob?.cancel()
+        scanJob = null
+        _uiState.update { it.copy(isLoading = false) }
     }
 
     private fun hashAndAnalyzeFile(filePath: String, fileName: String) {
@@ -162,23 +179,31 @@ class HomeViewModel(
             return
         }
 
-        viewModelScope.launch {
+        // Cancel any active in-flight scan to prevent race conditions from rapid re-submissions
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 val indicator = analyzeIndicatorUseCase.parseIndicator(input)
                 val verdict = analyzeIndicatorUseCase(indicator)
                 _uiState.update { state ->
-                    val updatedHistory = listOf(verdict) + state.scanHistory.filterNot {
+                    val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
                         it.indicator.normalizedValue == verdict.indicator.normalizedValue
-                    }.take(19)
+                    }).take(20)
+                    settingsRepository.saveScanHistory(updatedHistory)
                     state.copy(
                         isLoading = false,
                         activeVerdict = verdict,
                         scanHistory = updatedHistory
                     )
                 }
+            } catch (e: CancellationException) {
+                // Cooperative coroutine cancellation: clean exit, no error banner
+                _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Analysis failed") }
+            } finally {
+                scanJob = null
             }
         }
     }

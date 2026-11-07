@@ -4,12 +4,15 @@ import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppTheme
 import io.github.mrcoder20.ioclens.core.storage.KeyValueStorage
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
+import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.getSystemLanguage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class SettingsRepositoryImpl(
     private val storage: KeyValueStorage
@@ -25,6 +28,13 @@ class SettingsRepositoryImpl(
     private val KEY_ALIENVAULT_API = "key_alienvault_api"
     private val KEY_PULSEDIVE_API = "key_pulsedive_api"
     private val KEY_IPQUALITYSCORE_API = "key_ipqualityscore_api"
+    private val KEY_SCAN_HISTORY = "key_scan_history_json"
+
+    private val historyJson = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
 
     private val _settingsState = MutableStateFlow(loadSettingsFromStorage())
     override val settingsState: StateFlow<AppSettings> = _settingsState.asStateFlow()
@@ -62,6 +72,29 @@ class SettingsRepositoryImpl(
             "ipqualityscore" -> storage.setString(KEY_IPQUALITYSCORE_API, key)
         }
         _settingsState.value = loadSettingsFromStorage()
+    }
+
+    override fun getScanHistory(): List<TriageVerdict> {
+        val jsonStr = storage.getString(KEY_SCAN_HISTORY, "")
+        if (jsonStr.isBlank()) return emptyList()
+        return try {
+            historyJson.decodeFromString<List<TriageVerdict>>(jsonStr)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    override fun saveScanHistory(history: List<TriageVerdict>) {
+        try {
+            val jsonStr = historyJson.encodeToString(history.take(30))
+            storage.setString(KEY_SCAN_HISTORY, jsonStr)
+        } catch (_: Exception) {
+            // Gracefully ignore serialization errors
+        }
+    }
+
+    override fun clearScanHistory() {
+        storage.setString(KEY_SCAN_HISTORY, "")
     }
 
     private fun loadSettingsFromStorage(): AppSettings {

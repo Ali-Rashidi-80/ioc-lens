@@ -1,5 +1,8 @@
 package io.github.mrcoder20.ioclens.domain.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class VerdictLevel {
     CLEAN,
     LOW_RISK,
@@ -8,14 +11,17 @@ enum class VerdictLevel {
     NO_DATA
 }
 
+@Serializable
 data class SourceResult(
     val providerName: String,
     val verdict: VerdictLevel,
     val detectionsCount: Int,
     val totalEngineCount: Int,
-    val summary: String
+    val summary: String,
+    val isRateLimited: Boolean = false
 )
 
+@Serializable
 data class TriageVerdict(
     val indicator: Indicator,
     val overallVerdict: VerdictLevel,

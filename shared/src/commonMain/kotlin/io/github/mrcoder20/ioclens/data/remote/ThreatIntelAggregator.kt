@@ -2,10 +2,12 @@ package io.github.mrcoder20.ioclens.data.remote
 
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.model.Indicator
+import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
@@ -41,13 +43,23 @@ class ThreatIntelAggregator(
             )
         }
 
+        if (indicator.type == IndicatorType.UNKNOWN) {
+            return TriageVerdict(
+                indicator = indicator,
+                overallVerdict = VerdictLevel.NO_DATA,
+                confidenceScore = 0,
+                summaryDescription = "⚪ Unrecognized indicator format. Please provide a valid IP, Domain, URL, or File Hash.",
+                sourceResults = emptyList()
+            )
+        }
+
         val applicable = providers.filter { it.isApplicable(indicator) }
         if (applicable.isEmpty()) {
             return TriageVerdict(
                 indicator = indicator,
                 overallVerdict = VerdictLevel.NO_DATA,
                 confidenceScore = 0,
-                summaryDescription = "⚪ Unrecognized indicator format. Please provide a valid IP, Domain, URL, or File Hash.",
+                summaryDescription = "⚪ No threat intelligence engines applicable for this indicator type.",
                 sourceResults = emptyList()
             )
         }
@@ -65,6 +77,8 @@ class ThreatIntelAggregator(
                             totalEngineCount = 0,
                             summary = "Connection timed out after ${timeoutMs}ms (Provider skipped)"
                         )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         SourceResult(
                             providerName = provider.name,

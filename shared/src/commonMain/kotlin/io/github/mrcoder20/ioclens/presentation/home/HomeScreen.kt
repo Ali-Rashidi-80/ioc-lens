@@ -66,6 +66,7 @@ import io.github.mrcoder20.ioclens.core.theme.VerdictLowRisk
 import io.github.mrcoder20.ioclens.core.theme.VerdictMalicious
 import io.github.mrcoder20.ioclens.core.theme.VerdictNoData
 import io.github.mrcoder20.ioclens.core.theme.VerdictSuspicious
+import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
@@ -88,13 +89,14 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.activeVerdict != null
+    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
             uiState.isGuideOverlayOpen -> viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
             drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
+            uiState.isLoading -> viewModel.onEvent(HomeEvent.CancelScan)
             uiState.activeVerdict != null -> viewModel.onEvent(HomeEvent.ClearClicked)
         }
     }
@@ -437,20 +439,34 @@ fun HomeScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                 }
 
-                                Button(
-                                    onClick = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                    shape = RoundedCornerShape(10.dp),
-                                    enabled = !uiState.isLoading,
-                                    modifier = Modifier.height(40.dp)
-                                ) {
-                                    if (uiState.isLoading) {
+                                if (uiState.isLoading) {
+                                    Button(
+                                        onClick = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.height(40.dp)
+                                    ) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            color = Color.Black,
+                                            modifier = Modifier.size(14.dp),
+                                            color = Color.White,
                                             strokeWidth = 2.dp
                                         )
-                                    } else {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "⏹ CANCEL",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.height(40.dp)
+                                    ) {
                                         Text(
                                             text = "⚡ SCAN PAYLOAD",
                                             color = Color.Black,
@@ -722,7 +738,9 @@ private fun LiveProviderDeck(
                             name = name,
                             isZeroKey = isZeroKey,
                             isLoading = uiState.isLoading,
-                            result = result
+                            result = result,
+                            indicatorType = uiState.activeVerdict?.indicator?.type,
+                            hasActiveVerdict = uiState.activeVerdict != null
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                     }
@@ -732,24 +750,55 @@ private fun LiveProviderDeck(
     }
 }
 
+private fun isProviderApplicable(name: String, type: IndicatorType?): Boolean {
+    if (type == null || type == IndicatorType.UNKNOWN) return false
+    return when (name) {
+        "URLhaus (abuse.ch)" -> type == IndicatorType.URL || type == IndicatorType.DOMAIN
+        "MalwareBazaar (abuse.ch)" -> type == IndicatorType.FILE_HASH
+        "ThreatFox (abuse.ch)" -> true
+        "RDAP / Registry" -> type == IndicatorType.IP_ADDRESS || type == IndicatorType.DOMAIN
+        "Cloudflare DoH" -> type == IndicatorType.DOMAIN
+        "VirusTotal" -> true
+        "AbuseIPDB" -> type == IndicatorType.IP_ADDRESS
+        "AlienVault OTX" -> true
+        "Pulsedive" -> true
+        "IPQualityScore" -> type == IndicatorType.IP_ADDRESS
+        else -> false
+    }
+}
+
 @Composable
 private fun ProviderRow(
     name: String,
     isZeroKey: Boolean,
     isLoading: Boolean,
-    result: SourceResult?
+    result: SourceResult?,
+    indicatorType: IndicatorType?,
+    hasActiveVerdict: Boolean
 ) {
-    val statusColor = when (result?.verdict) {
-        VerdictLevel.CLEAN -> VerdictClean
-        VerdictLevel.LOW_RISK -> VerdictLowRisk
-        VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-        VerdictLevel.MALICIOUS -> VerdictMalicious
-        VerdictLevel.NO_DATA, null -> VerdictNoData
+    val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
+    val isTimedOut = result?.summary?.contains("timed out", ignoreCase = true) == true
+
+    val statusColor = when {
+        isRateLimited -> Color(0xFFF59E0B) // Amber Rate Limit Warning
+        isTimedOut -> Color(0xFF94A3B8)
+        result != null -> when (result.verdict) {
+            VerdictLevel.CLEAN -> VerdictClean
+            VerdictLevel.LOW_RISK -> VerdictLowRisk
+            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+            VerdictLevel.MALICIOUS -> VerdictMalicious
+            VerdictLevel.NO_DATA -> VerdictNoData
+        }
+        else -> VerdictNoData
     }
 
     val statusText = when {
         isLoading -> "Scanning..."
+        isRateLimited -> "Rate Limited"
+        isTimedOut -> "Timed Out"
         result != null -> result.verdict.name
+        hasActiveVerdict && !isProviderApplicable(name, indicatorType) -> "N/A for Type"
+        hasActiveVerdict -> "Key Required"
         isZeroKey -> "Ready (Zero-Key)"
         else -> "Key Required"
     }

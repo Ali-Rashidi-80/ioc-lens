@@ -1,5 +1,8 @@
 package io.github.mrcoder20.ioclens.domain.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class IndicatorType {
     IP_ADDRESS,
     DOMAIN,
@@ -8,6 +11,7 @@ enum class IndicatorType {
     UNKNOWN
 }
 
+@Serializable
 data class Indicator(
     val rawValue: String,
     val normalizedValue: String,

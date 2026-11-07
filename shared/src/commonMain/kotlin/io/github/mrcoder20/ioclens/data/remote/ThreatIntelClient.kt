@@ -19,6 +19,7 @@ import io.ktor.http.contentType
 import io.ktor.http.parameters
 import io.ktor.util.encodeBase64
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -29,6 +30,53 @@ val jsonParser = Json {
     ignoreUnknownKeys = true
     isLenient = true
     coerceInputValues = true
+}
+
+fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult {
+    return when (status) {
+        HttpStatusCode.TooManyRequests -> SourceResult(
+            providerName = providerName,
+            verdict = VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = 0,
+            summary = "Rate limit exceeded (HTTP 429): API quota reached, retry later",
+            isRateLimited = true
+        )
+        HttpStatusCode.InternalServerError,
+        HttpStatusCode.BadGateway,
+        HttpStatusCode.ServiceUnavailable,
+        HttpStatusCode.GatewayTimeout -> SourceResult(
+            providerName = providerName,
+            verdict = VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = 0,
+            summary = "Server error (HTTP ${status.value} ${status.description}): Provider temporarily unavailable"
+        )
+        HttpStatusCode.Unauthorized,
+        HttpStatusCode.Forbidden -> SourceResult(
+            providerName = providerName,
+            verdict = VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = 0,
+            summary = "Authentication failed (HTTP ${status.value}): Invalid or unauthorized API key"
+        )
+        else -> SourceResult(
+            providerName = providerName,
+            verdict = VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = 0,
+            summary = "HTTP ${status.value}: ${status.description}"
+        )
+    }
+}
+
+fun safeParseJsonObject(text: String): JsonObject? {
+    if (text.isBlank()) return null
+    return try {
+        jsonParser.parseToJsonElement(text).jsonObject
+    } catch (_: Exception) {
+        null
+    }
 }
 
 interface ThreatIntelProvider {
@@ -61,10 +109,12 @@ class UrlhausProvider : ThreatIntelProvider {
         )
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted URLhaus response payload")
+
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
         return when {
@@ -108,10 +158,12 @@ class MalwareBazaarProvider : ThreatIntelProvider {
         )
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted MalwareBazaar response payload")
+
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
         return when {
@@ -153,10 +205,12 @@ class ThreatFoxProvider : ThreatIntelProvider {
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted ThreatFox response payload")
+
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
         return when {
@@ -198,13 +252,15 @@ class RdapProvider : ThreatIntelProvider {
         val response = client.get("https://rdap.org/$path/${indicator.normalizedValue}")
 
         if (response.status == HttpStatusCode.NotFound) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unregistered or no RDAP record")
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unregistered or no RDAP record (HTTP 404)")
         }
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted RDAP response payload")
+
         val handle = body["handle"]?.jsonPrimitive?.contentOrNull
         val netName = body["name"]?.jsonPrimitive?.contentOrNull ?: handle ?: "Allocated Network"
         val country = body["country"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -231,15 +287,21 @@ class CloudflareDnsProvider : ThreatIntelProvider {
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted DNS response payload")
+
         val dnsStatus = body["Status"]?.jsonPrimitive?.intOrNull ?: -1
 
         return when (dnsStatus) {
             0 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 1, "DNS Resolution active: NOERROR (Status 0)")
+            1 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS FORMERR: Format error in DNS query (Status 1)")
+            2 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS SERVFAIL: Server failure while resolving domain (Status 2)")
             3 -> SourceResult(name, VerdictLevel.LOW_RISK, 0, 1, "DNS NXDOMAIN: Domain does not resolve (Status 3)")
+            4 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS NOTIMP: Query type not implemented (Status 4)")
+            5 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS REFUSED: DNS server refused query (Status 5)")
             else -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS Status code: $dnsStatus")
         }
     }
@@ -250,7 +312,9 @@ class VirusTotalProvider : ThreatIntelProvider {
     override val name = "VirusTotal"
     override val isZeroKey = false
 
-    override fun isApplicable(indicator: Indicator): Boolean = true
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type != IndicatorType.UNKNOWN
+    }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val apiKey = settings.virusTotalApiKey.trim()
@@ -277,10 +341,12 @@ class VirusTotalProvider : ThreatIntelProvider {
             return SourceResult(name, VerdictLevel.CLEAN, 0, 70, "No records found in VirusTotal database")
         }
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted VirusTotal response payload")
+
         val stats = body["data"]?.jsonObject?.get("attributes")?.jsonObject?.get("last_analysis_stats")?.jsonObject
         val malicious = stats?.get("malicious")?.jsonPrimitive?.intOrNull ?: 0
         val suspicious = stats?.get("suspicious")?.jsonPrimitive?.intOrNull ?: 0
@@ -328,10 +394,12 @@ class AbuseIpDbProvider : ThreatIntelProvider {
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted AbuseIPDB response payload")
+
         val data = body["data"]?.jsonObject
         val score = data?.get("abuseConfidenceScore")?.jsonPrimitive?.intOrNull ?: 0
         val reports = data?.get("totalReports")?.jsonPrimitive?.intOrNull ?: 0
@@ -358,7 +426,9 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
     override val name = "AlienVault OTX"
     override val isZeroKey = false
 
-    override fun isApplicable(indicator: Indicator): Boolean = true
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type != IndicatorType.UNKNOWN
+    }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val apiKey = settings.alienVaultApiKey.trim()
@@ -382,10 +452,12 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
             return SourceResult(name, VerdictLevel.CLEAN, 0, 0, "0 threat pulses found in AlienVault OTX")
         }
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted AlienVault OTX response payload")
+
         val pulseCount = body["pulse_info"]?.jsonObject?.get("count")?.jsonPrimitive?.intOrNull ?: 0
 
         val verdict = when {
@@ -409,7 +481,9 @@ class PulsediveProvider : ThreatIntelProvider {
     override val name = "Pulsedive"
     override val isZeroKey = false
 
-    override fun isApplicable(indicator: Indicator): Boolean = true
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type != IndicatorType.UNKNOWN
+    }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val apiKey = settings.pulsediveApiKey.trim()
@@ -419,11 +493,16 @@ class PulsediveProvider : ThreatIntelProvider {
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
-        val risk = body["risk"]?.jsonPrimitive?.contentOrNull?.lowercase() ?: "none"
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Pulsedive response payload")
+
+        val risk = body["risk"]?.jsonPrimitive?.contentOrNull?.lowercase()
+        if (risk == null) {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Pulsedive: No risk assessment in response")
+        }
 
         val verdict = when (risk) {
             "critical", "high" -> VerdictLevel.MALICIOUS
@@ -464,10 +543,12 @@ class IpQualityScoreProvider : ThreatIntelProvider {
         }
 
         if (response.status != HttpStatusCode.OK) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "HTTP ${response.status.value}")
+            return handleHttpError(name, response.status)
         }
 
-        val body = jsonParser.parseToJsonElement(response.bodyAsText()).jsonObject
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted IPQualityScore response payload")
+
         val success = body["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true
         if (!success) {
             val message = body["message"]?.jsonPrimitive?.contentOrNull ?: "IPQS Error"
