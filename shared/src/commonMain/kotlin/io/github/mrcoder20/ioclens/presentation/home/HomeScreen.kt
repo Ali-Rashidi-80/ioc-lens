@@ -732,6 +732,8 @@ private fun LiveProviderDeck(
                         "IPQualityScore" to false
                     )
 
+                    val currentIndicatorType = uiState.targetIndicator?.type ?: uiState.activeVerdict?.indicator?.type
+
                     allProviders.forEach { (name, isZeroKey) ->
                         val result = activeMap[name]
                         ProviderRow(
@@ -739,7 +741,7 @@ private fun LiveProviderDeck(
                             isZeroKey = isZeroKey,
                             isLoading = uiState.isLoading,
                             result = result,
-                            indicatorType = uiState.activeVerdict?.indicator?.type,
+                            indicatorType = currentIndicatorType,
                             hasActiveVerdict = uiState.activeVerdict != null
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -778,10 +780,13 @@ private fun ProviderRow(
 ) {
     val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
     val isTimedOut = result?.summary?.contains("timed out", ignoreCase = true) == true
+    val isApplicable = isProviderApplicable(name, indicatorType)
 
     val statusColor = when {
         isRateLimited -> Color(0xFFF59E0B) // Amber Rate Limit Warning
         isTimedOut -> Color(0xFF94A3B8)
+        isLoading && !isApplicable && indicatorType != null -> VerdictNoData
+        isLoading && isApplicable -> PrimaryCyan
         result != null -> when (result.verdict) {
             VerdictLevel.CLEAN -> VerdictClean
             VerdictLevel.LOW_RISK -> VerdictLowRisk
@@ -793,11 +798,12 @@ private fun ProviderRow(
     }
 
     val statusText = when {
+        isLoading && !isApplicable && indicatorType != null -> "N/A for Type"
         isLoading -> "Scanning..."
         isRateLimited -> "Rate Limited"
         isTimedOut -> "Timed Out"
         result != null -> result.verdict.name
-        hasActiveVerdict && !isProviderApplicable(name, indicatorType) -> "N/A for Type"
+        hasActiveVerdict && !isApplicable -> "N/A for Type"
         hasActiveVerdict -> "Key Required"
         isZeroKey -> "Ready (Zero-Key)"
         else -> "Key Required"

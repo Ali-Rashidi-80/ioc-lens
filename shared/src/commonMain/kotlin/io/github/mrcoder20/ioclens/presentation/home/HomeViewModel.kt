@@ -97,6 +97,7 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         activeVerdict = event.verdict,
+                        targetIndicator = event.verdict.indicator,
                         queryInput = event.verdict.indicator.rawValue,
                         isHistorySheetOpen = false
                     )
@@ -110,7 +111,7 @@ class HomeViewModel(
             }
             HomeEvent.ClearClicked -> {
                 cancelScan()
-                _uiState.update { it.copy(queryInput = "", activeVerdict = null, errorMessage = null) }
+                _uiState.update { it.copy(queryInput = "", targetIndicator = null, activeVerdict = null, errorMessage = null) }
             }
             HomeEvent.ToggleProviderDeck -> {
                 _uiState.update { it.copy(isProviderDeckExpanded = !it.isProviderDeckExpanded) }
@@ -134,7 +135,7 @@ class HomeViewModel(
     private fun cancelScan() {
         scanJob?.cancel()
         scanJob = null
-        _uiState.update { it.copy(isLoading = false) }
+        _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
     }
 
     private fun hashAndAnalyzeFile(filePath: String, fileName: String) {
@@ -182,9 +183,10 @@ class HomeViewModel(
         // Cancel any active in-flight scan to prevent race conditions from rapid re-submissions
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val indicator = analyzeIndicatorUseCase.parseIndicator(input)
+            // Immediately clear stale previous verdict and set loading state with target indicator
+            _uiState.update { it.copy(isLoading = true, targetIndicator = indicator, activeVerdict = null, errorMessage = null) }
             try {
-                val indicator = analyzeIndicatorUseCase.parseIndicator(input)
                 val verdict = analyzeIndicatorUseCase(indicator)
                 _uiState.update { state ->
                     val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
@@ -199,9 +201,9 @@ class HomeViewModel(
                 }
             } catch (e: CancellationException) {
                 // Cooperative coroutine cancellation: clean exit, no error banner
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Analysis failed") }
+                _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = e.message ?: "Analysis failed") }
             } finally {
                 scanJob = null
             }

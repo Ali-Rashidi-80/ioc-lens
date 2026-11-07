@@ -35,7 +35,7 @@ class ThreatIntelAggregator(
             return TriageVerdict(
                 indicator = indicator,
                 overallVerdict = VerdictLevel.CLEAN,
-                confidenceScore = 100,
+                confidenceScore = 0,
                 summaryDescription = "🛡️ Privacy Guard Activated: Private/Internal indicator detected. Remote lookups blocked to protect internal infrastructure.",
                 sourceResults = listOf(
                     SourceResult("Privacy Guard Local", VerdictLevel.CLEAN, 0, 1, "Internal indicator safely blocked locally")

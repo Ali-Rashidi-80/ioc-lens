@@ -32,6 +32,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -49,9 +50,9 @@ class HomeViewModelTest {
         override fun updateApiKey(provider: String, key: String) {}
 
         override fun getScanHistory(): List<TriageVerdict> = history.toList()
-        override fun saveScanHistory(newHistory: List<TriageVerdict>) {
-            history.clear()
-            history.addAll(newHistory)
+        override fun saveScanHistory(history: List<TriageVerdict>) {
+            this.history.clear()
+            this.history.addAll(history)
         }
         override fun clearScanHistory() { history.clear() }
     }
@@ -238,5 +239,38 @@ class HomeViewModelTest {
         assertEquals(AppLanguage.PERSIAN, viewModel.uiState.value.appLanguage)
         assertEquals("8.8.8.8", viewModel.uiState.value.queryInput)
         assertEquals(verdictBefore, viewModel.uiState.value.activeVerdict)
+    }
+
+    @Test
+    fun testStaleVerdictClearedImmediatelyOnNewScan() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository().apply { delayMs = 500 }
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // Complete first scan
+        viewModel.onEvent(HomeEvent.QueryChanged("1.1.1.1"))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        advanceUntilIdle()
+
+        assertNotNull(viewModel.uiState.value.activeVerdict)
+        assertEquals("1.1.1.1", viewModel.uiState.value.activeVerdict?.indicator?.normalizedValue)
+
+        // Start new scan on different indicator
+        viewModel.onEvent(HomeEvent.QueryChanged("evil-domain.com"))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        advanceTimeBy(50)
+
+        // While in-flight: stale verdict MUST be cleared, targetIndicator must be set
+        assertTrue(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.activeVerdict, "Stale verdict must be cleared immediately when starting new scan")
+        assertEquals("evil-domain.com", viewModel.uiState.value.targetIndicator?.normalizedValue)
+        assertEquals(IndicatorType.DOMAIN, viewModel.uiState.value.targetIndicator?.type)
+
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNotNull(viewModel.uiState.value.activeVerdict)
+        assertEquals("evil-domain.com", viewModel.uiState.value.activeVerdict?.indicator?.normalizedValue)
     }
 }

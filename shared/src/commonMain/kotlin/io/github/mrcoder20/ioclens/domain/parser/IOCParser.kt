@@ -64,7 +64,18 @@ class IOCParser {
             }
         }
 
-        // 3. IPv6 Check (with optional wrapping brackets, e.g. [::1])
+        // 3. IPv6 Check (with optional wrapping brackets, e.g. [::1], and optional port, e.g. [::1]:8080)
+        val bracketedWithPortRegex = Regex("""^\[([0-9a-fA-F:]+)\](?::(\d{1,5}))?$""")
+        val bracketedMatch = bracketedWithPortRegex.matchEntire(refanged)
+        if (bracketedMatch != null) {
+            val (ipPart, portStr) = bracketedMatch.destructured
+            val portValid = portStr.isEmpty() || ((portStr.toIntOrNull() ?: -1) in 1..65535)
+            if (portValid && isIpv6(ipPart)) {
+                val isPrivate = isPrivateIpv6(ipPart)
+                return ParsedIoc.IpAddress(trimmed, ipPart.lowercase(), isIpv6 = true, isPrivate = isPrivate)
+            }
+        }
+
         val unbracketedIpv6 = refanged.removeSurrounding("[", "]")
         if (isIpv6(unbracketedIpv6)) {
             val isPrivate = isPrivateIpv6(unbracketedIpv6)
@@ -72,7 +83,10 @@ class IOCParser {
         }
 
         // 4. URL Check
-        if (refanged.startsWith("http://", ignoreCase = true) || refanged.startsWith("https://", ignoreCase = true)) {
+        val isUrlScheme = refanged.startsWith("http://", ignoreCase = true) ||
+                refanged.startsWith("https://", ignoreCase = true) ||
+                refanged.startsWith("ftp://", ignoreCase = true)
+        if (isUrlScheme) {
             if (refanged.length <= MAX_URL_LENGTH) {
                 val host = extractHostFromUrl(refanged)
                 if (host.isNotBlank() && isValidHost(host)) {
@@ -140,6 +154,30 @@ class IOCParser {
         if (trimmed.startsWith(":") && !trimmed.startsWith("::")) return false
         if (trimmed.endsWith(":") && !trimmed.endsWith("::")) return false
 
+        // Check for embedded IPv4 (e.g. ::ffff:192.0.2.1)
+        if (trimmed.contains('.')) {
+            val lastColon = trimmed.lastIndexOf(':')
+            val ipPart = trimmed.substring(lastColon + 1)
+            val v6Prefix = trimmed.substring(0, lastColon)
+
+            val ipv4Regex = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
+            val v4Match = ipv4Regex.matchEntire(ipPart) ?: return false
+            val octets = v4Match.destructured.toList().mapNotNull { it.toIntOrNull() }
+            if (octets.size != 4 || !octets.all { it in 0..255 }) return false
+
+            val prefixParts = v6Prefix.split(":")
+            val hexPattern = Regex("^[0-9a-f]{1,4}$")
+            val prefixDoubleColon = v6Prefix.windowed(2).count { it == "::" }
+            if (prefixDoubleColon > 1) return false
+
+            return if (prefixDoubleColon == 1) {
+                val nonEmpty = prefixParts.filter { it.isNotEmpty() }
+                nonEmpty.size <= 5 && nonEmpty.all { it.matches(hexPattern) }
+            } else {
+                prefixParts.size == 6 && prefixParts.all { it.matches(hexPattern) }
+            }
+        }
+
         val parts = trimmed.split(":")
         val hexPattern = Regex("^[0-9a-f]{1,4}$")
 
@@ -154,20 +192,56 @@ class IOCParser {
     }
 
     private fun isPrivateIpv6(input: String): Boolean {
-        val normalized = input.trim().lowercase()
-        return when {
-            normalized == "::1" || normalized == "::" -> true
-            normalized.startsWith("fe80:") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb") -> true // Link-Local
-            normalized.startsWith("fc00:") || normalized.startsWith("fc") || normalized.startsWith("fd") -> true // Unique Local Address
-            else -> false
+        val normalized = input.trim().lowercase().removeSurrounding("[", "]")
+        if (normalized == "::1" || normalized == "::") return true
+
+        // Full uncompressed loopback check: 0:0:0:0:0:0:0:1 or 0:0:0:0:0:0:0:0
+        val parts = normalized.split(":")
+        if (parts.size == 8) {
+            val allHex = parts.mapNotNull { it.toIntOrNull(16) }
+            if (allHex.size == 8) {
+                val leadingSeven = allHex.take(7)
+                if (leadingSeven.all { it == 0 }) {
+                    if (allHex[7] == 0 || allHex[7] == 1) return true
+                }
+            }
         }
+
+        // IPv4-mapped IPv6 check: ::ffff:127.0.0.1 or ::ffff:192.168.x.x
+        if (normalized.startsWith("::ffff:") && normalized.substringAfter("::ffff:").contains('.')) {
+            val ipv4Part = normalized.substringAfter("::ffff:")
+            val ipv4Regex = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
+            val match = ipv4Regex.matchEntire(ipv4Part)
+            if (match != null) {
+                val octets = match.destructured.toList().mapNotNull { it.toIntOrNull() }
+                if (octets.size == 4 && octets.all { it in 0..255 }) {
+                    return isPrivateIpv4(octets)
+                }
+            }
+        }
+
+        // Link-Local (fe80::/10 -> 0xfe80..0xfebf) and Unique-Local (fc00::/7 -> 0xfc00..0xfdff)
+        val firstBlockStr = normalized.substringBefore(':')
+        if (firstBlockStr.isNotEmpty()) {
+            val firstBlockInt = firstBlockStr.toIntOrNull(16)
+            if (firstBlockInt != null) {
+                if (firstBlockInt in 0xfe80..0xfebf) return true
+                if (firstBlockInt in 0xfc00..0xfdff) return true
+            }
+        }
+
+        return false
     }
 
     private fun extractHostFromUrl(url: String): String {
         val noScheme = url.substringAfter("://")
         val authority = noScheme.substringBefore('/').substringBefore('?').substringBefore('#')
         val hostPart = authority.substringAfter('@')
-        return hostPart.substringBefore(':').lowercase().removeSurrounding("[", "]")
+        return if (hostPart.startsWith('[')) {
+            hostPart.substringAfter('[').substringBefore(']').lowercase()
+        } else {
+            hostPart.substringBefore(':').lowercase()
+        }
     }
 
     private fun isValidHost(host: String): Boolean {
@@ -206,6 +280,7 @@ class IOCParser {
     private fun isInternalDomain(domain: String): Boolean {
         val lower = domain.lowercase()
         return lower == "localhost" ||
+                lower.endsWith(".localhost") ||
                 lower.endsWith(".local") ||
                 lower.endsWith(".internal") ||
                 lower.endsWith(".lan") ||

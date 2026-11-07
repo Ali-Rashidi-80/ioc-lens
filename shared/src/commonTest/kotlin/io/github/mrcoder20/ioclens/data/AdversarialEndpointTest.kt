@@ -2,6 +2,8 @@ package io.github.mrcoder20.ioclens.data
 
 import io.github.mrcoder20.ioclens.core.storage.KeyValueStorage
 import io.github.mrcoder20.ioclens.data.remote.CloudflareDnsProvider
+import io.github.mrcoder20.ioclens.data.remote.IpQualityScoreProvider
+import io.github.mrcoder20.ioclens.data.remote.PulsediveProvider
 import io.github.mrcoder20.ioclens.data.remote.RdapProvider
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelAggregator
 import io.github.mrcoder20.ioclens.data.remote.VirusTotalProvider
@@ -313,5 +315,67 @@ class AdversarialEndpointTest {
         assertEquals(1, repo.getScanHistory().size)
         repo.clearScanHistory()
         assertTrue(repo.getScanHistory().isEmpty())
+    }
+
+    @Test
+    fun testIpQualityScoreQuotaExceededFlagsRateLimited() = runTest {
+        val mockEngine = MockEngine {
+            respond(
+                content = """{"success": false, "message": "You have exceeded your request quota."}""",
+                status = HttpStatusCode.OK,
+                headers = jsonHeaders
+            )
+        }
+
+        val client = HttpClient(mockEngine)
+        val provider = IpQualityScoreProvider()
+        val indicator = Indicator("8.8.8.8", "8.8.8.8", IndicatorType.IP_ADDRESS)
+        val settings = AppSettings(ipQualityScoreApiKey = "test_key")
+
+        val result = provider.query(client, indicator, settings)
+
+        assertTrue(result.isRateLimited, "IPQS quota exceeded must set isRateLimited = true")
+        assertTrue(result.summary.contains("Rate limit exceeded") || result.summary.contains("quota"))
+        assertEquals(VerdictLevel.NO_DATA, result.verdict)
+    }
+
+    @Test
+    fun testPulsediveRateLimitErrorFlagsRateLimited() = runTest {
+        val mockEngine = MockEngine {
+            respond(
+                content = """{"error": "API rate limit reached"}""",
+                status = HttpStatusCode.OK,
+                headers = jsonHeaders
+            )
+        }
+
+        val client = HttpClient(mockEngine)
+        val provider = PulsediveProvider()
+        val indicator = Indicator("evil.com", "evil.com", IndicatorType.DOMAIN)
+        val settings = AppSettings(pulsediveApiKey = "test_pulse_key")
+
+        val result = provider.query(client, indicator, settings)
+
+        assertTrue(result.isRateLimited, "Pulsedive rate limit response must set isRateLimited = true")
+        assertTrue(result.summary.contains("Rate limit exceeded") || result.summary.contains("rate limit"))
+        assertEquals(VerdictLevel.NO_DATA, result.verdict)
+    }
+
+    @Test
+    fun testPrivacyGuardThreatConfidenceScoreIsZero() = runTest {
+        val mockEngine = MockEngine {
+            respond("{}", HttpStatusCode.OK, jsonHeaders)
+        }
+
+        val client = HttpClient(mockEngine)
+        val aggregator = ThreatIntelAggregator(client)
+        val localIndicator = Indicator("127.0.0.1", "127.0.0.1", IndicatorType.IP_ADDRESS, isInternalOrPrivate = true)
+        val settings = AppSettings(privacyGuardEnabled = true)
+
+        val verdict = aggregator.aggregate(localIndicator, settings)
+
+        assertEquals(VerdictLevel.CLEAN, verdict.overallVerdict)
+        assertEquals(0, verdict.confidenceScore, "Safe private IP must have 0% threat confidence score, NOT 100%")
+        assertTrue(verdict.summaryDescription.contains("Privacy Guard Activated"))
     }
 }

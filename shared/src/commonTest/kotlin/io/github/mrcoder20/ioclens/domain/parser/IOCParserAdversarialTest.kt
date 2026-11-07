@@ -200,4 +200,87 @@ class IOCParserAdversarialTest {
             assertFalse(result is ParsedIoc.IpAddress, "Expected invalid IPv4 '$invalid' NOT to be IpAddress")
         }
     }
+
+    @Test
+    fun testUrlsWithBracketedIpv6HostExtraction() {
+        // IPv6 URL with port
+        val urlWithPort = parser.parse("http://[::1]:8080/path/to/resource")
+        val parsed1 = assertIs<ParsedIoc.Url>(urlWithPort)
+        assertEquals("::1", parsed1.host)
+        assertTrue(parsed1.isInternal, "Loopback IPv6 URL must be marked internal")
+
+        // IPv6 URL without port
+        val urlWithoutPort = parser.parse("https://[2001:db8::1]/index.html")
+        val parsed2 = assertIs<ParsedIoc.Url>(urlWithoutPort)
+        assertEquals("2001:db8::1", parsed2.host)
+        assertFalse(parsed2.isInternal)
+
+        // Defanged IPv6 URL
+        val defanged = parser.parse("hxxps[://][::1][:]8443/admin")
+        val parsed3 = assertIs<ParsedIoc.Url>(defanged)
+        assertEquals("::1", parsed3.host)
+        assertTrue(parsed3.isInternal)
+    }
+
+    @Test
+    fun testBracketedIpv6WithPortParsing() {
+        val bracketedLoopback = parser.parse("[::1]:8080")
+        val parsed1 = assertIs<ParsedIoc.IpAddress>(bracketedLoopback)
+        assertEquals("::1", parsed1.normalizedValue)
+        assertTrue(parsed1.isIpv6)
+        assertTrue(parsed1.isPrivate)
+
+        val bracketedPublic = parser.parse("[2001:db8::1]:443")
+        val parsed2 = assertIs<ParsedIoc.IpAddress>(bracketedPublic)
+        assertEquals("2001:db8::1", parsed2.normalizedValue)
+        assertTrue(parsed2.isIpv6)
+        assertFalse(parsed2.isPrivate)
+
+        // Invalid port > 65535
+        val invalidPort = parser.parse("[::1]:70000")
+        assertIs<ParsedIoc.Unknown>(invalidPort)
+    }
+
+    @Test
+    fun testUncompressedAndIpv4MappedLoopbackIpv6() {
+        // Full uncompressed 8-group loopback
+        val uncompressed = parser.parse("0:0:0:0:0:0:0:1")
+        val parsed1 = assertIs<ParsedIoc.IpAddress>(uncompressed)
+        assertTrue(parsed1.isPrivate, "0:0:0:0:0:0:0:1 must be marked as private loopback")
+
+        // Leading zeroes padded
+        val padded = parser.parse("0000:0000:0000:0000:0000:0000:0000:0001")
+        val parsed2 = assertIs<ParsedIoc.IpAddress>(padded)
+        assertTrue(parsed2.isPrivate, "0000:...:0001 must be marked as private loopback")
+
+        // IPv4-mapped loopback ::ffff:127.0.0.1
+        val mappedLoopback = parser.parse("::ffff:127.0.0.1")
+        val parsed3 = assertIs<ParsedIoc.IpAddress>(mappedLoopback)
+        assertTrue(parsed3.isPrivate, "::ffff:127.0.0.1 must be identified as private IPv4-mapped IPv6")
+    }
+
+    @Test
+    fun testLocalhostSubdomainsMarkedAsInternal() {
+        val subLocalhost = parser.parse("api.localhost")
+        val parsed = assertIs<ParsedIoc.Domain>(subLocalhost)
+        assertTrue(parsed.isInternal, "api.localhost should be identified as internal domain")
+
+        val deepSubLocalhost = parser.parse("dev.service.localhost")
+        val parsedDeep = assertIs<ParsedIoc.Domain>(deepSubLocalhost)
+        assertTrue(parsedDeep.isInternal, "dev.service.localhost should be identified as internal domain")
+    }
+
+    @Test
+    fun testFtpUrlsProperlyClassified() {
+        val ftpUrl = parser.parse("ftp://evil.com/payload.exe")
+        val parsed = assertIs<ParsedIoc.Url>(ftpUrl)
+        assertEquals("evil.com", parsed.host)
+        assertEquals("ftp://evil.com/payload.exe", parsed.normalizedValue)
+
+        // Refanged fxp://
+        val fxpUrl = parser.parse("fxp://threat.net/sample")
+        val parsedFxp = assertIs<ParsedIoc.Url>(fxpUrl)
+        assertEquals("threat.net", parsedFxp.host)
+        assertEquals("ftp://threat.net/sample", parsedFxp.normalizedValue)
+    }
 }

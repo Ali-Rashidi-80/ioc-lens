@@ -129,8 +129,11 @@ class UrlhausProvider : ThreatIntelProvider {
                     summary = "Known malicious URLhaus threat: $threat ($urlStatus)"
                 )
             }
-            queryStatus == "no_results" -> {
+            queryStatus == "no_results" || queryStatus == "no_result" -> {
                 SourceResult(name, VerdictLevel.CLEAN, 0, 1, "No active malware payloads recorded in URLhaus")
+            }
+            queryStatus.contains("rate_limit", ignoreCase = true) -> {
+                SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Rate limit exceeded (HTTP 429): API quota reached, retry later", isRateLimited = true)
             }
             else -> {
                 SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "URLhaus: $queryStatus")
@@ -499,6 +502,19 @@ class PulsediveProvider : ThreatIntelProvider {
         val body = safeParseJsonObject(response.bodyAsText())
             ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Pulsedive response payload")
 
+        val error = body["error"]?.jsonPrimitive?.contentOrNull
+        if (error != null) {
+            val isRate = error.contains("rate limit", ignoreCase = true) || error.contains("quota", ignoreCase = true)
+            return SourceResult(
+                name,
+                VerdictLevel.NO_DATA,
+                0,
+                0,
+                if (isRate) "Rate limit exceeded (HTTP 429): API quota reached, retry later" else "Pulsedive: $error",
+                isRateLimited = isRate
+            )
+        }
+
         val risk = body["risk"]?.jsonPrimitive?.contentOrNull?.lowercase()
         if (risk == null) {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Pulsedive: No risk assessment in response")
@@ -552,7 +568,15 @@ class IpQualityScoreProvider : ThreatIntelProvider {
         val success = body["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true
         if (!success) {
             val message = body["message"]?.jsonPrimitive?.contentOrNull ?: "IPQS Error"
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "IPQualityScore: $message")
+            val isRate = message.contains("quota", ignoreCase = true) || message.contains("rate limit", ignoreCase = true)
+            return SourceResult(
+                name,
+                VerdictLevel.NO_DATA,
+                0,
+                0,
+                if (isRate) "Rate limit exceeded (HTTP 429): API quota reached, retry later" else "IPQualityScore: $message",
+                isRateLimited = isRate
+            )
         }
 
         val fraudScore = body["fraud_score"]?.jsonPrimitive?.intOrNull ?: 0
