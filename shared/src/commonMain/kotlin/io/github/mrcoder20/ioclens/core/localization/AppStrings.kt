@@ -204,7 +204,7 @@ object LocalizationProvider {
                 maliciousSources.isNotEmpty() -> "🚨 پی‌لود آلوده شناسایی شد: تایید شده توسط $malNames."
                 suspiciousSources.isNotEmpty() -> "🟠 فعالیت مشکوک: هشدارهای تهدید توسط $suspNames ثبت گردید."
                 lowRiskSources.isNotEmpty() -> "🟡 ریسک پایین: سیگنال‌های تله‌متری جزئی گزارش شده اما امضای بدافزار فعالی تایید نشد."
-                cleanSources.isNotEmpty() -> "🟢 پاک و بدون تهدید: ${toPersianDigits(cleanSources.size.toString())} موتور هوش تهدید هیچ‌گونه فعالیت مخربی مشاهده نکردند."
+                cleanSources.isNotEmpty() -> "🟢 پاک و بدون تهدید: ${toPersianDigits(cleanSources.size.toString())} موتور تحلیلی هیچ‌گونه فعالیت مخربی مشاهده نکردند."
                 else -> "⚪ هیچ سابقه تهدیدی در موتورهای فعال عمومی یافت نشد."
             }
             AppLanguage.RUSSIAN -> when {
@@ -268,7 +268,7 @@ object LocalizationProvider {
                 summary.contains("Rate limit exceeded", ignoreCase = true) ->
                     "محدودیت نرخ درخواست (۴۲۹): سهمیه به اتمام رسید"
                 summary.contains("Request timed out", ignoreCase = true) ->
-                    "پایان مهلت زمانی ارتباط با سرور هوش تهدید"
+                    "پایان مهلت زمانی ارتباط با سرور"
                 summary.contains("Network connection failure", ignoreCase = true) ->
                     "خطای اتصال به شبکه هنگام استعلام از سرویس"
                 summary.contains("engines detected malicious", ignoreCase = true) ->
@@ -448,7 +448,7 @@ object LocalizationProvider {
                 systemDefaultTheme = "پیش‌فرض سیستم",
                 darkTheme = "تم تاریک اختصاصی",
                 apiKeysTitle = "کلیدهای API سرویس‌های تهدید",
-                apiKeysSubtitle = "⚡ فیدهای عمومی و رایگان هوش تهدید فعال هستند. در صورت تمایل می‌توانید کلیدهای اختصاصی خود را وارد نمایید:",
+                apiKeysSubtitle = "⚡ فیدهای عمومی و رایگان فعال هستند. در صورت تمایل می‌توانید کلیدهای اختصاصی خود را وارد نمایید:",
                 vtApiKeyLabel = "کلید API سرویس VirusTotal (اختیاری)",
                 abuseApiKeyLabel = "کلید API سرویس AbuseIPDB (اختیاری)",
                 alienApiKeyLabel = "کلید API سرویس AlienVault OTX (اختیاری)",
@@ -463,7 +463,7 @@ object LocalizationProvider {
                 noHistory = "هنوز هیچ تاریخچه اسکنی ثبت نشده است. یک نشانگر را اسکن کنید یا فایلی را به اشتراک بگذارید.",
                 threatConfidenceScore = "شاخص اطمینان تهدید",
                 indicatorTypeLabel = "نوع نشانگر",
-                threatIntelProvidersTitle = "🌐 سرویس‌های هوش تهدید (Threat Intel)",
+                threatIntelProvidersTitle = "🌐 سرویس‌های تحلیلی (Threat Intel)",
                 enginesCount = "۱۰ موتور تحلیلی",
                 freeBadge = "● رایگان",
                 statusReady = "آماده",
@@ -476,7 +476,7 @@ object LocalizationProvider {
                 closeButton = "بستن",
                 streamHashingFailed = "محاسبه هش جریانی با خطا مواجه شد",
                 errorRateLimit = "محدودیت تعداد درخواست در سرویس‌های خارجی. لطفاً دقایقی دیگر تلاش کنید.",
-                errorTimeout = "مهلت اتصال به فیدهای هوش تهدید به پایان رسید. اتصال اینترنت خود را بررسی کنید.",
+                errorTimeout = "مهلت اتصال به فیدهای تحلیلی به پایان رسید. اتصال اینترنت خود را بررسی کنید.",
                 errorNetwork = "خطا در تحلیل نشانگر. اتصال اینترنت را بررسی کنید.",
                 errorPrivacyGuard = "نشانگر داخلی/خصوصی توسط محافظ حریم خصوصی مسدود شد.",
                 tabScanner = "پویشگر",

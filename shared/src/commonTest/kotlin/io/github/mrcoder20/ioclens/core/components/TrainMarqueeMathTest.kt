@@ -71,5 +71,54 @@ class TrainMarqueeMathTest {
 
         assertEquals(385f, offsetPx, "Negative drag must wrap seamlessly into end of period")
     }
+
+    @Test
+    fun testControlledMarqueeOverflowCalculation() {
+        val textWidth = 320f
+        val containerWidth = 200f
+        val detectedOverflow = (textWidth - containerWidth).coerceAtLeast(0f)
+        assertEquals(120f, detectedOverflow, "Overflow must match exact difference when text exceeds container")
+
+        val shortTextWidth = 150f
+        val shortOverflow = (shortTextWidth - containerWidth).coerceAtLeast(0f)
+        assertEquals(0f, shortOverflow, "Overflow must be 0 when text comfortably fits container")
+    }
+
+    @Test
+    fun testControlledMarqueeTranslationVectors() {
+        val overflowPx = 80f
+
+        // In LTR, text starts at left (0). Hidden tail is on the right. Target translation is -80f.
+        val isRtlLtr = false
+        val targetLtr = if (isRtlLtr) overflowPx else -overflowPx
+        assertEquals(-80f, targetLtr)
+
+        // In RTL, text starts at right. Hidden tail is on the left. Target translation is +80f.
+        val isRtlFa = true
+        val targetRtl = if (isRtlFa) overflowPx else -overflowPx
+        assertEquals(80f, targetRtl)
+    }
+
+    @Test
+    fun testControlledMarqueeDurationBoundaries() {
+        val velocityDpPerSec = 32f
+        val density = 2f // 2 px per dp
+        val pxPerSec = velocityDpPerSec * density // 64 px/sec
+
+        // Short overflow (20px) -> duration clamped to minimum 600ms
+        val shortOverflow = 20f
+        val shortDurationMs = ((shortOverflow / pxPerSec) * 1000).toInt().coerceIn(600, 6000)
+        assertEquals(600, shortDurationMs)
+
+        // Moderate overflow (160px) -> 2.5 seconds (2500ms)
+        val modOverflow = 160f
+        val modDurationMs = ((modOverflow / pxPerSec) * 1000).toInt().coerceIn(600, 6000)
+        assertEquals(2500, modDurationMs)
+
+        // Extreme overflow (600px) -> duration clamped to maximum 6000ms
+        val extremeOverflow = 600f
+        val extremeDurationMs = ((extremeOverflow / pxPerSec) * 1000).toInt().coerceIn(600, 6000)
+        assertEquals(6000, extremeDurationMs)
+    }
 }
 

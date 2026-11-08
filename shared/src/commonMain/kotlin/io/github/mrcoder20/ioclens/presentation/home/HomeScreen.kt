@@ -891,15 +891,16 @@ private fun LiveScanBanner(
 
                         if (targetIndicator != null) {
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = targetIndicator.rawValue,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF9CA3AF),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.5.sp
-                            )
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                ControlledMarqueeText(
+                                    text = targetIndicator.rawValue,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF9CA3AF),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.5.sp,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
@@ -1473,13 +1474,12 @@ private fun OverallVerdictCard(
             ) {
                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Text(
+                        ControlledMarqueeText(
                             text = verdict.indicator.rawValue,
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                     Text(
@@ -1587,15 +1587,12 @@ private fun LiveProviderDeck(
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                    ControlledMarqueeText(
                         text = strings.threatIntelProvidersTitle,
                         style = MaterialTheme.typography.labelLarge,
                         color = PrimaryCyan,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                 }
@@ -1757,15 +1754,12 @@ private fun ProviderRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
+                ControlledMarqueeText(
                     text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = if (isTwoColumn) 11.5.sp else 13.sp,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 if (isZeroKey) {
@@ -1781,14 +1775,12 @@ private fun ProviderRow(
                 }
             }
             if (result != null) {
-                Text(
+                ControlledMarqueeText(
                     text = LocalizationProvider.getLocalizedSourceSummary(result.summary, appLanguage),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = if (isTwoColumn) 9.sp else 10.5.sp
+                    fontSize = if (isTwoColumn) 9.sp else 10.5.sp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -1797,15 +1789,14 @@ private fun ProviderRow(
             color = if (isLoading) PrimaryCyan.copy(alpha = 0.15f) else statusColor.copy(alpha = 0.18f),
             shape = RoundedCornerShape(6.dp)
         ) {
-            Text(
+            ControlledMarqueeText(
                 text = statusText,
-                modifier = Modifier.padding(horizontal = if (isTwoColumn) 5.dp else 8.dp, vertical = 2.dp),
+                modifier = Modifier
+                    .padding(horizontal = if (isTwoColumn) 5.dp else 8.dp, vertical = 2.dp)
+                    .widthIn(max = if (isTwoColumn) 115.dp else 160.dp),
                 color = if (isLoading) PrimaryCyan else statusColor,
                 fontWeight = FontWeight.Bold,
-                fontSize = if (isTwoColumn) 8.5.sp else 10.sp,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
+                fontSize = if (isTwoColumn) 8.5.sp else 10.sp
             )
         }
     }
@@ -2009,13 +2000,12 @@ private fun HistorySheet(
                                     ) {
                                         Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
                                             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                                Text(
+                                                ControlledMarqueeText(
                                                     text = item.indicator.rawValue,
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = Color.White,
                                                     fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    modifier = Modifier.fillMaxWidth()
                                                 )
                                             }
                                             Text(
@@ -2228,14 +2218,13 @@ private fun RecentTriageFeedHUD(
 
                                             Column {
                                                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                                    Text(
+                                                    ControlledMarqueeText(
                                                         text = item.indicator.rawValue,
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = Color.White,
                                                         fontWeight = FontWeight.SemiBold,
                                                         fontFamily = FontFamily.Monospace,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        modifier = Modifier.fillMaxWidth()
                                                     )
                                                 }
                                                 Text(
@@ -2343,15 +2332,13 @@ private fun CyberTelemetryFooter(
                         .clip(CircleShape)
                         .background(VerdictClean)
                 )
-                Text(
+                ControlledMarqueeText(
                     text = strings.serverlessStatus,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF94A3B8),
                     fontSize = if (isMobileOrTablet) 9.5.sp else 11.5.sp,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier.weight(1f, fill = false)
                 )
             }
         }

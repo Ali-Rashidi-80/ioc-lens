@@ -264,27 +264,8 @@ fun main(args: Array<String>) {
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                // Center Slot: Responsive Title Text (Takes exactly the available space, centered, never overflows or pushes buttons)
-                                Box(
-                                    modifier = Modifier.weight(1f),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (windowState.size.width < 560.dp) "IOC Lens" else "IOC Lens - Copy it. Know in a second.",
-                                        color = PrimaryCyan,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
+                                // Center Slot: Draggable Space (Clean, Minimal, Modern)
+                                Spacer(modifier = Modifier.weight(1f))
 
                                 // Right Slot: Window Controls (Minimize, Maximize, Close - Permanently Anchored to Far-Right)
                                 Row(
