@@ -93,7 +93,8 @@ fun SlideAnimatedGraphic(
     modifier: Modifier = Modifier,
     size: Dp = 180.dp,
     emojiFontSize: Int = 36,
-    isScrollInProgress: Boolean = false
+    isScrollInProgress: Boolean = false,
+    isActive: Boolean = true
 ) {
     val fileName = when (slideId) {
         1 -> "files/anim_search.json"
@@ -134,7 +135,7 @@ fun SlideAnimatedGraphic(
     if (activeComposition != null) {
         val lottieProgress by animateLottieCompositionAsState(
             composition = activeComposition,
-            isPlaying = !isScrollInProgress,
+            isPlaying = isActive && !isScrollInProgress,
             iterations = Compottie.IterateForever
         )
 
@@ -162,7 +163,8 @@ fun SlideAnimatedGraphic(
             emoji = emoji,
             modifier = modifier,
             size = size,
-            emojiFontSize = emojiFontSize
+            emojiFontSize = emojiFontSize,
+            isActive = isActive
         )
     }
 }
@@ -173,27 +175,36 @@ private fun FallbackVectorGraphic(
     emoji: String,
     modifier: Modifier = Modifier,
     size: Dp = 180.dp,
-    emojiFontSize: Int = 36
+    emojiFontSize: Int = 36,
+    isActive: Boolean = true
 ) {
-    val infiniteTransition = rememberInfiniteTransition()
+    val rotation: Float
+    val pulseScale: Float
 
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+    if (isActive) {
+        val infiniteTransition = rememberInfiniteTransition()
+        val r by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
         )
-    )
-
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
+        val p by infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1.15f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            )
         )
-    )
+        rotation = r
+        pulseScale = p
+    } else {
+        rotation = 0f
+        pulseScale = 1f
+    }
 
     Box(
         modifier = modifier

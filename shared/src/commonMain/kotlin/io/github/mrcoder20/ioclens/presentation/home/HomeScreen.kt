@@ -1,11 +1,17 @@
 package io.github.mrcoder20.ioclens.presentation.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -21,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -58,8 +66,12 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -72,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
+import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.core.theme.VerdictClean
@@ -79,11 +92,13 @@ import io.github.mrcoder20.ioclens.core.theme.VerdictLowRisk
 import io.github.mrcoder20.ioclens.core.theme.VerdictMalicious
 import io.github.mrcoder20.ioclens.core.theme.VerdictNoData
 import io.github.mrcoder20.ioclens.core.theme.VerdictSuspicious
+import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
+import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
 import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
 import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
@@ -254,6 +269,7 @@ fun HomeScreen(
                         selected = uiState.isGuideOverlayOpen,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
+                            introViewModel?.onEvent(IntroEvent.Reset)
                             coroutineScope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp)
@@ -282,6 +298,7 @@ fun HomeScreen(
             val isWideScreen = screenWidth >= 880.dp
             val isMediumScreen = screenWidth >= 560.dp && screenWidth < 880.dp
             val isCompactScreen = screenWidth < 400.dp
+            val isMobileOrTablet = screenWidth < 720.dp
 
             // Ambient Top Glow
             Box(
@@ -319,24 +336,26 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { coroutineScope.launch { drawerState.open() } },
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = "☰",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryCyan
-                            )
-                        }
+                        if (!isMobileOrTablet) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { coroutineScope.launch { drawerState.open() } },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = "☰",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryCyan
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
 
                         Row {
                             Text(
@@ -356,47 +375,49 @@ fun HomeScreen(
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // History Action Button with Counter
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true)) },
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                    if (!isMobileOrTablet) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // History Action Button with Counter
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true)) },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
                             ) {
-                                Text(text = "📜", fontSize = 14.sp)
-                                if (uiState.scanHistory.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryCyan
-                                    )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = "📜", fontSize = 14.sp)
+                                    if (uiState.scanHistory.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PrimaryCyan
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        // Settings Action Button
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true)) },
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
-                        ) {
-                            Text(
-                                text = "⚙️",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                fontSize = 14.sp
-                            )
+                            // Settings Action Button
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true)) },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                            ) {
+                                Text(
+                                    text = "⚙️",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -412,6 +433,20 @@ fun HomeScreen(
                         // Left Pane: Input, Progress & Verdict
                         Column(modifier = Modifier.weight(1.15f)) {
                             FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+
+                            AnimatedVisibility(
+                                visible = uiState.isLoading,
+                                enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                            ) {
+                                LiveScanBanner(
+                                    targetIndicator = uiState.targetIndicator,
+                                    finishedEngines = uiState.scanFinishedEngines,
+                                    totalEngines = uiState.scanTotalEngines,
+                                    appLanguage = uiState.appLanguage,
+                                    onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                )
+                            }
 
                             SearchCard(
                                 uiState = uiState,
@@ -451,6 +486,20 @@ fun HomeScreen(
                     // FLUID SINGLE-COLUMN / FOLDABLE DASHBOARD (Phones & Foldables)
                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
 
+                    AnimatedVisibility(
+                        visible = uiState.isLoading,
+                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                    ) {
+                        LiveScanBanner(
+                            targetIndicator = uiState.targetIndicator,
+                            finishedEngines = uiState.scanFinishedEngines,
+                            totalEngines = uiState.scanTotalEngines,
+                            appLanguage = uiState.appLanguage,
+                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                        )
+                    }
+
                     SearchCard(
                         uiState = uiState,
                         strings = strings,
@@ -484,7 +533,7 @@ fun HomeScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(if (isMobileOrTablet) 76.dp else 28.dp))
             }
 
             // History Sheet Overlay (Responsive: Floating Modal on Tablets/Desktop, Bottom Sheet on Phones)
@@ -503,7 +552,12 @@ fun HomeScreen(
             if (uiState.isSettingsSheetOpen) {
                 SettingsScreen(
                     settingsRepository = settingsRepository,
-                    onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) }
+                    onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) },
+                    onReplayGuide = {
+                        viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                        viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
+                        introViewModel?.onEvent(IntroEvent.Reset)
+                    }
                 )
             }
 
@@ -524,6 +578,370 @@ fun HomeScreen(
                             viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
                         }
                     )
+                }
+            }
+
+            // Mobile & Tablet Adaptive Cyberpunk Bottom Navigation Bar
+            if (isMobileOrTablet && !uiState.isGuideOverlayOpen) {
+                val currentTab = when {
+                    uiState.isSettingsSheetOpen -> 3
+                    uiState.isHistorySheetOpen -> 2
+                    uiState.isProviderDeckExpanded && !uiState.isSettingsSheetOpen && !uiState.isHistorySheetOpen -> 1
+                    else -> 0
+                }
+                CyberpunkBottomNavBar(
+                    selectedTab = currentTab,
+                    historyCount = uiState.scanHistory.size,
+                    appLanguage = uiState.appLanguage,
+                    strings = strings,
+                    onTabSelected = { tab ->
+                        when (tab) {
+                            0 -> {
+                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            }
+                            1 -> {
+                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                                if (!uiState.isProviderDeckExpanded) {
+                                    viewModel.onEvent(HomeEvent.ToggleProviderDeck)
+                                }
+                            }
+                            2 -> {
+                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
+                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            }
+                            3 -> {
+                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
+                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            }
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Animated Cyberpunk Live Status Banner with Radar Sweep, Target Details, Real-Time Engine Counter, and Instant Cancel.
+ */
+@Composable
+private fun LiveScanBanner(
+    targetIndicator: Indicator?,
+    finishedEngines: Int,
+    totalEngines: Int,
+    appLanguage: AppLanguage,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val strings = LocalizationProvider.getStrings(appLanguage)
+    val infiniteTransition = rememberInfiniteTransition()
+
+    // Rotating radar beam
+    val radarRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF091424).copy(alpha = 0.95f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.2.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    PrimaryCyan.copy(alpha = 0.8f),
+                    Color(0xFF00FF88).copy(alpha = 0.7f),
+                    PrimaryCyan.copy(alpha = 0.8f)
+                )
+            )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row: Radar + Target info + Cancel Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                ) {
+                    // Cyber Radar Scanner Icon
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF06101E))
+                            .border(1.dp, PrimaryCyan.copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(28.dp).rotate(radarRotation)) {
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val radius = size.width / 2f
+
+                            // Outer radar circle
+                            drawCircle(
+                                color = PrimaryCyan.copy(alpha = 0.35f),
+                                radius = radius,
+                                style = Stroke(width = 1.2.dp.toPx())
+                            )
+                            // Inner circle
+                            drawCircle(
+                                color = PrimaryCyan.copy(alpha = 0.2f),
+                                radius = radius * 0.55f,
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                            // Sweep needle
+                            drawLine(
+                                color = PrimaryCyan,
+                                start = center,
+                                end = Offset(center.x + radius, center.y),
+                                strokeWidth = 2.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+                        // Center blip
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                color = PrimaryCyan.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp),
+                                border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = targetIndicator?.let { LocalizationProvider.getIndicatorTypeName(it.type, appLanguage) } ?: strings.statusScanning,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryCyan
+                                )
+                            }
+
+                            Text(
+                                text = strings.liveScanInProgress,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        if (targetIndicator != null) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = targetIndicator.rawValue,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF9CA3AF),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.5.sp
+                            )
+                        }
+                    }
+                }
+
+                // Instant Cancel Button
+                Button(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.9f)),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier
+                        .height(36.dp)
+                        .border(1.dp, VerdictMalicious, RoundedCornerShape(10.dp))
+                ) {
+                    Text(
+                        text = strings.cancelScan,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Progress Bar & Finished Engines Counter
+            val progress = if (totalEngines > 0) (finishedEngines.toFloat() / totalEngines).coerceIn(0f, 1f) else 0f
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${LocalizationProvider.formatNumber(finishedEngines, appLanguage)} / ${LocalizationProvider.formatNumber(totalEngines, appLanguage)} ${strings.enginesCompleted}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 10.5.sp
+                    )
+                }
+
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = PrimaryCyan,
+                    trackColor = Color(0xFF101B2E)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Adaptive Cyberpunk Bottom Navigation Bar for Mobile and Tablet Viewports (< 720dp).
+ */
+@Composable
+private fun CyberpunkBottomNavBar(
+    selectedTab: Int,
+    historyCount: Int,
+    appLanguage: AppLanguage,
+    strings: AppStrings,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        color = Color(0xFF090E17).copy(alpha = 0.95f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    Color.Transparent,
+                    PrimaryCyan.copy(alpha = 0.5f),
+                    PrimaryCyan.copy(alpha = 0.7f),
+                    PrimaryCyan.copy(alpha = 0.5f),
+                    Color.Transparent
+                )
+            )
+        ),
+        shadowElevation = 16.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val tabs = listOf(
+                Triple(0, "🔍", strings.tabScanner),
+                Triple(1, "🌐", strings.tabEngines),
+                Triple(2, "📜", strings.tabHistory),
+                Triple(3, "⚙️", strings.tabSettings)
+            )
+
+            tabs.forEach { (index, icon, label) ->
+                val isSelected = selectedTab == index
+                val activeColor = PrimaryCyan
+                val inactiveColor = Color(0xFF7E8B9F)
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onTabSelected(index) }
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = icon,
+                                fontSize = if (isSelected) 19.sp else 17.sp
+                            )
+                            if (index == 2 && historyCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 10.dp, y = (-4).dp)
+                                        .background(PrimaryCyan, CircleShape)
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = LocalizationProvider.formatNumber(historyCount, appLanguage),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) activeColor else inactiveColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        if (isSelected) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(16.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(PrimaryCyan)
+                            )
+                        }
+                    }
                 }
             }
         }

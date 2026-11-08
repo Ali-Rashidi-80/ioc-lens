@@ -273,4 +273,47 @@ class HomeViewModelTest {
         assertNotNull(viewModel.uiState.value.activeVerdict)
         assertEquals("evil-domain.com", viewModel.uiState.value.activeVerdict?.indicator?.normalizedValue)
     }
+
+    @Test
+    fun testLiveScanBannerEngineProgressUpdates() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = object : ThreatIntelRepository {
+            override suspend fun analyzeIndicator(indicator: Indicator): TriageVerdict = analyzeIndicator(indicator, null)
+            override suspend fun analyzeIndicator(
+                indicator: Indicator,
+                onProgress: ((finishedCount: Int, totalCount: Int) -> Unit)?
+            ): TriageVerdict {
+                onProgress?.invoke(0, 10)
+                delay(100)
+                onProgress?.invoke(5, 10)
+                delay(100)
+                onProgress?.invoke(10, 10)
+                return TriageVerdict(
+                    indicator = indicator,
+                    overallVerdict = VerdictLevel.CLEAN,
+                    confidenceScore = 0,
+                    summaryDescription = "Clean",
+                    sourceResults = emptyList()
+                )
+            }
+        }
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        viewModel.onEvent(HomeEvent.QueryChanged("8.8.8.8"))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        advanceTimeBy(10)
+
+        assertTrue(viewModel.uiState.value.isLoading)
+        assertEquals(0, viewModel.uiState.value.scanFinishedEngines)
+        assertEquals(10, viewModel.uiState.value.scanTotalEngines)
+
+        advanceTimeBy(100)
+        assertEquals(5, viewModel.uiState.value.scanFinishedEngines)
+
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNotNull(viewModel.uiState.value.activeVerdict)
+    }
 }

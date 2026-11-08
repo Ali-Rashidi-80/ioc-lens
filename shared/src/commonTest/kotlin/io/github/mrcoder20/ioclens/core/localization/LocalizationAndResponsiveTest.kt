@@ -114,6 +114,12 @@ class LocalizationAndResponsiveTest {
         assertFalse(strings.errorNetwork.isBlank())
         assertFalse(strings.errorPrivacyGuard.isBlank())
         assertFalse(strings.streamHashingFailed.isBlank())
+        assertFalse(strings.tabScanner.isBlank())
+        assertFalse(strings.tabEngines.isBlank())
+        assertFalse(strings.tabHistory.isBlank())
+        assertFalse(strings.tabSettings.isBlank())
+        assertFalse(strings.liveScanInProgress.isBlank())
+        assertFalse(strings.enginesCompleted.isBlank())
     }
 
     @Test

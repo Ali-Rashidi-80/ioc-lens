@@ -68,7 +68,13 @@ data class AppStrings(
     val errorRateLimit: String,
     val errorTimeout: String,
     val errorNetwork: String,
-    val errorPrivacyGuard: String
+    val errorPrivacyGuard: String,
+    val tabScanner: String,
+    val tabEngines: String,
+    val tabHistory: String,
+    val tabSettings: String,
+    val liveScanInProgress: String,
+    val enginesCompleted: String
 )
 
 object LocalizationProvider {
@@ -365,7 +371,13 @@ object LocalizationProvider {
                 errorRateLimit = "Rate limit exceeded on external intelligence services. Please retry shortly.",
                 errorTimeout = "Timeout contacting threat intelligence feeds. Check your internet connection.",
                 errorNetwork = "Failed to analyze indicator. Check your network connection.",
-                errorPrivacyGuard = "Private/Internal indicator blocked by Privacy Guard."
+                errorPrivacyGuard = "Private/Internal indicator blocked by Privacy Guard.",
+                tabScanner = "Scanner",
+                tabEngines = "Engines",
+                tabHistory = "History",
+                tabSettings = "Settings",
+                liveScanInProgress = "Live engine scan in progress...",
+                enginesCompleted = "engines complete"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -431,7 +443,13 @@ object LocalizationProvider {
                 errorRateLimit = "محدودیت تعداد درخواست در سرویس‌های خارجی. لطفاً دقایقی دیگر تلاش کنید.",
                 errorTimeout = "مهلت اتصال به فیدهای هوش تهدید به پایان رسید. اتصال اینترنت خود را بررسی کنید.",
                 errorNetwork = "خطا در تحلیل نشانگر. اتصال اینترنت را بررسی کنید.",
-                errorPrivacyGuard = "نشانگر داخلی/خصوصی توسط محافظ حریم خصوصی مسدود شد."
+                errorPrivacyGuard = "نشانگر داخلی/خصوصی توسط محافظ حریم خصوصی مسدود شد.",
+                tabScanner = "پویشگر",
+                tabEngines = "موتورها",
+                tabHistory = "تاریخچه",
+                tabSettings = "تنظیمات",
+                liveScanInProgress = "در حال اسکن زنده موتورها...",
+                enginesCompleted = "موتور تکمیل شد"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -497,7 +515,13 @@ object LocalizationProvider {
                 errorRateLimit = "Превышен лимит запросов к внешним сервисам. Повторите позже.",
                 errorTimeout = "Время ожидания ответа сервисов истекло. Проверьте интернет-соединение.",
                 errorNetwork = "Не удалось проанализировать индикатор. Проверьте сетевое соединение.",
-                errorPrivacyGuard = "Внутренний индикатор заблокирован Privacy Guard."
+                errorPrivacyGuard = "Внутренний индикатор заблокирован Privacy Guard.",
+                tabScanner = "Сканер",
+                tabEngines = "Движки",
+                tabHistory = "История",
+                tabSettings = "Настройки",
+                liveScanInProgress = "Идет сканирование движков...",
+                enginesCompleted = "движков проверено"
             )
         }
     }

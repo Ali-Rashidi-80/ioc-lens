@@ -62,6 +62,15 @@ class IntroViewModel(
             IntroEvent.CompleteClicked -> {
                 completeIntro()
             }
+            IntroEvent.Reset -> {
+                _uiState.update {
+                    it.copy(
+                        currentPageIndex = 0,
+                        isLastPage = false,
+                        isCompleted = false
+                    )
+                }
+            }
         }
     }
 

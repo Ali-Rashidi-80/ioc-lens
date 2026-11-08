@@ -84,4 +84,65 @@ class CleanArchitectureTest {
         val systemLanguage = getSystemLanguage()
         assertTrue(systemLanguage in AppLanguage.entries)
     }
+
+    @Test
+    fun testSettingsPersistenceAndAllApiKeys() {
+        val storage = InMemoryKeyValueStorage()
+        val settingsRepo1 = SettingsRepositoryImpl(storage)
+
+        // Default privacy guard is true
+        assertTrue(settingsRepo1.getSettings().privacyGuardEnabled)
+
+        // Toggle privacy guard OFF
+        settingsRepo1.setPrivacyGuardEnabled(false)
+        assertFalse(settingsRepo1.getSettings().privacyGuardEnabled)
+
+        // Set all 5 API keys
+        settingsRepo1.updateApiKey("virustotal", "vt-key-999")
+        settingsRepo1.updateApiKey("abuseipdb", "abuse-key-888")
+        settingsRepo1.updateApiKey("alienvault", "alien-otx-777")
+        settingsRepo1.updateApiKey("pulsedive", "pulse-key-666")
+        settingsRepo1.updateApiKey("ipqualityscore", "ipqs-key-555")
+
+        // Verify in repo1
+        val s1 = settingsRepo1.getSettings()
+        assertEquals("vt-key-999", s1.virusTotalApiKey)
+        assertEquals("abuse-key-888", s1.abuseIpDbApiKey)
+        assertEquals("alien-otx-777", s1.alienVaultApiKey)
+        assertEquals("pulse-key-666", s1.pulsediveApiKey)
+        assertEquals("ipqs-key-555", s1.ipQualityScoreApiKey)
+        assertFalse(s1.privacyGuardEnabled)
+
+        // Simulate app restart by loading new repository from the same storage
+        val settingsRepo2 = SettingsRepositoryImpl(storage)
+        val s2 = settingsRepo2.getSettings()
+        assertEquals("vt-key-999", s2.virusTotalApiKey)
+        assertEquals("abuse-key-888", s2.abuseIpDbApiKey)
+        assertEquals("alien-otx-777", s2.alienVaultApiKey)
+        assertEquals("pulse-key-666", s2.pulsediveApiKey)
+        assertEquals("ipqs-key-555", s2.ipQualityScoreApiKey)
+        assertFalse(s2.privacyGuardEnabled)
+    }
+
+    @Test
+    fun testIntroResetForReplay() {
+        val storage = InMemoryKeyValueStorage()
+        val settingsRepo = SettingsRepositoryImpl(storage)
+        val setIntroUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val introViewModel = io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel(setIntroUseCase, settingsRepo)
+
+        // User navigates through slides and completes intro
+        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.PageChanged(3))
+        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.CompleteClicked)
+
+        assertTrue(introViewModel.uiState.value.isCompleted)
+        assertTrue(settingsRepo.getSettings().isIntroCompleted)
+
+        // User triggers guide replay from Drawer or Settings
+        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.Reset)
+
+        assertFalse(introViewModel.uiState.value.isCompleted, "isCompleted must be reset to false for smooth replay")
+        assertEquals(0, introViewModel.uiState.value.currentPageIndex, "currentPageIndex must reset to 0")
+        assertFalse(introViewModel.uiState.value.isLastPage)
+    }
 }

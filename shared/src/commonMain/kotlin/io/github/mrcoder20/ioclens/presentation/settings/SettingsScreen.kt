@@ -1,6 +1,12 @@
 package io.github.mrcoder20.ioclens.presentation.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,9 +18,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -24,10 +33,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -47,13 +56,16 @@ import io.github.mrcoder20.ioclens.core.components.CountryFlag
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppTheme
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
+import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
+import kotlinx.coroutines.delay
 
 @Composable
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onReplayGuide: (() -> Unit)? = null
 ) {
     val settingsState by settingsRepository.settingsState.collectAsState()
     val strings = LocalizationProvider.getStrings(settingsState.appLanguage)
@@ -66,6 +78,17 @@ fun SettingsScreen(
     var pulseKey by remember(settingsState.pulsediveApiKey) { mutableStateOf(settingsState.pulsediveApiKey) }
     var ipqsKey by remember(settingsState.ipQualityScoreApiKey) { mutableStateOf(settingsState.ipQualityScoreApiKey) }
     var showSavedMessage by remember { mutableStateOf(false) }
+
+    // Automatic debounced persistence for API keys
+    LaunchedEffect(vtKey, abuseKey, alienKey, pulseKey, ipqsKey) {
+        delay(600)
+        val s = settingsRepository.getSettings()
+        if (vtKey != s.virusTotalApiKey) settingsRepository.updateApiKey("virustotal", vtKey)
+        if (abuseKey != s.abuseIpDbApiKey) settingsRepository.updateApiKey("abuseipdb", abuseKey)
+        if (alienKey != s.alienVaultApiKey) settingsRepository.updateApiKey("alienvault", alienKey)
+        if (pulseKey != s.pulsediveApiKey) settingsRepository.updateApiKey("pulsedive", pulseKey)
+        if (ipqsKey != s.ipQualityScoreApiKey) settingsRepository.updateApiKey("ipqualityscore", ipqsKey)
+    }
 
     Box(
         modifier = modifier
@@ -285,10 +308,9 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
+                        CyberSwitch(
                             checked = settingsState.privacyGuardEnabled,
-                            onCheckedChange = { settingsRepository.setPrivacyGuardEnabled(it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                            onCheckedChange = { settingsRepository.setPrivacyGuardEnabled(it) }
                         )
                     }
                 }
@@ -399,10 +421,92 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
+
+                    if (onReplayGuide != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = onReplayGuide,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "💡 ${strings.introGuide}",
+                                color = PrimaryCyan,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * Cyberpunk Neon Switch with High-Contrast Track and Distinct Core Diode.
+ * Guaranteed visible contrast in both ON and OFF states.
+ */
+@Composable
+fun CyberSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val thumbOffset by animateDpAsState(
+        targetValue = if (checked) 24.dp else 4.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+    )
+
+    val trackBorderColor by animateColorAsState(
+        targetValue = if (checked) PrimaryCyan else Color(0xFF334155),
+        animationSpec = tween(250)
+    )
+
+    val trackBgColor by animateColorAsState(
+        targetValue = if (checked) Color(0xFF04202C) else Color(0xFF0D1424),
+        animationSpec = tween(250)
+    )
+
+    val thumbColor by animateColorAsState(
+        targetValue = if (checked) PrimaryCyan else Color(0xFF94A3B8),
+        animationSpec = tween(250)
+    )
+
+    val coreColor by animateColorAsState(
+        targetValue = if (checked) Color(0xFF031018) else Color(0xFF1E293B),
+        animationSpec = tween(250)
+    )
+
+    Box(
+        modifier = modifier
+            .width(52.dp)
+            .height(30.dp)
+            .clip(RoundedCornerShape(50))
+            .background(trackBgColor)
+            .border(1.5.dp, trackBorderColor, RoundedCornerShape(50))
+            .clickable { onCheckedChange(!checked) }
+            .pointerHoverIcon(PointerIcon.Hand)
+            .padding(vertical = 3.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = thumbOffset)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(thumbColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(coreColor)
+            )
         }
     }
 }

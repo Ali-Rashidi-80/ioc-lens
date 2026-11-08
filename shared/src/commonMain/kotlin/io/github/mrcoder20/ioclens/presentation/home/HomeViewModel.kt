@@ -135,7 +135,7 @@ class HomeViewModel(
     private fun cancelScan() {
         scanJob?.cancel()
         scanJob = null
-        _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
+        _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0, scanTotalEngines = 10) }
     }
 
     private fun hashAndAnalyzeFile(filePath: String, fileName: String) {
@@ -186,9 +186,24 @@ class HomeViewModel(
         scanJob = viewModelScope.launch {
             val indicator = analyzeIndicatorUseCase.parseIndicator(input)
             // Immediately clear stale previous verdict and set loading state with target indicator
-            _uiState.update { it.copy(isLoading = true, targetIndicator = indicator, activeVerdict = null, errorMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    targetIndicator = indicator,
+                    activeVerdict = null,
+                    errorMessage = null,
+                    scanFinishedEngines = 0,
+                    scanTotalEngines = 10
+                )
+            }
             try {
-                val verdict = analyzeIndicatorUseCase(indicator)
+                val verdict = analyzeIndicatorUseCase(indicator) { finished, total ->
+                    _uiState.update { state ->
+                        if (state.isLoading) {
+                            state.copy(scanFinishedEngines = finished, scanTotalEngines = total)
+                        } else state
+                    }
+                }
                 _uiState.update { state ->
                     val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
                         it.indicator.normalizedValue == verdict.indicator.normalizedValue
@@ -202,7 +217,7 @@ class HomeViewModel(
                 }
             } catch (e: CancellationException) {
                 // Cooperative coroutine cancellation: clean exit, no error banner
-                _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
+                _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0) }
             } catch (e: Exception) {
                 val errorMsg = when {
                     e.message?.contains("Rate Limit", ignoreCase = true) == true -> strings.errorRateLimit

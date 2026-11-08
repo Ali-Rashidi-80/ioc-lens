@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -82,7 +85,11 @@ fun <T> OnboardingSlider(
     containerBackgroundColor: Color = Color(0xFF06080D).copy(alpha = 0.82f),
     topBarContent: @Composable (() -> Unit)? = null,
     onFinishClicked: () -> Unit,
+    onSkipClicked: (() -> Unit)? = null,
     doneText: String = "DONE",
+    nextText: String? = null,
+    previousText: String? = null,
+    skipText: String? = null,
     pageContent: @Composable (item: T, page: Int) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -288,11 +295,86 @@ fun <T> OnboardingSlider(
                     }
                 )
 
-                // Row 2: Centered Action Capsule Button
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                // Row 2: Symmetric Control Bar with Previous, Skip & Next/Done
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Start side: Previous button (when currentPage > 0) OR Skip (on first slide)
+                    if (pagerState.currentPage > 0) {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage - 1, animationSpec = animSpec)
+                                    runCatching { focusRequester.requestFocus() }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .height(42.dp)
+                                .border(1.2.dp, PrimaryCyan.copy(alpha = 0.45f), RoundedCornerShape(50))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                VectorPrevArrow(isRtl = isRtl)
+                                if (previousText != null) {
+                                    Text(
+                                        text = previousText,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.5.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    } else if (onSkipClicked != null && !isLastPage) {
+                        TextButton(
+                            onClick = {
+                                onSkipClicked()
+                                coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
+                            },
+                            modifier = Modifier.height(42.dp)
+                        ) {
+                            Text(
+                                text = skipText ?: if (isRtl) "رد کردن" else "Skip",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(42.dp))
+                    }
+
+                    // Middle: Discreet Skip button if currentPage > 0 and not last page
+                    if (pagerState.currentPage > 0 && !isLastPage && onSkipClicked != null) {
+                        TextButton(
+                            onClick = {
+                                onSkipClicked()
+                                coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
+                            },
+                            modifier = Modifier.height(42.dp)
+                        ) {
+                            Text(
+                                text = skipText ?: if (isRtl) "رد کردن" else "Skip",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    // End side: Next or Done button
                     if (isLastPage) {
                         Button(
                             onClick = {
@@ -300,20 +382,20 @@ fun <T> OnboardingSlider(
                                 coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
-                                contentColor = Color.White
+                                containerColor = PrimaryCyan,
+                                contentColor = Color(0xFF041019)
                             ),
                             shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .height(42.dp)
-                                .border(1.2.dp, PrimaryCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
+                                .border(1.2.dp, PrimaryCyan, RoundedCornerShape(50))
                         ) {
                             Text(
                                 text = doneText,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp,
-                                color = Color.White,
+                                color = Color(0xFF041019),
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 softWrap = false
@@ -332,16 +414,23 @@ fun <T> OnboardingSlider(
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(0.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .height(42.dp)
-                                .width(56.dp)
                                 .border(1.2.dp, PrimaryCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                if (nextText != null) {
+                                    Text(
+                                        text = nextText,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.5.sp,
+                                        color = Color.White
+                                    )
+                                }
                                 VectorNextArrow(isRtl = isRtl)
                             }
                         }
@@ -349,6 +438,53 @@ fun <T> OnboardingSlider(
                 }
             }
         }
+    }
+}
+
+/**
+ * Crisp Vector Path Arrow Icon for Previous Button.
+ */
+@Composable
+fun VectorPrevArrow(
+    isRtl: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White
+) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val strokeWidth = 2.2.dp.toPx()
+
+        // Horizontal stem line
+        drawLine(
+            color = color,
+            start = Offset(if (isRtl) w * 0.28f else w * 0.72f, h * 0.5f),
+            end = Offset(if (isRtl) w * 0.72f else w * 0.28f, h * 0.5f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        // Arrow head path
+        val path = Path().apply {
+            if (isRtl) {
+                moveTo(w * 0.52f, h * 0.28f)
+                lineTo(w * 0.72f, h * 0.5f)
+                lineTo(w * 0.52f, h * 0.72f)
+            } else {
+                moveTo(w * 0.48f, h * 0.28f)
+                lineTo(w * 0.28f, h * 0.5f)
+                lineTo(w * 0.48f, h * 0.72f)
+            }
+        }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
     }
 }
 

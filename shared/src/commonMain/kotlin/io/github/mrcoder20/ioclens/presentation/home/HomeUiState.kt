@@ -18,6 +18,8 @@ data class HomeUiState(
     val isHistorySheetOpen: Boolean = false,
     val isSettingsSheetOpen: Boolean = false,
     val isGuideOverlayOpen: Boolean = false,
+    val scanFinishedEngines: Int = 0,
+    val scanTotalEngines: Int = 10,
     val errorMessage: String? = null,
     val appTheme: AppTheme = AppTheme.DARK,
     val appLanguage: AppLanguage = getSystemLanguage()

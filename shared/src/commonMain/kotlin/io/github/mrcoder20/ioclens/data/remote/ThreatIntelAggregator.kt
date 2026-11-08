@@ -11,6 +11,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 class ThreatIntelAggregator(
@@ -30,8 +32,13 @@ class ThreatIntelAggregator(
     )
 ) {
 
-    suspend fun aggregate(indicator: Indicator, settings: AppSettings): TriageVerdict {
+    suspend fun aggregate(
+        indicator: Indicator,
+        settings: AppSettings,
+        onProgress: ((finishedCount: Int, totalCount: Int) -> Unit)? = null
+    ): TriageVerdict {
         if (indicator.isInternalOrPrivate) {
+            onProgress?.invoke(1, 1)
             return TriageVerdict(
                 indicator = indicator,
                 overallVerdict = VerdictLevel.CLEAN,
@@ -44,6 +51,7 @@ class ThreatIntelAggregator(
         }
 
         if (indicator.type == IndicatorType.UNKNOWN) {
+            onProgress?.invoke(0, 0)
             return TriageVerdict(
                 indicator = indicator,
                 overallVerdict = VerdictLevel.NO_DATA,
@@ -55,6 +63,7 @@ class ThreatIntelAggregator(
 
         val applicable = providers.filter { it.isApplicable(indicator) }
         if (applicable.isEmpty()) {
+            onProgress?.invoke(0, 0)
             return TriageVerdict(
                 indicator = indicator,
                 overallVerdict = VerdictLevel.NO_DATA,
@@ -63,6 +72,11 @@ class ThreatIntelAggregator(
                 sourceResults = emptyList()
             )
         }
+
+        val totalCount = applicable.size
+        val counterMutex = Mutex()
+        var finishedCount = 0
+        onProgress?.invoke(0, totalCount)
 
         val results: List<SourceResult> = supervisorScope {
             applicable.map { provider ->
@@ -87,6 +101,11 @@ class ThreatIntelAggregator(
                             totalEngineCount = 0,
                             summary = "Service unavailable or filtered: ${e.message ?: "Skipped"}"
                         )
+                    } finally {
+                        counterMutex.withLock {
+                            finishedCount++
+                            onProgress?.invoke(finishedCount, totalCount)
+                        }
                     }
                 }
             }.awaitAll()

@@ -19,7 +19,10 @@ class AnalyzeIndicatorUseCase(
         return parser.parse(rawInput)
     }
 
-    suspend operator fun invoke(indicator: Indicator): TriageVerdict {
-        return repository.analyzeIndicator(indicator)
+    suspend operator fun invoke(
+        indicator: Indicator,
+        onProgress: ((finishedCount: Int, totalCount: Int) -> Unit)? = null
+    ): TriageVerdict {
+        return repository.analyzeIndicator(indicator, onProgress)
     }
 }

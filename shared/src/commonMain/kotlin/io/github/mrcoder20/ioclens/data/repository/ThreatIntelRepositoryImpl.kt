@@ -14,7 +14,14 @@ class ThreatIntelRepositoryImpl(
 ) : ThreatIntelRepository {
 
     override suspend fun analyzeIndicator(indicator: Indicator): TriageVerdict {
+        return analyzeIndicator(indicator, null)
+    }
+
+    override suspend fun analyzeIndicator(
+        indicator: Indicator,
+        onProgress: ((finishedCount: Int, totalCount: Int) -> Unit)?
+    ): TriageVerdict {
         val settings = settingsRepository?.getSettings() ?: AppSettings()
-        return aggregator.aggregate(indicator, settings)
+        return aggregator.aggregate(indicator, settings, onProgress)
     }
 }

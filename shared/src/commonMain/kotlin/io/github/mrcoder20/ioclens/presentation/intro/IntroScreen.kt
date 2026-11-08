@@ -75,6 +75,13 @@ fun IntroScreen(
     val pagerState = rememberPagerState(pageCount = { uiState.slides.size })
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        viewModel.onEvent(IntroEvent.Reset)
+        if (pagerState.currentPage != 0) {
+            pagerState.scrollToPage(0)
+        }
+    }
+
     LaunchedEffect(pagerState.currentPage) {
         viewModel.onEvent(IntroEvent.PageChanged(pagerState.currentPage))
     }
@@ -105,6 +112,12 @@ fun IntroScreen(
             pagerState = pagerState,
             transitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
             doneText = currentStrings.done,
+            nextText = currentStrings.next,
+            previousText = currentStrings.previous,
+            skipText = currentStrings.skip,
+            onSkipClicked = {
+                viewModel.onEvent(IntroEvent.SkipClicked)
+            },
             onFinishClicked = {
                 viewModel.onEvent(IntroEvent.CompleteClicked)
             },
@@ -217,10 +230,11 @@ fun IntroScreen(
                     }
                 }
             }
-        ) { slide, _ ->
+        ) { slide, page ->
             IntroSlideCard(
                 slide = slide,
-                isScrollInProgress = pagerState.isScrollInProgress
+                isScrollInProgress = pagerState.isScrollInProgress,
+                isActive = (pagerState.currentPage == page)
             )
         }
     }
@@ -230,6 +244,7 @@ fun IntroScreen(
 private fun IntroSlideCard(
     slide: IntroSlide,
     isScrollInProgress: Boolean,
+    isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
     // Translucent Glassmorphic Card
@@ -278,7 +293,8 @@ private fun IntroSlideCard(
                         emoji = slide.iconEmoji,
                         size = graphicSize,
                         emojiFontSize = if (isCompact) 28 else 44,
-                        isScrollInProgress = isScrollInProgress
+                        isScrollInProgress = isScrollInProgress,
+                        isActive = isActive
                     )
                 }
 
