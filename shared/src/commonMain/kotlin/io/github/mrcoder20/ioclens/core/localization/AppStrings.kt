@@ -91,7 +91,23 @@ data class AppStrings(
     val serverlessStatus: String,
     val systemReadyEngines: String,
     val freeFeedsBadge: String,
-    val privacyGuardActiveBadge: String
+    val privacyGuardActiveBadge: String,
+    val settingsTabApiKeys: String,
+    val settingsTabGeneralPrivacy: String,
+    val settingsTabAbout: String,
+    val apiKeysZeroKeyBanner: String,
+    val vtSubtitle: String,
+    val abuseSubtitle: String,
+    val alienSubtitle: String,
+    val pulseSubtitle: String,
+    val ipqsSubtitle: String,
+    val keyConfiguredBadge: String,
+    val keyOptionalBadge: String,
+    val keyInputPlaceholder: String,
+    val privacyGuardActiveDesc: String,
+    val privacyGuardInactiveDesc: String,
+    val badgeClientDirect: String,
+    val badgeZeroCloudDb: String
 )
 
 object LocalizationProvider {
@@ -411,7 +427,23 @@ object LocalizationProvider {
                 serverlessStatus = "Serverless Direct Client · Zero Database · On-Device Privacy Guard (RFC 1918)",
                 systemReadyEngines = "10 Engines Ready",
                 freeFeedsBadge = "4 Zero-Key Feeds",
-                privacyGuardActiveBadge = "Privacy Guard Active"
+                privacyGuardActiveBadge = "Privacy Guard Active",
+                settingsTabApiKeys = "API Keys",
+                settingsTabGeneralPrivacy = "General & Privacy",
+                settingsTabAbout = "About",
+                apiKeysZeroKeyBanner = "⚡ Free feeds (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) are active immediately without keys.",
+                vtSubtitle = "70+ Antivirus & Sandbox Engines (v3 API)",
+                abuseSubtitle = "IP Reputation & Abuse Database (v2 API)",
+                alienSubtitle = "Global Threat Pulses & IOC Database (v1 API)",
+                pulseSubtitle = "Indicator Risk Scoring & Feed Intelligence",
+                ipqsSubtitle = "Fraud Scoring, Proxy & Bot Detection API",
+                keyConfiguredBadge = "● Configured",
+                keyOptionalBadge = "○ Optional",
+                keyInputPlaceholder = "Paste API key token here...",
+                privacyGuardActiveDesc = "Client-Side Zero-Leak: Queries for RFC 1918 private intranet (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) and 127.0.0.1 are intercepted locally without outbound traffic.",
+                privacyGuardInactiveDesc = "Private IP Guard inactive: Local intranet and loopback addresses will not be filtered automatically.",
+                badgeClientDirect = "⚡ 100% Client-Direct",
+                badgeZeroCloudDb = "🛡️ Zero Cloud Database"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -447,7 +479,7 @@ object LocalizationProvider {
                 versionLabel = "نسخه ۱.۰.۰ (متن‌باز)",
                 systemDefaultTheme = "پیش‌فرض سیستم",
                 darkTheme = "تم تاریک اختصاصی",
-                apiKeysTitle = "کلیدهای API سرویس‌های تهدید",
+                apiKeysTitle = "کلیدهای API سرویس‌های تحلیلی",
                 apiKeysSubtitle = "⚡ فیدهای عمومی و رایگان فعال هستند. در صورت تمایل می‌توانید کلیدهای اختصاصی خود را وارد نمایید:",
                 vtApiKeyLabel = "کلید API سرویس VirusTotal (اختیاری)",
                 abuseApiKeyLabel = "کلید API سرویس AbuseIPDB (اختیاری)",
@@ -500,7 +532,23 @@ object LocalizationProvider {
                 serverlessStatus = "ارتباط مستقیم کلاینت سرورلس · بدون پایگاه داده واسط · محافظت حریم خصوصی فعال (RFC 1918)",
                 systemReadyEngines = "۱۰ موتور آماده",
                 freeFeedsBadge = "۴ فید رایگان",
-                privacyGuardActiveBadge = "حریم خصوصی محلی"
+                privacyGuardActiveBadge = "حریم خصوصی محلی",
+                settingsTabApiKeys = "کلیدهای API سرویس‌ها",
+                settingsTabGeneralPrivacy = "عمومی و حریم خصوصی",
+                settingsTabAbout = "درباره برنامه",
+                apiKeysZeroKeyBanner = "⚡ فیدهای رایگان (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) به صورت فوری و بدون نیاز به کلید فعال هستند.",
+                vtSubtitle = "بیش از ۷۰ موتور آنتی‌ویروس و سندباکس تحلیلی",
+                abuseSubtitle = "پایگاه داده بررسی شهرت و سوءاستفاده از آی‌پی",
+                alienSubtitle = "پالس‌های جهانی شاخص‌ها و شبکه‌های آلودگی",
+                pulseSubtitle = "امتیازدهی به ریسک نشانگرها و فیدهای امنیتی",
+                ipqsSubtitle = "تشخیص تقلب، پروکسی، بات‌ نت و اعتبار آی‌پی",
+                keyConfiguredBadge = "● تنظیم‌شده",
+                keyOptionalBadge = "○ اختیاری",
+                keyInputPlaceholder = "کلید اختصاصی API را اینجا جای‌ گذاری کنید...",
+                privacyGuardActiveDesc = "حفاظت سمت کلاینت فعال است: استعلام آدرس‌های خصوصی و لوپ‌بک (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1) به صورت محلی مسدود شده و ترافیکی به اینترنت ارسال نمی‌شود.",
+                privacyGuardInactiveDesc = "حفاظت از آی‌پی‌های خصوصی غیرفعال است: آدرس‌های لوپ‌بک و شبکه محلی فیلتر نخواهند شد.",
+                badgeClientDirect = "⚡ ارتباط ۱۰۰٪ مستقیم کلاینت",
+                badgeZeroCloudDb = "🛡️ بدون پایگاه داده ابری"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -589,7 +637,23 @@ object LocalizationProvider {
                 serverlessStatus = "Прямой бессерверный клиент · Без промежуточных БД · Защита данных активна (RFC 1918)",
                 systemReadyEngines = "10 движков готовы",
                 freeFeedsBadge = "4 бесплатных фида",
-                privacyGuardActiveBadge = "Защита активна"
+                privacyGuardActiveBadge = "Защита активна",
+                settingsTabApiKeys = "Ключи API",
+                settingsTabGeneralPrivacy = "Общие и приватность",
+                settingsTabAbout = "О программе",
+                apiKeysZeroKeyBanner = "⚡ Бесплатные фиды (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) активны мгновенно без ключей.",
+                vtSubtitle = "Более 70 антивирусных и песочных движков (v3 API)",
+                abuseSubtitle = "База данных репутации и злоупотреблений IP (v2 API)",
+                alienSubtitle = "Глобальные импульсы угроз и индикаторы (v1 API)",
+                pulseSubtitle = "Оценка рисков индикаторов и разведданные",
+                ipqsSubtitle = "Оценка мошенничества, прокси и ботов",
+                keyConfiguredBadge = "● Настроено",
+                keyOptionalBadge = "○ Необязательно",
+                keyInputPlaceholder = "Вставьте ключ API...",
+                privacyGuardActiveDesc = "Защита активна: запросы к приватным сетям RFC 1918 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1) перехватываются без отправки в интернет.",
+                privacyGuardInactiveDesc = "Защита частных IP отключена: локальные адреса не будут фильтроваться.",
+                badgeClientDirect = "⚡ 100% Прямое подключение",
+                badgeZeroCloudDb = "🛡️ Без облачных баз"
             )
         }
     }

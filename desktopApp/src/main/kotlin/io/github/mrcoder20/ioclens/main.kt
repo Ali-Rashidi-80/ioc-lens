@@ -56,9 +56,6 @@ import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
-import io.github.mrcoder20.ioclens.ui.DeviceChassis
-import io.github.mrcoder20.ioclens.ui.DevicePreset
-import io.github.mrcoder20.ioclens.ui.DeviceSimulatorToolbar
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.EventQueue
@@ -119,10 +116,6 @@ fun main(args: Array<String>) {
         ) {
             var isMaximized by remember { mutableStateOf(false) }
             var floatingBounds by remember { mutableStateOf<Rectangle?>(null) }
-            var deviceModeActive by remember { mutableStateOf(false) }
-            var selectedDevicePreset by remember { mutableStateOf(DevicePreset.RESPONSIVE) }
-            var isLandscapeOrientation by remember { mutableStateOf(false) }
-            var showDeviceFrameBezel by remember { mutableStateOf(true) }
 
             // Ensure system cursor is always valid, visible, and window enforces minimum size
             DisposableEffect(window) {
@@ -245,26 +238,7 @@ fun main(args: Array<String>) {
                                     .padding(horizontal = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Left Slot: Device Mode Toggle Button (Anchored to Far-Left)
-                                Surface(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { deviceModeActive = !deviceModeActive }
-                                        .pointerHoverIcon(PointerIcon.Hand),
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.12f),
-                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.2f))
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "📱",
-                                            fontSize = 11.sp
-                                        )
-                                    }
-                                }
-
-                                // Center Slot: Draggable Space (Clean, Minimal, Modern)
+                                // Center Slot: Full Draggable Space (Clean, Minimal, Modern)
                                 Spacer(modifier = Modifier.weight(1f))
 
                                 // Right Slot: Window Controls (Minimize, Maximize, Close - Permanently Anchored to Far-Right)
@@ -323,47 +297,9 @@ fun main(args: Array<String>) {
                         }
                     }
 
-                    // Device Simulation Toolbar (Visible on Desktop when Device Mode is active)
-                    AnimatedVisibility(
-                        visible = deviceModeActive,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        DeviceSimulatorToolbar(
-                            selectedPreset = selectedDevicePreset,
-                            onSelectPreset = { selectedDevicePreset = it },
-                            isLandscape = isLandscapeOrientation,
-                            onToggleOrientation = { isLandscapeOrientation = !isLandscapeOrientation },
-                            showFrame = showDeviceFrameBezel,
-                            onToggleFrame = { showDeviceFrameBezel = !showDeviceFrameBezel },
-                            onClose = { deviceModeActive = false },
-                            onSnapWindow = { targetW, targetH ->
-                                val titleAndToolbarOffset = 38 + 42
-                                val framePadding = 48
-                                val newW = (targetW + framePadding).coerceAtLeast(420)
-                                val newH = (targetH + titleAndToolbarOffset + framePadding).coerceAtLeast(500)
-                                val gc = window.graphicsConfiguration
-                                val screenBounds = gc.bounds
-                                val targetX = (screenBounds.x + (screenBounds.width - newW) / 2).coerceAtLeast(screenBounds.x)
-                                val targetY = (screenBounds.y + (screenBounds.height - newH) / 2).coerceAtLeast(screenBounds.y)
-                                window.setBounds(targetX, targetY, newW, newH)
-                            }
-                        )
-                    }
-
-                    // Main Application Content (Normal or inside Device Chassis)
+                    // Main Application Content
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        if (deviceModeActive) {
-                            DeviceChassis(
-                                preset = selectedDevicePreset,
-                                isLandscape = isLandscapeOrientation,
-                                showFrame = showDeviceFrameBezel
-                            ) {
-                                App()
-                            }
-                        } else {
-                            App()
-                        }
+                        App()
                     }
                 }
             }

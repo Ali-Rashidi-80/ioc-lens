@@ -1,10 +1,15 @@
 package io.github.mrcoder20.ioclens.presentation.settings
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,6 +72,12 @@ import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import kotlinx.coroutines.delay
 
+enum class SettingsTab {
+    API_KEYS,
+    GENERAL_PRIVACY,
+    ABOUT
+}
+
 @Composable
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
@@ -77,8 +88,8 @@ fun SettingsScreen(
 ) {
     val settingsState by settingsRepository.settingsState.collectAsState()
     val strings = LocalizationProvider.getStrings(settingsState.appLanguage)
-    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val scrollState = rememberScrollState()
+    var currentTab by remember { mutableStateOf(SettingsTab.API_KEYS) }
 
     var vtKey by remember(settingsState.virusTotalApiKey) { mutableStateOf(settingsState.virusTotalApiKey) }
     var abuseKey by remember(settingsState.abuseIpDbApiKey) { mutableStateOf(settingsState.abuseIpDbApiKey) }
@@ -124,81 +135,91 @@ fun SettingsScreen(
         }
     }
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
             .statusBarsPadding()
             .navigationBarsPadding(),
         contentAlignment = Alignment.TopCenter
     ) {
-        val screenWidth = maxWidth
-        // Responsive viewport switch: Widescreen multi-column on desktop / wide tablet viewports
-        val isWide = screenWidth >= 768.dp
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = if (isWide) 1040.dp else 640.dp)
+                .widthIn(max = 680.dp)
                 .padding(
                     top = 16.dp,
-                    start = if (isWide) 24.dp else 16.dp,
-                    end = if (isWide) 24.dp else 16.dp,
+                    start = 16.dp,
+                    end = 16.dp,
                     bottom = if (isMobileOrTablet) 84.dp else 24.dp
                 )
                 .verticalScroll(scrollState)
         ) {
-            // Header with Right-Aligned Close Button in both LTR & RTL
+            // Header with natural BiDi placement (Title at Start, Close at End)
             SettingsHeader(
                 strings = strings,
-                isRtl = isRtl,
                 onClose = {
                     flushPendingKeys()
                     onClose()
                 }
             )
 
-            if (isWide) {
-                // Desktop & Widescreen Responsive 2-Column Grid Layout
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    // Left Column: Language, Theme, Privacy Guard, About & Intro Guide
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+            // Sleek Cyberpunk Segmented Tab Switcher
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF070D18))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    SettingsTab.API_KEYS to ("🔑 " + strings.settingsTabApiKeys),
+                    SettingsTab.GENERAL_PRIVACY to ("🛡️ " + strings.settingsTabGeneralPrivacy),
+                    SettingsTab.ABOUT to ("ℹ️ " + strings.settingsTabAbout)
+                ).forEach { (tab, title) ->
+                    val isSelected = currentTab == tab
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { currentTab = tab }
+                            .pointerHoverIcon(PointerIcon.Hand),
+                        color = if (isSelected) PrimaryCyan.copy(alpha = 0.18f) else Color.Transparent,
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.55f)) else null,
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        LanguageCard(
-                            settingsState = settingsState,
-                            strings = strings,
-                            onLanguageSelected = { settingsRepository.setAppLanguage(it) }
-                        )
-
-                        ThemeCard(
-                            settingsState = settingsState,
-                            strings = strings,
-                            onThemeSelected = { settingsRepository.setAppTheme(it) }
-                        )
-
-                        PrivacyGuardCard(
-                            settingsState = settingsState,
-                            strings = strings,
-                            onTogglePrivacyGuard = { settingsRepository.setPrivacyGuardEnabled(it) }
-                        )
-
-                        AboutCard(
-                            strings = strings,
-                            onReplayGuide = onReplayGuide
-                        )
+                        Box(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
+                }
+            }
 
-                    // Right Column: Threat Intel API Keys (Dedicated Credential Manager)
-                    Column(
-                        modifier = Modifier.weight(1.15f),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Animated Tab Content Area
+            AnimatedContent(
+                targetState = currentTab,
+                transitionSpec = {
+                    fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.98f) togetherWith
+                        fadeOut(tween(150))
+                }
+            ) { tab ->
+                when (tab) {
+                    SettingsTab.API_KEYS -> {
                         ApiKeysCard(
                             vtKey = vtKey,
                             onVtKeyChange = { vtKey = it },
@@ -218,54 +239,33 @@ fun SettingsScreen(
                             }
                         )
                     }
-                }
-            } else {
-                // Mobile & Compact Viewport: Fluid Single Column Stack
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    LanguageCard(
-                        settingsState = settingsState,
-                        strings = strings,
-                        onLanguageSelected = { settingsRepository.setAppLanguage(it) }
-                    )
+                    SettingsTab.GENERAL_PRIVACY -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            LanguageCard(
+                                settingsState = settingsState,
+                                strings = strings,
+                                onLanguageSelected = { settingsRepository.setAppLanguage(it) }
+                            )
 
-                    ThemeCard(
-                        settingsState = settingsState,
-                        strings = strings,
-                        onThemeSelected = { settingsRepository.setAppTheme(it) }
-                    )
+                            ThemeCard(
+                                settingsState = settingsState,
+                                strings = strings,
+                                onThemeSelected = { settingsRepository.setAppTheme(it) }
+                            )
 
-                    PrivacyGuardCard(
-                        settingsState = settingsState,
-                        strings = strings,
-                        onTogglePrivacyGuard = { settingsRepository.setPrivacyGuardEnabled(it) }
-                    )
-
-                    ApiKeysCard(
-                        vtKey = vtKey,
-                        onVtKeyChange = { vtKey = it },
-                        abuseKey = abuseKey,
-                        onAbuseKeyChange = { abuseKey = it },
-                        alienKey = alienKey,
-                        onAlienKeyChange = { alienKey = it },
-                        pulseKey = pulseKey,
-                        onPulseKeyChange = { pulseKey = it },
-                        ipqsKey = ipqsKey,
-                        onIpqsKeyChange = { ipqsKey = it },
-                        strings = strings,
-                        showSavedMessage = showSavedMessage,
-                        onSave = {
-                            flushPendingKeys()
-                            showSavedMessage = true
+                            PrivacyGuardCard(
+                                settingsState = settingsState,
+                                strings = strings,
+                                onTogglePrivacyGuard = { settingsRepository.setPrivacyGuardEnabled(it) }
+                            )
                         }
-                    )
-
-                    AboutCard(
-                        strings = strings,
-                        onReplayGuide = onReplayGuide
-                    )
+                    }
+                    SettingsTab.ABOUT -> {
+                        AboutCard(
+                            strings = strings,
+                            onReplayGuide = onReplayGuide
+                        )
+                    }
                 }
             }
 
@@ -280,25 +280,17 @@ fun SettingsScreen(
 @Composable
 private fun SettingsHeader(
     strings: AppStrings,
-    isRtl: Boolean,
     onClose: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 20.dp),
+            .padding(bottom = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isRtl) {
-            // RTL: Start is Physical Right -> Close button first
-            DismissButton(onClose = onClose)
-            HeaderTitle(strings = strings)
-        } else {
-            // LTR: Start is Left -> Title first, Close button second (Physical Right)
-            HeaderTitle(strings = strings)
-            DismissButton(onClose = onClose)
-        }
+        HeaderTitle(strings = strings)
+        DismissButton(onClose = onClose)
     }
 }
 
@@ -562,9 +554,9 @@ private fun PrivacyGuardCard(
                     )
                     Text(
                         text = if (settingsState.privacyGuardEnabled) {
-                            "Client-Side Zero-Leak: Queries for 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, and 127.0.0.1 are intercepted locally without outbound traffic."
+                            strings.privacyGuardActiveDesc
                         } else {
-                            "Private IP Guard inactive: Local intranet and loopback addresses will not be filtered automatically."
+                            strings.privacyGuardInactiveDesc
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = if (settingsState.privacyGuardEnabled) Color(0xFF94A3B8) else Color(0xFFFBBF24),
@@ -599,7 +591,7 @@ private fun ApiKeysCard(
 
     SettingsCard(
         title = "🔑 ${strings.apiKeysTitle}",
-        badge = "$configuredCount/5 CONFIGURED"
+        badge = "$configuredCount/5"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Explanatory Information Banner
@@ -611,14 +603,14 @@ private fun ApiKeysCard(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "⚡ Zero-Key Feeds (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) operate immediately without keys.",
+                        text = strings.apiKeysZeroKeyBanner,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = PrimaryCyan
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "🔒 ${strings.apiKeysSubtitle}",
+                        text = strings.apiKeysSubtitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF94A3B8)
                     )
@@ -628,37 +620,42 @@ private fun ApiKeysCard(
             // 5 Individual Credential Input Fields
             CyberApiKeyField(
                 title = strings.vtApiKeyLabel,
-                subtitle = "70+ Antivirus & Sandbox Engines (v3 API)",
+                subtitle = strings.vtSubtitle,
                 value = vtKey,
-                onValueChange = onVtKeyChange
+                onValueChange = onVtKeyChange,
+                strings = strings
             )
 
             CyberApiKeyField(
                 title = strings.abuseApiKeyLabel,
-                subtitle = "IP Reputation & Abuse Database (v2 API)",
+                subtitle = strings.abuseSubtitle,
                 value = abuseKey,
-                onValueChange = onAbuseKeyChange
+                onValueChange = onAbuseKeyChange,
+                strings = strings
             )
 
             CyberApiKeyField(
                 title = strings.alienApiKeyLabel,
-                subtitle = "Threat Pulses & Indicators (v1 API)",
+                subtitle = strings.alienSubtitle,
                 value = alienKey,
-                onValueChange = onAlienKeyChange
+                onValueChange = onAlienKeyChange,
+                strings = strings
             )
 
             CyberApiKeyField(
                 title = strings.pulseApiKeyLabel,
-                subtitle = "Indicator Risk Scoring & Feed Intelligence",
+                subtitle = strings.pulseSubtitle,
                 value = pulseKey,
-                onValueChange = onPulseKeyChange
+                onValueChange = onPulseKeyChange,
+                strings = strings
             )
 
             CyberApiKeyField(
                 title = strings.ipqsApiKeyLabel,
-                subtitle = "Fraud Scoring, Proxy & Bot Detection API",
+                subtitle = strings.ipqsSubtitle,
                 value = ipqsKey,
-                onValueChange = onIpqsKeyChange
+                onValueChange = onIpqsKeyChange,
+                strings = strings
             )
 
             // Save Action Button
@@ -669,7 +666,7 @@ private fun ApiKeysCard(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "💾 ${strings.saveKeys}",
+                    text = strings.saveKeys,
                     color = Color(0xFF0A0E17),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
@@ -705,6 +702,7 @@ private fun CyberApiKeyField(
     subtitle: String,
     value: String,
     onValueChange: (String) -> Unit,
+    strings: AppStrings,
     modifier: Modifier = Modifier
 ) {
     val isConfigured = value.isNotBlank()
@@ -749,7 +747,7 @@ private fun CyberApiKeyField(
                 )
             ) {
                 Text(
-                    text = if (isConfigured) "● Configured" else "○ Optional",
+                    text = if (isConfigured) strings.keyConfiguredBadge else strings.keyOptionalBadge,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 10.sp,
@@ -765,7 +763,7 @@ private fun CyberApiKeyField(
                 onValueChange = onValueChange,
                 placeholder = {
                     Text(
-                        text = "Paste API key token...",
+                        text = strings.keyInputPlaceholder,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF475569)
                     )
@@ -812,7 +810,7 @@ private fun AboutCard(
 ) {
     SettingsCard(
         title = "ℹ️ ${strings.menuAbout}",
-        badge = "KMP CLIENT"
+        badge = "KMP"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
@@ -845,7 +843,7 @@ private fun AboutCard(
                     border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
                 ) {
                     Text(
-                        text = "⚡ 100% Client-Direct",
+                        text = strings.badgeClientDirect,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp,
@@ -858,7 +856,7 @@ private fun AboutCard(
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
                 ) {
                     Text(
-                        text = "🔒 Zero Cloud DB",
+                        text = strings.badgeZeroCloudDb,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp,

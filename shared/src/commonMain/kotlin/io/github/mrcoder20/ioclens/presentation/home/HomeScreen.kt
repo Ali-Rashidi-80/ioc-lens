@@ -93,6 +93,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -581,12 +582,12 @@ fun HomeScreen(
                             )
                         }
 
-                        // Right Pane: Threat Intel Provider Deck (Balanced Grid on Widescreen)
-                        Column(modifier = Modifier.weight(0.85f)) {
+                        // Right Pane: Threat Intel Provider Deck (Balanced Column on Widescreen)
+                        Column(modifier = Modifier.weight(0.95f)) {
                             LiveProviderDeck(
                                 uiState = uiState,
                                 onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                isTwoColumn = screenWidth >= 1440.dp
+                                isTwoColumn = false
                             )
                         }
                     }
@@ -2123,30 +2124,47 @@ private fun RecentTriageFeedHUD(
 
             if (history.isEmpty()) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF090E17).copy(alpha = 0.6f),
-                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1E293B))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 150.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF090E17).copy(alpha = 0.75f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.2f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🛡️", fontSize = 24.sp)
-                        Column {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                color = PrimaryCyan.copy(alpha = 0.12f),
+                                shape = CircleShape,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = "🛡️",
+                                    modifier = Modifier.padding(10.dp),
+                                    fontSize = 22.sp
+                                )
+                            }
                             Text(
                                 text = strings.noHistory,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color(0xFF94A3B8),
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = strings.zeroKeyInstantScanReady,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VerdictClean,
-                                fontSize = 11.sp
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
