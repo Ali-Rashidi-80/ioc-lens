@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mrcoder20.ioclens.core.components.CyberPolygonBackground
+import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.components.LiquidmorphicBackground
 import io.github.mrcoder20.ioclens.core.components.LottiePreloader
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
@@ -117,10 +120,12 @@ fun SplashScreen(
                 )
         )
 
-        // 4. Ultra-Minimalist Main Splash Content
+        // 4. Ultra-Minimalist Main Splash Content with Edge-to-Edge Safe Padding
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = if (isCompact) 16.dp else 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -198,7 +203,7 @@ fun SplashScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "${(progress * 100).toInt()}%",
+                    text = LocalizationProvider.formatScore((progress * 100).toInt(), appLanguage),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = PrimaryCyan.copy(alpha = 0.85f),

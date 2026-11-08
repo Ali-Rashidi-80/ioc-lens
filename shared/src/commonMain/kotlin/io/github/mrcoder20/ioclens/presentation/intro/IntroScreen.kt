@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,10 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mrcoder20.ioclens.core.components.CountryFlag
@@ -52,6 +57,7 @@ import io.github.mrcoder20.ioclens.core.components.TypewriterText
 import io.github.mrcoder20.ioclens.core.components.slider.OnboardingSlider
 import io.github.mrcoder20.ioclens.core.components.slider.PageTransitionStyle
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
+import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.model.IntroSlide
 
@@ -62,7 +68,8 @@ import io.github.mrcoder20.ioclens.domain.model.IntroSlide
 fun IntroScreen(
     viewModel: IntroViewModel,
     onIntroFinished: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClose: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val pagerState = rememberPagerState(pageCount = { uiState.slides.size })
@@ -92,11 +99,12 @@ fun IntroScreen(
         )
 
         // 3. Onboarding Slider Container with Parallax Zoom GPU Transition
+        val currentStrings = remember(uiState.currentLanguage) { LocalizationProvider.getStrings(uiState.currentLanguage) }
         OnboardingSlider(
             items = uiState.slides,
             pagerState = pagerState,
             transitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
-            doneText = "DONE",
+            doneText = currentStrings.done,
             onFinishClicked = {
                 viewModel.onEvent(IntroEvent.CompleteClicked)
             },
@@ -126,54 +134,84 @@ fun IntroScreen(
                         )
                     }
 
-                    // Country Flag Language Selector
-                    Box {
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { isLanguageMenuExpanded = true },
-                            color = Color(0xFF0E1424).copy(alpha = 0.85f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                    // Right Actions Group: Language Selector + Optional Physical Right Close Button
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CountryFlag(language = uiState.currentLanguage)
-                                Text(
-                                    text = uiState.currentLanguage.displayName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFF9FAFB),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = isLanguageMenuExpanded,
-                            onDismissRequest = { isLanguageMenuExpanded = false }
-                        ) {
-                            AppLanguage.entries.forEach { lang ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            CountryFlag(language = lang)
-                                            Text(
-                                                text = lang.displayName,
-                                                fontWeight = if (lang == uiState.currentLanguage) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        viewModel.onEvent(IntroEvent.LanguageChanged(lang))
-                                        isLanguageMenuExpanded = false
+                            // Country Flag Language Selector
+                            Box {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { isLanguageMenuExpanded = true }
+                                        .pointerHoverIcon(PointerIcon.Hand),
+                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CountryFlag(language = uiState.currentLanguage)
+                                        Text(
+                                            text = uiState.currentLanguage.displayName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFF9FAFB),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                     }
-                                )
+                                }
+
+                                DropdownMenu(
+                                    expanded = isLanguageMenuExpanded,
+                                    onDismissRequest = { isLanguageMenuExpanded = false }
+                                ) {
+                                    AppLanguage.entries.forEach { lang ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    CountryFlag(language = lang)
+                                                    Text(
+                                                        text = lang.displayName,
+                                                        fontWeight = if (lang == uiState.currentLanguage) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                viewModel.onEvent(IntroEvent.LanguageChanged(lang))
+                                                isLanguageMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Optional Close Button (for Guide Overlay mode)
+                            if (onClose != null) {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .clickable { onClose() }
+                                        .pointerHoverIcon(PointerIcon.Hand),
+                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                    shape = CircleShape,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                                ) {
+                                    Text(
+                                        text = "✕",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
                         }
                     }

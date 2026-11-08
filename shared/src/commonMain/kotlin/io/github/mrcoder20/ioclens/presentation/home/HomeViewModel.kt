@@ -160,11 +160,12 @@ class HomeViewModel(
                 }
                 analyzeQuery()
             } catch (e: Exception) {
+                val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
                 _uiState.update {
                     it.copy(
                         isHashingFile = false,
                         hashingFileName = null,
-                        errorMessage = "Stream Hashing Failed: ${e.message}"
+                        errorMessage = "${strings.streamHashingFailed}: ${e.message ?: "error"}"
                     )
                 }
             }
@@ -203,7 +204,13 @@ class HomeViewModel(
                 // Cooperative coroutine cancellation: clean exit, no error banner
                 _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = e.message ?: "Analysis failed") }
+                val errorMsg = when {
+                    e.message?.contains("Rate Limit", ignoreCase = true) == true -> strings.errorRateLimit
+                    e.message?.contains("timeout", ignoreCase = true) == true -> strings.errorTimeout
+                    e.message?.contains("Network", ignoreCase = true) == true || e.message?.contains("Connect", ignoreCase = true) == true -> strings.errorNetwork
+                    else -> e.message ?: strings.errorNetwork
+                }
+                _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = errorMsg) }
             } finally {
                 scanJob = null
             }
