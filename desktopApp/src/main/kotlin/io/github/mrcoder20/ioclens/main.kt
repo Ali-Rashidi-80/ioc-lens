@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -236,46 +237,42 @@ fun main(args: Array<String>) {
                     // Custom Dead-Centered Window Title Bar with Permanently Anchored Right Controls (Enforce LTR for Windows OS invariants)
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         WindowDraggableArea {
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(38.dp)
                                     .background(Color(0xFF041C24))
-                                    .padding(horizontal = 12.dp)
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Left Slot: Device Mode Toggle Button (Anchored to Far-Left)
-                                Row(
-                                    modifier = Modifier.align(Alignment.CenterStart),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { deviceModeActive = !deviceModeActive }
+                                        .pointerHoverIcon(PointerIcon.Hand),
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.12f),
+                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.2f))
                                 ) {
-                                    Surface(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .clickable { deviceModeActive = !deviceModeActive }
-                                            .pointerHoverIcon(PointerIcon.Hand),
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.12f),
-                                        border = androidx.compose.foundation.BorderStroke(0.8.dp, if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.2f))
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "📱",
-                                                fontSize = 11.sp
-                                            )
-                                        }
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "📱",
+                                            fontSize = 11.sp
+                                        )
                                     }
                                 }
 
-                                // Center Slot: Dead-Centered Title Text with Safe Horizontal Insets and Ellipsis
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Center Slot: Responsive Title Text (Takes exactly the available space, centered, never overflows or pushes buttons)
                                 Box(
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .padding(horizontal = 96.dp),
+                                    modifier = Modifier.weight(1f),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (windowState.size.width < 520.dp) "IOC Lens" else "IOC Lens - Copy it. Know in a second.",
+                                        text = if (windowState.size.width < 560.dp) "IOC Lens" else "IOC Lens - Copy it. Know in a second.",
                                         color = PrimaryCyan,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
@@ -287,9 +284,10 @@ fun main(args: Array<String>) {
                                     )
                                 }
 
-                                // Right Slot: Window Controls (Minimize, Maximize, Close Permanently Anchored to Far-Right)
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Right Slot: Window Controls (Minimize, Maximize, Close - Permanently Anchored to Far-Right)
                                 Row(
-                                    modifier = Modifier.align(Alignment.CenterEnd),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {

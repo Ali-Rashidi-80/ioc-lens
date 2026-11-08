@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -99,7 +100,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
+import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
+import io.github.mrcoder20.ioclens.core.components.TrainMarqueeRow
 import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
@@ -431,25 +434,27 @@ fun HomeScreen(
                     }
 
                     // Center Slot: Dead-Centered App Title with Strict LTR BiDi Protection
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Row(
-                            modifier = Modifier.align(Alignment.Center),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "IOC ",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = "LENS",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryCyan,
-                                letterSpacing = 1.sp
-                            )
+                    Box(
+                        modifier = Modifier.align(Alignment.Center),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "IOC ",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = "LENS",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PrimaryCyan,
+                                    letterSpacing = 1.sp
+                                )
+                            }
                         }
                     }
 
@@ -1207,15 +1212,12 @@ private fun SearchCard(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                                Text(
+                                ControlledMarqueeText(
                                     text = strings.zeroKeyInstantScanReady,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = VerdictClean,
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f).basicMarquee(iterations = Int.MAX_VALUE)
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -1291,15 +1293,12 @@ private fun SearchCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                            Text(
+                            ControlledMarqueeText(
                                 text = strings.zeroKeyInstantScanReady,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VerdictClean,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false).basicMarquee(iterations = Int.MAX_VALUE)
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                         }
 
@@ -1387,42 +1386,42 @@ private fun SearchCard(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val samples = listOf(
-                            "8.8.8.8" to strings.sampleGoogleDns,
-                            "malware-test.com" to strings.sampleMalwareUrl,
-                            "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
-                        )
-                        samples.forEach { (ioc, label) ->
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        onQueryChange(ioc)
-                                        onAnalyze()
-                                    }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
-                            ) {
-                                Text(
-                                    text = label,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.5.sp,
-                                    color = PrimaryCyan,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
+                    val samples = listOf(
+                        "8.8.8.8" to strings.sampleGoogleDns,
+                        "malware-test.com" to strings.sampleMalwareUrl,
+                        "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
+                    )
+
+                    TrainMarqueeRow(
+                        items = samples,
+                        modifier = Modifier.fillMaxWidth(),
+                        velocityDpPerSecond = 26f,
+                        spacing = 8.dp,
+                        fadeEdges = true,
+                        fadeWidth = 20.dp
+                    ) { (ioc, label) ->
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onQueryChange(ioc)
+                                    onAnalyze()
+                                }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = label,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.5.sp,
+                                color = PrimaryCyan,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
@@ -1575,11 +1574,11 @@ private fun LiveProviderDeck(
                     Surface(
                         color = PrimaryCyan.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.defaultMinSize(minWidth = 60.dp)
+                        modifier = Modifier.wrapContentSize()
                     ) {
                         Text(
                             text = strings.enginesCount,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = PrimaryCyan,
                             fontSize = 10.sp,
@@ -1604,7 +1603,8 @@ private fun LiveProviderDeck(
                 Text(
                     text = if (uiState.isProviderDeckExpanded) "▲" else "▼",
                     color = MaterialTheme.colorScheme.outline,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 4.dp)
                 )
             }
 
