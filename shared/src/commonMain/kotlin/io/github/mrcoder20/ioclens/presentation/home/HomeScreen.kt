@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -514,14 +513,13 @@ fun HomeScreen(
                 }
 
                 if (isWideScreen) {
-                    val minDashboardHeight = (screenHeight - 160.dp).coerceAtLeast(540.dp)
+                    val dashboardHeight = (screenHeight - 165.dp).coerceAtLeast(535.dp)
 
-                    // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Mathematically Equal Height)
+                    // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = minDashboardHeight)
-                            .height(IntrinsicSize.Max)
+                            .height(dashboardHeight)
                             .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
