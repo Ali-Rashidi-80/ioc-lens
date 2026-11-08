@@ -99,7 +99,8 @@ class HomeViewModel(
                         activeVerdict = event.verdict,
                         targetIndicator = event.verdict.indicator,
                         queryInput = event.verdict.indicator.rawValue,
-                        isHistorySheetOpen = false
+                        isHistorySheetOpen = false,
+                        selectedBottomNavTab = 0
                     )
                 }
             }
@@ -171,6 +172,14 @@ class HomeViewModel(
             }
             is HomeEvent.SetGuideOverlayOpen -> {
                 _uiState.update { it.copy(isGuideOverlayOpen = event.isOpen) }
+            }
+            is HomeEvent.DeleteHistoryItem -> {
+                settingsRepository.deleteScanHistoryItem(event.verdict.indicator.rawValue)
+                _uiState.update { current ->
+                    current.copy(
+                        scanHistory = current.scanHistory.filter { it.indicator.rawValue != event.verdict.indicator.rawValue }
+                    )
+                }
             }
             HomeEvent.ClearHistory -> {
                 settingsRepository.clearScanHistory()

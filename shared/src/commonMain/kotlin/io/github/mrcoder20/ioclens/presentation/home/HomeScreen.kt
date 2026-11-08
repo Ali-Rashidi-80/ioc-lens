@@ -58,13 +58,24 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.requiredWidthIn
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,12 +92,15 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
+import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
+import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
@@ -306,20 +320,22 @@ fun HomeScreen(
             val isCompactScreen = screenWidth < 600.dp
             val isMobileOrTablet = screenWidth < 840.dp
 
-            // Ambient Top Glow
+            // Ambient Top Glow (Cached Brush to avoid GC pressure and hitch)
+            val bgColor = MaterialTheme.colorScheme.background
+            val ambientGlowBrush = remember(bgColor) {
+                Brush.verticalGradient(
+                    colors = listOf(
+                        PrimaryCyan.copy(alpha = 0.18f),
+                        bgColor
+                    )
+                )
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .height(300.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                PrimaryCyan.copy(alpha = 0.18f),
-                                MaterialTheme.colorScheme.background
-                            )
-                        )
-                    )
+                    .background(brush = ambientGlowBrush)
             )
 
             // Main Dashboard Container with Responsive Width & Safe Area Padding
@@ -545,10 +561,17 @@ fun HomeScreen(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
                                 strings = strings,
-                                onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
+                                onSelect = { item ->
+                                    viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                                    coroutineScope.launch { scrollState.animateScrollTo(0) }
+                                },
+                                onDelete = { item ->
+                                    viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                },
                                 onReScan = { rawValue ->
                                     viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
                                     viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                    coroutineScope.launch { scrollState.animateScrollTo(0) }
                                 }
                             )
                         }
@@ -609,7 +632,27 @@ fun HomeScreen(
                     LiveProviderDeck(
                         uiState = uiState,
                         onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                        isTwoColumn = isMediumScreen
+                        isTwoColumn = screenWidth >= 680.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    RecentTriageFeedHUD(
+                        history = uiState.scanHistory,
+                        appLanguage = uiState.appLanguage,
+                        strings = strings,
+                        onSelect = { item ->
+                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                            coroutineScope.launch { scrollState.animateScrollTo(0) }
+                        },
+                        onDelete = { item ->
+                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                        },
+                        onReScan = { rawValue ->
+                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                            coroutineScope.launch { scrollState.animateScrollTo(0) }
+                        }
                     )
                 }
 
@@ -625,20 +668,34 @@ fun HomeScreen(
             }
 
             // History Sheet Overlay (Responsive: Floating Modal on Tablets/Desktop, Bottom Sheet on Phones)
-            if (uiState.isHistorySheetOpen) {
+            AnimatedVisibility(
+                visible = uiState.isHistorySheetOpen,
+                enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.96f),
+                exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.96f)
+            ) {
                 HistorySheet(
                     history = uiState.scanHistory,
                     appLanguage = uiState.appLanguage,
                     isDialogMode = isWideScreen,
                     isMobileOrTablet = isMobileOrTablet,
-                    onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
+                    onSelect = { item ->
+                        viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                        coroutineScope.launch { scrollState.animateScrollTo(0) }
+                    },
+                    onDelete = { item ->
+                        viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                    },
                     onClear = { viewModel.onEvent(HomeEvent.ClearHistory) },
                     onClose = { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false)) }
                 )
             }
 
             // Settings Sheet Overlay
-            if (uiState.isSettingsSheetOpen) {
+            AnimatedVisibility(
+                visible = uiState.isSettingsSheetOpen,
+                enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 10 },
+                exit = fadeOut(tween(160)) + slideOutVertically(tween(160)) { it / 10 }
+            ) {
                 SettingsScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
@@ -1071,258 +1128,301 @@ private fun SearchCard(
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            OutlinedTextField(
-                value = uiState.queryInput,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = strings.searchFieldPlaceholder,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontSize = if (isCompact) 12.sp else 13.5.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = PrimaryCyan,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            val cardWidth = maxWidth
+            val useStackedLayout = isCompact || cardWidth < 580.dp
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (isCompact) {
-                // Stacked Compact Phone Layout (iPhone SE / Pixel Fold inner)
-                Column(
+            Column {
+                OutlinedTextField(
+                    value = uiState.queryInput,
+                    onValueChange = onQueryChange,
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = strings.zeroKeyInstantScanReady,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = VerdictClean,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth().basicMarquee(iterations = Int.MAX_VALUE)
-                    )
+                    textStyle = LocalTextStyle.current.copy(
+                        textDirection = TextDirection.Ltr,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = if (isCompact) 13.5.sp else 15.sp,
+                        color = Color.White
+                    ),
+                    placeholder = {
+                        Text(
+                            text = strings.searchFieldPlaceholder,
+                            color = MaterialTheme.colorScheme.outline,
+                            fontSize = if (isCompact) 12.sp else 13.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    trailingIcon = {
+                        if (uiState.queryInput.isNotEmpty()) {
+                            IconButton(
+                                onClick = onClear,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .springPress()
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "✕",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = PrimaryCyan,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (useStackedLayout) {
+                    // Stacked Layout: Status banner in full width row, buttons on bottom row
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = VerdictClean.copy(alpha = 0.10f),
+                            border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.35f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
+                                Text(
+                                    text = strings.zeroKeyInstantScanReady,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = VerdictClean,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).basicMarquee(iterations = Int.MAX_VALUE)
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val clipText = clipboardManager.getText()?.text
+                                    if (!clipText.isNullOrBlank()) {
+                                        onQueryChange(clipText.trim())
+                                    }
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                            ) {
+                                Text(
+                                    text = strings.pasteFromClipboard,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            if (uiState.isLoading) {
+                                Button(
+                                    onClick = onCancel,
+                                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(38.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(13.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = strings.cancelScan,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = onAnalyze,
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(38.dp)
+                                ) {
+                                    Text(
+                                        text = strings.scanPayload,
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Standard Wide Layout
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
-                            onClick = {
-                                val clipText = clipboardManager.getText()?.text
-                                if (!clipText.isNullOrBlank()) {
-                                    onQueryChange(clipText.trim())
-                                }
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                        Row(
+                            modifier = Modifier.weight(1f).padding(end = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
                             Text(
-                                text = strings.pasteFromClipboard,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        if (uiState.queryInput.isNotEmpty()) {
-                            TextButton(onClick = onClear) {
-                                Text(strings.clear, color = MaterialTheme.colorScheme.outline, fontSize = 12.sp)
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-
-                        if (uiState.isLoading) {
-                            Button(
-                                onClick = onCancel,
-                                colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(38.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(13.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = strings.cancelScan,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        } else {
-                            Button(
-                                onClick = onAnalyze,
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(38.dp)
-                            ) {
-                                Text(
-                                    text = strings.scanPayload,
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Standard Fluid Desktop / Tablet / Large Phone Layout
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = strings.zeroKeyInstantScanReady,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = VerdictClean,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp).basicMarquee(iterations = Int.MAX_VALUE)
-                    )
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = {
-                                val clipText = clipboardManager.getText()?.text
-                                if (!clipText.isNullOrBlank()) {
-                                    onQueryChange(clipText.trim())
-                                }
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
-                        ) {
-                            Text(
-                                text = strings.pasteFromClipboard,
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        if (uiState.queryInput.isNotEmpty()) {
-                            TextButton(onClick = onClear) {
-                                Text(strings.clear, color = MaterialTheme.colorScheme.outline, fontSize = 13.sp)
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-
-                        if (uiState.isLoading) {
-                            Button(
-                                onClick = onCancel,
-                                colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(40.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = strings.cancelScan,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        } else {
-                            Button(
-                                onClick = onAnalyze,
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(40.dp)
-                            ) {
-                                Text(
-                                    text = strings.scanPayload,
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Quick Samples & Drop Target Banner
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = strings.sampleIocsTitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = strings.dropFileHint,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF6B7280),
-                        fontSize = 10.5.sp
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .basicMarquee(iterations = Int.MAX_VALUE, velocity = 28.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val samples = listOf(
-                        "8.8.8.8" to strings.sampleGoogleDns,
-                        "malware-test.com" to strings.sampleMalwareUrl,
-                        "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
-                    )
-                    samples.forEach { (ioc, label) ->
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    onQueryChange(ioc)
-                                    onAnalyze()
-                                }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = label,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                text = strings.zeroKeyInstantScanReady,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.5.sp,
-                                color = PrimaryCyan,
-                                fontWeight = FontWeight.Medium,
+                                color = VerdictClean,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
-                                softWrap = false
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false).basicMarquee(iterations = Int.MAX_VALUE)
                             )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = {
+                                    val clipText = clipboardManager.getText()?.text
+                                    if (!clipText.isNullOrBlank()) {
+                                        onQueryChange(clipText.trim())
+                                    }
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                            ) {
+                                Text(
+                                    text = strings.pasteFromClipboard,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            if (uiState.isLoading) {
+                                Button(
+                                    onClick = onCancel,
+                                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(40.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = strings.cancelScan,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = onAnalyze,
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(40.dp)
+                                ) {
+                                    Text(
+                                        text = strings.scanPayload,
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Quick Samples & Drop Target Banner
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = strings.sampleIocsTitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = strings.dropFileHint,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF6B7280),
+                            fontSize = 10.5.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val samples = listOf(
+                            "8.8.8.8" to strings.sampleGoogleDns,
+                            "malware-test.com" to strings.sampleMalwareUrl,
+                            "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
+                        )
+                        samples.forEach { (ioc, label) ->
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onQueryChange(ioc)
+                                        onAnalyze()
+                                    }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = label,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.5.sp,
+                                    color = PrimaryCyan,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
                 }
@@ -1472,22 +1572,10 @@ private fun LiveProviderDeck(
                     modifier = Modifier.weight(1f).padding(end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = strings.threatIntelProvidersTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = PrimaryCyan.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.wrapContentWidth()
+                        modifier = Modifier.defaultMinSize(minWidth = 60.dp)
                     ) {
                         Text(
                             text = strings.enginesCount,
@@ -1499,6 +1587,18 @@ private fun LiveProviderDeck(
                             softWrap = false
                         )
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = strings.threatIntelProvidersTitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
                 }
 
                 Text(
@@ -1666,10 +1766,10 @@ private fun ProviderRow(
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 )
                 if (isZeroKey) {
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = strings.freeBadge,
                         color = VerdictClean,
@@ -1718,11 +1818,15 @@ private fun HistorySheet(
     isDialogMode: Boolean,
     isMobileOrTablet: Boolean = false,
     onSelect: (TriageVerdict) -> Unit,
+    onDelete: (TriageVerdict) -> Unit,
     onClear: () -> Unit,
     onClose: () -> Unit
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
+    var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     Box(
         modifier = Modifier
@@ -1866,55 +1970,104 @@ private fun HistorySheet(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         history.forEach { item ->
-                            val itemColor = when (item.overallVerdict) {
-                                VerdictLevel.CLEAN -> VerdictClean
-                                VerdictLevel.LOW_RISK -> VerdictLowRisk
-                                VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-                                VerdictLevel.MALICIOUS -> VerdictMalicious
-                                VerdictLevel.NO_DATA -> VerdictNoData
-                            }
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF0D1424))
-                                    .border(0.5.dp, itemColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                    .clickable { onSelect(item) }
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                        Text(
-                                            text = item.indicator.rawValue,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Text(
-                                        text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
+                            val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
+                            if (!isPendingDelete) {
+                                val itemColor = when (item.overallVerdict) {
+                                    VerdictLevel.CLEAN -> VerdictClean
+                                    VerdictLevel.LOW_RISK -> VerdictLowRisk
+                                    VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+                                    VerdictLevel.MALICIOUS -> VerdictMalicious
+                                    VerdictLevel.NO_DATA -> VerdictNoData
                                 }
 
-                                Surface(
-                                    color = itemColor.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(6.dp)
+                                DisintegrationContainer(
+                                    isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
+                                    accent = itemColor,
+                                    particleCount = 1800,
+                                    collapseHeight = true,
+                                    durationMs = 1200,
+                                    onDisintegrated = {
+                                        pendingDeletedRawValues = pendingDeletedRawValues + item.indicator.rawValue
+                                        onDelete(item)
+                                        if (deletingItemRawValue == item.indicator.rawValue) {
+                                            deletingItemRawValue = null
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        color = itemColor,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFF0D1424))
+                                            .border(0.5.dp, itemColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                            .clickable { onSelect(item) }
+                                            .pointerHoverIcon(PointerIcon.Hand)
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                                Text(
+                                                    text = item.indicator.rawValue,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(
+                                                text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Surface(
+                                                color = itemColor.copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                    color = itemColor,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+
+                                            // Spring-pressed Thanos Snap Disintegration Delete Button
+                                            Surface(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        if (deletingItemRawValue == null) {
+                                                            deletingItemRawValue = item.indicator.rawValue
+                                                        }
+                                                    }
+                                                    .pointerHoverIcon(PointerIcon.Hand)
+                                                    .springPress(),
+                                                color = Color.White.copy(alpha = 0.08f),
+                                                shape = CircleShape
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "✕",
+                                                        color = Color(0xFFEF4444),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1934,8 +2087,12 @@ private fun RecentTriageFeedHUD(
     appLanguage: AppLanguage,
     strings: AppStrings,
     onSelect: (TriageVerdict) -> Unit,
+    onDelete: (TriageVerdict) -> Unit,
     onReScan: (String) -> Unit
 ) {
+    var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
+    var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -2008,93 +2165,142 @@ private fun RecentTriageFeedHUD(
                 val recentScans = history.take(6)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     recentScans.forEach { item ->
-                        val verdictColor = when (item.overallVerdict) {
-                            VerdictLevel.CLEAN -> VerdictClean
-                            VerdictLevel.LOW_RISK -> VerdictLowRisk
-                            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-                            VerdictLevel.MALICIOUS -> VerdictMalicious
-                            VerdictLevel.NO_DATA -> VerdictNoData
-                        }
+                        val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
+                        if (!isPendingDelete) {
+                            val verdictColor = when (item.overallVerdict) {
+                                VerdictLevel.CLEAN -> VerdictClean
+                                VerdictLevel.LOW_RISK -> VerdictLowRisk
+                                VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+                                VerdictLevel.MALICIOUS -> VerdictMalicious
+                                VerdictLevel.NO_DATA -> VerdictNoData
+                            }
 
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { onSelect(item) }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF0B1322).copy(alpha = 0.8f),
-                            border = androidx.compose.foundation.BorderStroke(0.8.dp, verdictColor.copy(alpha = 0.35f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            DisintegrationContainer(
+                                isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
+                                accent = verdictColor,
+                                particleCount = 1800,
+                                collapseHeight = true,
+                                durationMs = 1200,
+                                onDisintegrated = {
+                                    pendingDeletedRawValues = pendingDeletedRawValues + item.indicator.rawValue
+                                    onDelete(item)
+                                    if (deletingItemRawValue == item.indicator.rawValue) {
+                                        deletingItemRawValue = null
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    modifier = Modifier.weight(1f).padding(end = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Surface(
-                                        color = verdictColor.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f))
-                                    ) {
-                                        Text(
-                                            text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                            color = verdictColor,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-
-                                    Column {
-                                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                                            Text(
-                                                text = item.indicator.rawValue,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontFamily = FontFamily.Monospace,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Text(
-                                            text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFF64748B),
-                                            fontSize = 10.5.sp
-                                        )
-                                    }
-                                }
-
                                 Surface(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { onReScan(item.indicator.rawValue) }
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onSelect(item) }
                                         .pointerHoverIcon(PointerIcon.Hand),
-                                    color = PrimaryCyan.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF0B1322).copy(alpha = 0.8f),
+                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, verdictColor.copy(alpha = 0.35f))
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(text = "⚡", fontSize = 11.sp)
-                                        Text(
-                                            text = strings.reAnalyze,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = PrimaryCyan,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
-                                        )
+                                        Row(
+                                            modifier = Modifier.weight(1f).padding(end = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Surface(
+                                                color = verdictColor.copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f))
+                                            ) {
+                                                Text(
+                                                    text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                    color = verdictColor,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+
+                                            Column {
+                                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                                    Text(
+                                                        text = item.indicator.rawValue,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF64748B),
+                                                    fontSize = 10.5.sp
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable { onReScan(item.indicator.rawValue) }
+                                                    .pointerHoverIcon(PointerIcon.Hand),
+                                                color = PrimaryCyan.copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text(text = "⚡", fontSize = 11.sp)
+                                                    Text(
+                                                        text = strings.reAnalyze,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = PrimaryCyan,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                            }
+
+                                            // Spring-pressed Thanos Dust Particle Snap Deletion Button
+                                            Surface(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        if (deletingItemRawValue == null) {
+                                                            deletingItemRawValue = item.indicator.rawValue
+                                                        }
+                                                    }
+                                                    .pointerHoverIcon(PointerIcon.Hand)
+                                                    .springPress(),
+                                                color = Color.White.copy(alpha = 0.08f),
+                                                shape = CircleShape
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "✕",
+                                                        color = Color(0xFFEF4444),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

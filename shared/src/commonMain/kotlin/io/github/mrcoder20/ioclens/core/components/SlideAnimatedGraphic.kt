@@ -39,6 +39,8 @@ import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import ioclens.shared.generated.resources.Res
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
@@ -53,9 +55,9 @@ object LottiePreloader {
     fun getCachedJson(fileName: String): String? = jsonCache[fileName]
     fun getCachedComposition(fileName: String): LottieComposition? = compositionCache[fileName]
 
-    suspend fun getOrLoadJson(fileName: String): String? {
-        jsonCache[fileName]?.let { return it }
-        return runCatching {
+    suspend fun getOrLoadJson(fileName: String): String? = withContext(Dispatchers.Default) {
+        jsonCache[fileName]?.let { return@withContext it }
+        runCatching {
             Res.readBytes(fileName).decodeToString()
         }.getOrNull()?.also {
             jsonCache[fileName] = it
@@ -66,7 +68,7 @@ object LottiePreloader {
         compositionCache[fileName] = composition
     }
 
-    suspend fun preloadAll() {
+    suspend fun preloadAll() = withContext(Dispatchers.Default) {
         listOf(
             "files/anim_search.json",
             "files/anim_shield.json",

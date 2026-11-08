@@ -119,15 +119,9 @@ fun IntroScreen(
                 onIntroFinished()
             },
             topBarContent = {
-                // Command Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Title Badge
+                val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+                val titleBadge = @Composable {
                     Surface(
                         color = PrimaryCyan.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
@@ -143,87 +137,122 @@ fun IntroScreen(
                             fontSize = 10.sp
                         )
                     }
+                }
 
-                    // Right Actions Group: Language Selector + Optional Physical Right Close Button
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Country Flag Language Selector
-                            Box {
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { isLanguageMenuExpanded = true }
-                                        .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        CountryFlag(language = uiState.currentLanguage)
-                                        Text(
-                                            text = uiState.currentLanguage.displayName,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFF9FAFB),
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                }
+                val actionsGroup = @Composable {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (onClose != null && isRtl) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { onClose() }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                shape = CircleShape,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = "✕",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
 
-                                DropdownMenu(
-                                    expanded = isLanguageMenuExpanded,
-                                    onDismissRequest = { isLanguageMenuExpanded = false }
+                        // Country Flag Language Selector
+                        Box {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { isLanguageMenuExpanded = true }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    AppLanguage.entries.forEach { lang ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    CountryFlag(language = lang)
-                                                    Text(
-                                                        text = lang.displayName,
-                                                        fontWeight = if (lang == uiState.currentLanguage) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                }
-                                            },
-                                            onClick = {
-                                                viewModel.onEvent(IntroEvent.LanguageChanged(lang))
-                                                isLanguageMenuExpanded = false
-                                            }
-                                        )
-                                    }
+                                    CountryFlag(language = uiState.currentLanguage)
+                                    Text(
+                                        text = uiState.currentLanguage.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFF9FAFB),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
 
-                            // Optional Close Button (for Guide Overlay mode)
-                            if (onClose != null) {
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .clickable { onClose() }
-                                        .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
-                                    shape = CircleShape,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-                                ) {
-                                    Text(
-                                        text = "✕",
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                            DropdownMenu(
+                                expanded = isLanguageMenuExpanded,
+                                onDismissRequest = { isLanguageMenuExpanded = false }
+                            ) {
+                                AppLanguage.entries.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                CountryFlag(language = lang)
+                                                Text(
+                                                    text = lang.displayName,
+                                                    fontWeight = if (lang == uiState.currentLanguage) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            viewModel.onEvent(IntroEvent.LanguageChanged(lang))
+                                            isLanguageMenuExpanded = false
+                                        }
                                     )
                                 }
                             }
                         }
+
+                        if (onClose != null && !isRtl) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { onClose() }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                shape = CircleShape,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = "✕",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Command Header (Close button permanently on physical right in both RTL & LTR)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isRtl) {
+                        actionsGroup()
+                        titleBadge()
+                    } else {
+                        titleBadge()
+                        actionsGroup()
                     }
                 }
             }

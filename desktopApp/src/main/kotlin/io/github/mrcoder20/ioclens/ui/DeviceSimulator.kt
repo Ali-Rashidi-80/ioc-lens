@@ -147,33 +147,11 @@ fun DeviceSimulatorToolbar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Close Button + Preset Selector Dropdown
+                // Left: Preset Selector Dropdown
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Close Device Mode Button (✕)
-                    Surface(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .clickable { onClose() }
-                            .pointerHoverIcon(PointerIcon.Hand),
-                        color = Color(0xFFEF4444).copy(alpha = 0.2f),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.45f))
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("✕", color = Color(0xFFEF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(18.dp)
-                            .background(Color(0xFF334155))
-                    )
-
                     // Device Category Icon Indicator
                     Text(
                         text = when (selectedPreset.category) {
@@ -349,6 +327,28 @@ fun DeviceSimulatorToolbar(
                                     Text("⛶", color = PrimaryCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(18.dp)
+                            .background(Color(0xFF334155))
+                    )
+
+                    // Close Device Mode Button (✕ Permanently Anchored to Far-Right)
+                    Surface(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .clickable { onClose() }
+                            .pointerHoverIcon(PointerIcon.Hand),
+                        color = Color(0xFFEF4444).copy(alpha = 0.2f),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.45f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("✕", color = Color(0xFFEF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

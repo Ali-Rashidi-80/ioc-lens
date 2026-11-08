@@ -17,5 +17,6 @@ interface SettingsRepository {
 
     fun getScanHistory(): List<TriageVerdict>
     fun saveScanHistory(history: List<TriageVerdict>)
+    fun deleteScanHistoryItem(rawValue: String)
     fun clearScanHistory()
 }

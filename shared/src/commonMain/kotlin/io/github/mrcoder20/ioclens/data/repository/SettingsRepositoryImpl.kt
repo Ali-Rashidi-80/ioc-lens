@@ -93,6 +93,11 @@ class SettingsRepositoryImpl(
         }
     }
 
+    override fun deleteScanHistoryItem(rawValue: String) {
+        val filtered = getScanHistory().filter { it.indicator.rawValue != rawValue }
+        saveScanHistory(filtered)
+    }
+
     override fun clearScanHistory() {
         storage.setString(KEY_SCAN_HISTORY, "")
     }

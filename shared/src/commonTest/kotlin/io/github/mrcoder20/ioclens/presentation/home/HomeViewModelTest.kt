@@ -54,6 +54,9 @@ class HomeViewModelTest {
             this.history.clear()
             this.history.addAll(history)
         }
+        override fun deleteScanHistoryItem(rawValue: String) {
+            history.removeAll { it.indicator.rawValue == rawValue }
+        }
         override fun clearScanHistory() { history.clear() }
     }
 
@@ -362,5 +365,55 @@ class HomeViewModelTest {
         // 7. Explicitly selecting tab 0 keeps tab 0 selected
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
+    }
+
+    @Test
+    fun testDeleteHistoryItemAndJumpNavigation() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // Seed scan history with two items
+        val item1 = TriageVerdict(
+            indicator = Indicator("8.8.8.8", "8.8.8.8", IndicatorType.IP_ADDRESS),
+            overallVerdict = VerdictLevel.CLEAN,
+            confidenceScore = 95,
+            summaryDescription = "Google DNS",
+            sourceResults = emptyList()
+        )
+        val item2 = TriageVerdict(
+            indicator = Indicator("malware-test.com", "malware-test.com", IndicatorType.DOMAIN),
+            overallVerdict = VerdictLevel.MALICIOUS,
+            confidenceScore = 90,
+            summaryDescription = "Known Bad Domain",
+            sourceResults = emptyList()
+        )
+        settingsRepo.saveScanHistory(listOf(item1, item2))
+        viewModel.onEvent(HomeEvent.ClearClicked) // Refresh state or trigger event
+
+        // Re-initialize to load history
+        val activeViewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+        advanceUntilIdle()
+        assertEquals(2, activeViewModel.uiState.value.scanHistory.size)
+
+        // 1. History Item Click jumps navigation to Tab 0 and sets active verdict
+        activeViewModel.onEvent(HomeEvent.SelectBottomNavTab(2)) // On history tab
+        assertEquals(2, activeViewModel.uiState.value.selectedBottomNavTab)
+
+        activeViewModel.onEvent(HomeEvent.HistoryItemClicked(item2))
+        assertEquals(0, activeViewModel.uiState.value.selectedBottomNavTab)
+        assertFalse(activeViewModel.uiState.value.isHistorySheetOpen)
+        assertEquals(item2.indicator.rawValue, activeViewModel.uiState.value.activeVerdict?.indicator?.rawValue)
+
+        // 2. Delete History Item removes it from storage and UI state
+        activeViewModel.onEvent(HomeEvent.DeleteHistoryItem(item2))
+        advanceUntilIdle()
+
+        val remainingHistory = activeViewModel.uiState.value.scanHistory
+        assertEquals(1, remainingHistory.size)
+        assertEquals("8.8.8.8", remainingHistory.first().indicator.rawValue)
+        assertEquals(1, settingsRepo.getScanHistory().size)
     }
 }
