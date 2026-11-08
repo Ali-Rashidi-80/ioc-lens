@@ -12,6 +12,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -170,10 +172,11 @@ class ThreatIntelAggregatorTest {
 
     @Test
     fun testVirusTotalUrlIdentifierLookup() = runTest {
+        val mutex = Mutex()
         val requestedEndpoints = mutableListOf<String>()
         val mockEngine = MockEngine { request ->
             val url = request.url.toString()
-            synchronized(requestedEndpoints) {
+            mutex.withLock {
                 requestedEndpoints.add(url)
             }
             respond(

@@ -120,6 +120,21 @@ class LocalizationAndResponsiveTest {
         assertFalse(strings.tabSettings.isBlank())
         assertFalse(strings.liveScanInProgress.isBlank())
         assertFalse(strings.enginesCompleted.isBlank())
+        assertFalse(strings.sampleIocsTitle.isBlank())
+        assertFalse(strings.sampleGoogleDns.isBlank())
+        assertFalse(strings.sampleMalwareUrl.isBlank())
+        assertFalse(strings.sampleHash.isBlank())
+        assertFalse(strings.pasteFromClipboard.isBlank())
+        assertFalse(strings.dropFileHint.isBlank())
+        assertFalse(strings.recentTriageFeed.isBlank())
+        assertFalse(strings.reAnalyze.isBlank())
+        assertFalse(strings.categoryNetwork.isBlank())
+        assertFalse(strings.categoryMalware.isBlank())
+        assertFalse(strings.categoryThreats.isBlank())
+        assertFalse(strings.serverlessStatus.isBlank())
+        assertFalse(strings.systemReadyEngines.isBlank())
+        assertFalse(strings.freeFeedsBadge.isBlank())
+        assertFalse(strings.privacyGuardActiveBadge.isBlank())
     }
 
     @Test

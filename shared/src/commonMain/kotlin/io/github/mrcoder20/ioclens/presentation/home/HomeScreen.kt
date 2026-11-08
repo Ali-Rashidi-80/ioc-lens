@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -325,11 +326,11 @@ fun HomeScreen(
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(horizontal = 14.dp, vertical = 6.dp)
-                    .widthIn(max = 1200.dp)
+                    .widthIn(max = 1380.dp)
                     .align(Alignment.TopCenter)
                     .verticalScroll(scrollState)
             ) {
-                // Header Bar (☰ Hamburger, Title, Actions)
+                // Header Bar (☰ Hamburger, Title, Telemetry Badges, Actions)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -374,6 +375,57 @@ fun HomeScreen(
                                 color = PrimaryCyan,
                                 letterSpacing = 1.sp
                             )
+                        }
+
+                        // Desktop Telemetry Status Indicators
+                        if (!isMobileOrTablet) {
+                            Spacer(modifier = Modifier.width(20.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    color = Color(0xFF0B192C),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
+                                        Text(text = strings.systemReadyEngines, fontSize = 10.5.sp, color = VerdictClean, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+
+                                Surface(
+                                    color = Color(0xFF0B192C),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(PrimaryCyan))
+                                        Text(text = strings.freeFeedsBadge, fontSize = 10.5.sp, color = PrimaryCyan, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+
+                                Surface(
+                                    color = Color(0xFF0B192C),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Text(text = "🛡️", fontSize = 10.sp)
+                                        Text(text = strings.privacyGuardActiveBadge, fontSize = 10.5.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -475,15 +527,29 @@ fun HomeScreen(
                             }
                         }
 
-                        // Right Pane: Threat Intel Provider Deck
+                        // Right Pane: Threat Intel Provider Deck (Balanced 2-Column Grid on Widescreen)
                         Column(modifier = Modifier.weight(0.85f)) {
                             LiveProviderDeck(
                                 uiState = uiState,
                                 onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                isTwoColumn = false
+                                isTwoColumn = screenWidth >= 1100.dp
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Desktop Recent Triage Scans HUD Feed
+                    RecentTriageFeedHUD(
+                        history = uiState.scanHistory,
+                        appLanguage = uiState.appLanguage,
+                        strings = strings,
+                        onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
+                        onReScan = { rawValue ->
+                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                        }
+                    )
                 } else {
                     // FLUID SINGLE-COLUMN / FOLDABLE DASHBOARD (Phones & Foldables)
                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
@@ -534,6 +600,14 @@ fun HomeScreen(
                         isTwoColumn = isMediumScreen
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Cyber Telemetry & Privacy Status Footer
+                CyberTelemetryFooter(
+                    strings = strings,
+                    isMobileOrTablet = isMobileOrTablet
+                )
 
                 Spacer(modifier = Modifier.height(if (isMobileOrTablet) 76.dp else 28.dp))
             }
@@ -973,6 +1047,8 @@ private fun SearchCard(
     onCancel: () -> Unit,
     onAnalyze: () -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -1024,6 +1100,22 @@ private fun SearchCard(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        TextButton(
+                            onClick = {
+                                val clipText = clipboardManager.getText()?.text
+                                if (!clipText.isNullOrBlank()) {
+                                    onQueryChange(clipText.trim())
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                        ) {
+                            Text(
+                                text = strings.pasteFromClipboard,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
                         if (uiState.queryInput.isNotEmpty()) {
                             TextButton(onClick = onClear) {
                                 Text(strings.clear, color = MaterialTheme.colorScheme.outline, fontSize = 12.sp)
@@ -1084,6 +1176,22 @@ private fun SearchCard(
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                val clipText = clipboardManager.getText()?.text
+                                if (!clipText.isNullOrBlank()) {
+                                    onQueryChange(clipText.trim())
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                        ) {
+                            Text(
+                                text = strings.pasteFromClipboard,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
                         if (uiState.queryInput.isNotEmpty()) {
                             TextButton(onClick = onClear) {
                                 Text(strings.clear, color = MaterialTheme.colorScheme.outline, fontSize = 13.sp)
@@ -1127,6 +1235,67 @@ private fun SearchCard(
                                     letterSpacing = 0.5.sp
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // Quick Samples & Drop Target Banner
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = strings.sampleIocsTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = strings.dropFileHint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF6B7280),
+                        fontSize = 10.5.sp
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val samples = listOf(
+                        "8.8.8.8" to strings.sampleGoogleDns,
+                        "malware-test.com" to strings.sampleMalwareUrl,
+                        "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
+                    )
+                    samples.forEach { (ioc, label) ->
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onQueryChange(ioc)
+                                    onAnalyze()
+                                }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = label,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.5.sp,
+                                color = PrimaryCyan,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -1693,6 +1862,230 @@ private fun HistorySheet(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Desktop Wide Recent Triage HUD Feed: Displays interactive recent scans and telemetry right on the main dashboard.
+ */
+@Composable
+private fun RecentTriageFeedHUD(
+    history: List<TriageVerdict>,
+    appLanguage: AppLanguage,
+    strings: AppStrings,
+    onSelect: (TriageVerdict) -> Unit,
+    onReScan: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = strings.recentTriageFeed,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = PrimaryCyan.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = LocalizationProvider.formatNumber(history.size, appLanguage),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PrimaryCyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (history.isEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF090E17).copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1E293B))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(text = "🛡️", fontSize = 24.sp)
+                        Column {
+                            Text(
+                                text = strings.noHistory,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = strings.zeroKeyInstantScanReady,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VerdictClean,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                val recentScans = history.take(6)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    recentScans.forEach { item ->
+                        val verdictColor = when (item.overallVerdict) {
+                            VerdictLevel.CLEAN -> VerdictClean
+                            VerdictLevel.LOW_RISK -> VerdictLowRisk
+                            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+                            VerdictLevel.MALICIOUS -> VerdictMalicious
+                            VerdictLevel.NO_DATA -> VerdictNoData
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onSelect(item) }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF0B1322).copy(alpha = 0.8f),
+                            border = androidx.compose.foundation.BorderStroke(0.8.dp, verdictColor.copy(alpha = 0.35f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Surface(
+                                        color = verdictColor.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f))
+                                    ) {
+                                        Text(
+                                            text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            color = verdictColor,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    Column {
+                                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                            Text(
+                                                text = item.indicator.rawValue,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Text(
+                                            text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF64748B),
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onReScan(item.indicator.rawValue) }
+                                        .pointerHoverIcon(PointerIcon.Hand),
+                                    color = PrimaryCyan.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(text = "⚡", fontSize = 11.sp)
+                                        Text(
+                                            text = strings.reAnalyze,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = PrimaryCyan,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Cyber Telemetry Footer: Transparent status pill showing serverless client architecture, no DB, and active privacy invariants.
+ */
+@Composable
+private fun CyberTelemetryFooter(
+    strings: AppStrings,
+    isMobileOrTablet: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color(0xFF070B14).copy(alpha = 0.85f),
+            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.25f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(VerdictClean)
+                )
+                Text(
+                    text = strings.serverlessStatus,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF94A3B8),
+                    fontSize = if (isMobileOrTablet) 10.sp else 11.5.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }

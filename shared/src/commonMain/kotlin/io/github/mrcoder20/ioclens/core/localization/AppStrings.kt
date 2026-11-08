@@ -74,7 +74,22 @@ data class AppStrings(
     val tabHistory: String,
     val tabSettings: String,
     val liveScanInProgress: String,
-    val enginesCompleted: String
+    val enginesCompleted: String,
+    val sampleIocsTitle: String,
+    val sampleGoogleDns: String,
+    val sampleMalwareUrl: String,
+    val sampleHash: String,
+    val pasteFromClipboard: String,
+    val dropFileHint: String,
+    val recentTriageFeed: String,
+    val reAnalyze: String,
+    val categoryNetwork: String,
+    val categoryMalware: String,
+    val categoryThreats: String,
+    val serverlessStatus: String,
+    val systemReadyEngines: String,
+    val freeFeedsBadge: String,
+    val privacyGuardActiveBadge: String
 )
 
 object LocalizationProvider {
@@ -377,7 +392,22 @@ object LocalizationProvider {
                 tabHistory = "History",
                 tabSettings = "Settings",
                 liveScanInProgress = "Live engine scan in progress...",
-                enginesCompleted = "engines complete"
+                enginesCompleted = "engines complete",
+                sampleIocsTitle = "Quick Samples:",
+                sampleGoogleDns = "8.8.8.8 (Google DNS)",
+                sampleMalwareUrl = "malware-test.com (Threat URL)",
+                sampleHash = "WannaCry Hash",
+                pasteFromClipboard = "📋 Paste (Ctrl+V)",
+                dropFileHint = "📁 Drop any file onto window to hash",
+                recentTriageFeed = "Recent Scans Feed",
+                reAnalyze = "Re-Scan",
+                categoryNetwork = "Network & DNS Infrastructure",
+                categoryMalware = "Malware & Binary Repositories",
+                categoryThreats = "Threat Feeds & Botnet C2",
+                serverlessStatus = "Serverless Direct Client · Zero Database · On-Device Privacy Guard (RFC 1918)",
+                systemReadyEngines = "10 Engines Ready",
+                freeFeedsBadge = "4 Zero-Key Feeds",
+                privacyGuardActiveBadge = "Privacy Guard Active"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -449,7 +479,22 @@ object LocalizationProvider {
                 tabHistory = "تاریخچه",
                 tabSettings = "تنظیمات",
                 liveScanInProgress = "در حال اسکن زنده موتورها...",
-                enginesCompleted = "موتور تکمیل شد"
+                enginesCompleted = "موتور تکمیل شد",
+                sampleIocsTitle = "نمونه‌های آزمایشی:",
+                sampleGoogleDns = "۸.۸.۸.۸ (دی‌ان‌اس گوگل)",
+                sampleMalwareUrl = "malware-test.com (آدرس آلوده)",
+                sampleHash = "هش وانا‌کرای (WannaCry)",
+                pasteFromClipboard = "📋 چسباندن (Ctrl+V)",
+                dropFileHint = "📁 رهاسازی فایل در پنجره برای محاسبه هش",
+                recentTriageFeed = "سوابق و پویش‌های اخیر",
+                reAnalyze = "پویش مجدد",
+                categoryNetwork = "زیرساخت شبکه و دی‌ان‌اس",
+                categoryMalware = "مخازن بدافزار و فایل‌ها",
+                categoryThreats = "فیدهای تهدید و کنترل بات‌نت",
+                serverlessStatus = "ارتباط مستقیم کلاینت سرورلس · بدون پایگاه داده واسط · محافظت حریم خصوصی فعال (RFC 1918)",
+                systemReadyEngines = "۱۰ موتور آماده",
+                freeFeedsBadge = "۴ فید رایگان",
+                privacyGuardActiveBadge = "حریم خصوصی محلی"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -521,7 +566,22 @@ object LocalizationProvider {
                 tabHistory = "История",
                 tabSettings = "Настройки",
                 liveScanInProgress = "Идет сканирование движков...",
-                enginesCompleted = "движков проверено"
+                enginesCompleted = "движков проверено",
+                sampleIocsTitle = "Примеры для теста:",
+                sampleGoogleDns = "8.8.8.8 (Google DNS)",
+                sampleMalwareUrl = "malware-test.com (Угроза)",
+                sampleHash = "Хеш WannaCry",
+                pasteFromClipboard = "📋 Вставить (Ctrl+V)",
+                dropFileHint = "📁 Перетащите файл для хеширования",
+                recentTriageFeed = "Недавние сканирования",
+                reAnalyze = "Повторить",
+                categoryNetwork = "Сетевая инфраструктура и DNS",
+                categoryMalware = "Репозитории вредоносного ПО",
+                categoryThreats = "Каналы угроз и C2 ботнетов",
+                serverlessStatus = "Прямой бессерверный клиент · Без промежуточных БД · Защита данных активна (RFC 1918)",
+                systemReadyEngines = "10 движков готовы",
+                freeFeedsBadge = "4 бесплатных фида",
+                privacyGuardActiveBadge = "Защита активна"
             )
         }
     }
