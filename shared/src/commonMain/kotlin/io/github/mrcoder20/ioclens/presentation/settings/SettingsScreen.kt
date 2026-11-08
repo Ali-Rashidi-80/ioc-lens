@@ -499,12 +499,12 @@ fun CyberSwitch(
     )
 
     val thumbBorderColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF80F5FF) else Color(0xFFCBD5E1),
+        targetValue = if (checked) Color.White else Color(0xFFCBD5E1),
         animationSpec = tween(250)
     )
 
     val coreColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF031018) else Color(0xFF1E293B),
+        targetValue = if (checked) Color(0xFF021018) else Color(0xFF1E293B),
         animationSpec = tween(250)
     )
 
@@ -521,13 +521,32 @@ fun CyberSwitch(
                 .padding(vertical = 3.dp),
             contentAlignment = Alignment.CenterStart
         ) {
+            // Track background status indicator symbol
+            if (checked) {
+                Text(
+                    text = "✓",
+                    color = PrimaryCyan.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(start = 9.dp).align(Alignment.CenterStart)
+                )
+            } else {
+                Text(
+                    text = "○",
+                    color = Color(0xFF475569),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(end = 9.dp).align(Alignment.CenterEnd)
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .padding(start = thumbOffset)
                     .size(22.dp)
                     .clip(CircleShape)
                     .background(thumbColor)
-                    .border(1.dp, thumbBorderColor, CircleShape),
+                    .border(1.5.dp, thumbBorderColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Box(

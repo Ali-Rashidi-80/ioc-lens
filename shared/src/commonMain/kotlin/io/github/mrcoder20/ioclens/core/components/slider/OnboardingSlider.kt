@@ -313,28 +313,26 @@ fun <T> OnboardingSlider(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
+                                containerColor = Color(0xFF0E182A),
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier
                                 .height(42.dp)
-                                .border(1.2.dp, PrimaryCyan.copy(alpha = 0.45f), RoundedCornerShape(50))
+                                .border(1.5.dp, PrimaryCyan.copy(alpha = 0.75f), RoundedCornerShape(50))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 VectorPrevArrow(isRtl = isRtl)
-                                if (previousText != null) {
-                                    Text(
-                                        text = previousText,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.5.sp,
-                                        color = Color.White
-                                    )
-                                }
+                                Text(
+                                    text = previousText ?: if (isRtl) "قبلی" else "Previous",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
                             }
                         }
                     } else {

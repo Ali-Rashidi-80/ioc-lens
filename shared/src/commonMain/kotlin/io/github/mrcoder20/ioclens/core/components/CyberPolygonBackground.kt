@@ -43,8 +43,8 @@ private class ReusablePoint(
 @Composable
 fun CyberPolygonBackground(
     modifier: Modifier = Modifier,
-    cols: Int = 4,
-    rows: Int = 4
+    cols: Int = 3,
+    rows: Int = 3
 ) {
     val totalNodes = cols * rows
 

@@ -73,7 +73,7 @@ fun IntroScreen(
     onClose: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val pagerState = rememberPagerState(pageCount = { uiState.slides.size })
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { uiState.slides.size })
     var isLanguageMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -85,16 +85,6 @@ fun IntroScreen(
 
     LaunchedEffect(pagerState.currentPage) {
         viewModel.onEvent(IntroEvent.PageChanged(pagerState.currentPage))
-    }
-
-    var hasHandledInitialCompletion by remember { mutableStateOf(false) }
-    LaunchedEffect(uiState.isCompleted) {
-        if (uiState.isCompleted && hasHandledInitialCompletion) {
-            onIntroFinished()
-        }
-        if (!uiState.isCompleted) {
-            hasHandledInitialCompletion = true
-        }
     }
 
     Box(
@@ -278,9 +268,13 @@ private fun IntroSlideCard(
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize()
         ) {
-            val isCompact = maxHeight < 520.dp
+            val isCompact = maxHeight < 560.dp
             val scrollState = rememberScrollState()
-            val graphicSize = if (isCompact) 110.dp else 260.dp
+            val graphicSize = when {
+                maxHeight < 560.dp -> 100.dp
+                maxHeight < 720.dp -> 150.dp
+                else -> 190.dp
+            }
 
             Column(
                 modifier = Modifier

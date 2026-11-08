@@ -1,5 +1,10 @@
 package io.github.mrcoder20.ioclens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,6 +54,9 @@ import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
+import io.github.mrcoder20.ioclens.ui.DeviceChassis
+import io.github.mrcoder20.ioclens.ui.DevicePreset
+import io.github.mrcoder20.ioclens.ui.DeviceSimulatorToolbar
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.EventQueue
@@ -108,6 +117,10 @@ fun main(args: Array<String>) {
         ) {
             var isMaximized by remember { mutableStateOf(false) }
             var floatingBounds by remember { mutableStateOf<Rectangle?>(null) }
+            var deviceModeActive by remember { mutableStateOf(false) }
+            var selectedDevicePreset by remember { mutableStateOf(DevicePreset.RESPONSIVE) }
+            var isLandscapeOrientation by remember { mutableStateOf(false) }
+            var showDeviceFrameBezel by remember { mutableStateOf(true) }
 
             // Ensure system cursor is always valid, visible, and window enforces minimum size
             DisposableEffect(window) {
@@ -231,8 +244,30 @@ fun main(args: Array<String>) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Left Slot: Empty spacing for dead-center balance
-                                Box(modifier = Modifier.width(90.dp))
+                                // Left Slot: Device Mode Toggle Button
+                                Row(
+                                    modifier = Modifier.width(90.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable { deviceModeActive = !deviceModeActive }
+                                            .pointerHoverIcon(PointerIcon.Hand),
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.12f),
+                                        border = androidx.compose.foundation.BorderStroke(0.8.dp, if (deviceModeActive) PrimaryCyan else Color.White.copy(alpha = 0.2f))
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "📱",
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
 
                                 // Center Slot: Dead-Centered Title Text
                                 Text(
@@ -303,9 +338,47 @@ fun main(args: Array<String>) {
                         }
                     }
 
-                    // Main Application Content
-                    Box(modifier = Modifier.weight(1f)) {
-                        App()
+                    // Device Simulation Toolbar (Visible on Desktop when Device Mode is active)
+                    AnimatedVisibility(
+                        visible = deviceModeActive,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        DeviceSimulatorToolbar(
+                            selectedPreset = selectedDevicePreset,
+                            onSelectPreset = { selectedDevicePreset = it },
+                            isLandscape = isLandscapeOrientation,
+                            onToggleOrientation = { isLandscapeOrientation = !isLandscapeOrientation },
+                            showFrame = showDeviceFrameBezel,
+                            onToggleFrame = { showDeviceFrameBezel = !showDeviceFrameBezel },
+                            onClose = { deviceModeActive = false },
+                            onSnapWindow = { targetW, targetH ->
+                                val titleAndToolbarOffset = 38 + 42
+                                val framePadding = 48
+                                val newW = (targetW + framePadding).coerceAtLeast(420)
+                                val newH = (targetH + titleAndToolbarOffset + framePadding).coerceAtLeast(500)
+                                val gc = window.graphicsConfiguration
+                                val screenBounds = gc.bounds
+                                val targetX = (screenBounds.x + (screenBounds.width - newW) / 2).coerceAtLeast(screenBounds.x)
+                                val targetY = (screenBounds.y + (screenBounds.height - newH) / 2).coerceAtLeast(screenBounds.y)
+                                window.setBounds(targetX, targetY, newW, newH)
+                            }
+                        )
+                    }
+
+                    // Main Application Content (Normal or inside Device Chassis)
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        if (deviceModeActive) {
+                            DeviceChassis(
+                                preset = selectedDevicePreset,
+                                isLandscape = isLandscapeOrientation,
+                                showFrame = showDeviceFrameBezel
+                            ) {
+                                App()
+                            }
+                        } else {
+                            App()
+                        }
                     }
                 }
             }

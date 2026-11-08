@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -484,8 +485,11 @@ fun HomeScreen(
                             .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Left Pane: Input, Progress & Verdict
-                        Column(modifier = Modifier.weight(1.15f)) {
+                        // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
+                        Column(
+                            modifier = Modifier.weight(1.15f),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
                             FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
 
                             AnimatedVisibility(
@@ -514,8 +518,6 @@ fun HomeScreen(
 
                             ErrorMessageBanner(errorMessage = uiState.errorMessage)
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
                             AnimatedVisibility(
                                 visible = uiState.activeVerdict != null,
                                 enter = fadeIn(tween(350)) + expandVertically(tween(350)),
@@ -525,6 +527,18 @@ fun HomeScreen(
                                     OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
                                 }
                             }
+
+                            // Desktop Recent Triage Scans HUD Feed directly in triage pane (fills the void)
+                            RecentTriageFeedHUD(
+                                history = uiState.scanHistory,
+                                appLanguage = uiState.appLanguage,
+                                strings = strings,
+                                onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
+                                onReScan = { rawValue ->
+                                    viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                                    viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                }
+                            )
                         }
 
                         // Right Pane: Threat Intel Provider Deck (Balanced 2-Column Grid on Widescreen)
@@ -536,20 +550,6 @@ fun HomeScreen(
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Desktop Recent Triage Scans HUD Feed
-                    RecentTriageFeedHUD(
-                        history = uiState.scanHistory,
-                        appLanguage = uiState.appLanguage,
-                        strings = strings,
-                        onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
-                        onReScan = { rawValue ->
-                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                        }
-                    )
                 } else {
                     // FLUID SINGLE-COLUMN / FOLDABLE DASHBOARD (Phones & Foldables)
                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
@@ -609,7 +609,7 @@ fun HomeScreen(
                     isMobileOrTablet = isMobileOrTablet
                 )
 
-                Spacer(modifier = Modifier.height(if (isMobileOrTablet) 76.dp else 28.dp))
+                Spacer(modifier = Modifier.height(if (isMobileOrTablet) 84.dp else 40.dp))
             }
 
             // History Sheet Overlay (Responsive: Floating Modal on Tablets/Desktop, Bottom Sheet on Phones)
@@ -641,21 +641,23 @@ fun HomeScreen(
 
             // Guide Overlay with Embedded Header Close Button (Integrated into top bar to prevent collisions)
             if (uiState.isGuideOverlayOpen && introViewModel != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF06080D))
-                        .zIndex(100f)
-                ) {
-                    IntroScreen(
-                        viewModel = introViewModel,
-                        onIntroFinished = {
-                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                        },
-                        onClose = {
-                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                        }
-                    )
+                androidx.compose.runtime.key(uiState.isGuideOverlayOpen) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF06080D))
+                            .zIndex(100f)
+                    ) {
+                        IntroScreen(
+                            viewModel = introViewModel,
+                            onIntroFinished = {
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            },
+                            onClose = {
+                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            }
+                        )
+                    }
                 }
             }
 
@@ -977,10 +979,11 @@ private fun CyberpunkBottomNavBar(
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) activeColor else inactiveColor,
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
 
@@ -1267,7 +1270,9 @@ private fun SearchCard(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val samples = listOf(
@@ -1290,11 +1295,13 @@ private fun SearchCard(
                         ) {
                             Text(
                                 text = label,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 10.5.sp,
                                 color = PrimaryCyan,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -1509,7 +1516,8 @@ private fun LiveProviderDeck(
                                             result = activeMap[name],
                                             indicatorType = currentIndicatorType,
                                             hasActiveVerdict = uiState.activeVerdict != null,
-                                            appLanguage = uiState.appLanguage
+                                            appLanguage = uiState.appLanguage,
+                                            isTwoColumn = true
                                         )
                                     }
                                 }
@@ -1530,7 +1538,8 @@ private fun LiveProviderDeck(
                                 result = result,
                                 indicatorType = currentIndicatorType,
                                 hasActiveVerdict = uiState.activeVerdict != null,
-                                appLanguage = uiState.appLanguage
+                                appLanguage = uiState.appLanguage,
+                                isTwoColumn = false
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
@@ -1566,7 +1575,8 @@ private fun ProviderRow(
     result: SourceResult?,
     indicatorType: IndicatorType?,
     hasActiveVerdict: Boolean,
-    appLanguage: AppLanguage
+    appLanguage: AppLanguage,
+    isTwoColumn: Boolean = false
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
     val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
@@ -1595,9 +1605,9 @@ private fun ProviderRow(
         isTimedOut -> strings.statusTimedOut
         result != null -> LocalizationProvider.getVerdictName(result.verdict, appLanguage)
         hasActiveVerdict && !isApplicable -> strings.statusNotApplicable
-        hasActiveVerdict -> strings.statusKeyRequired
-        isZeroKey -> strings.statusReadyZeroKey
-        else -> strings.statusKeyRequired
+        hasActiveVerdict -> if (isTwoColumn) (if (appLanguage == AppLanguage.PERSIAN) "نیاز به کلید" else strings.statusKeyRequired) else strings.statusKeyRequired
+        isZeroKey -> if (isTwoColumn) strings.statusReady else strings.statusReadyZeroKey
+        else -> if (isTwoColumn) (if (appLanguage == AppLanguage.PERSIAN) "نیاز به کلید" else strings.statusKeyRequired) else strings.statusKeyRequired
     }
 
     Row(
@@ -1605,25 +1615,38 @@ private fun ProviderRow(
             .fillMaxWidth()
             .background(Color(0xFF0D1424), RoundedCornerShape(10.dp))
             .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = if (isTwoColumn) 8.dp else 12.dp, vertical = if (isTwoColumn) 6.dp else 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.weight(1f).padding(end = 4.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (isTwoColumn) 11.5.sp else 13.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 if (isZeroKey) {
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = strings.freeBadge,
                         color = VerdictClean,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = if (isTwoColumn) 9.sp else 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -1633,7 +1656,9 @@ private fun ProviderRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = if (isTwoColumn) 9.sp else 10.5.sp
                 )
             }
         }
@@ -1644,10 +1669,13 @@ private fun ProviderRow(
         ) {
             Text(
                 text = statusText,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                modifier = Modifier.padding(horizontal = if (isTwoColumn) 5.dp else 8.dp, vertical = 2.dp),
                 color = if (isLoading) PrimaryCyan else statusColor,
                 fontWeight = FontWeight.Bold,
-                fontSize = 10.sp
+                fontSize = if (isTwoColumn) 8.5.sp else 10.sp,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -2083,8 +2111,11 @@ private fun CyberTelemetryFooter(
                     text = strings.serverlessStatus,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF94A3B8),
-                    fontSize = if (isMobileOrTablet) 10.sp else 11.5.sp,
-                    fontWeight = FontWeight.Medium
+                    fontSize = if (isMobileOrTablet) 9.5.sp else 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
