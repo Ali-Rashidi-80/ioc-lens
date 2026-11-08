@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -58,7 +59,9 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +71,7 @@ import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.AppTheme
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.VerdictClean
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import kotlinx.coroutines.delay
@@ -135,7 +139,7 @@ fun SettingsScreen(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
@@ -143,10 +147,12 @@ fun SettingsScreen(
             .navigationBarsPadding(),
         contentAlignment = Alignment.TopCenter
     ) {
+        val isCompactLayout = maxWidth < 680.dp || isMobileOrTablet
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 680.dp)
+                .widthIn(max = 840.dp)
                 .padding(
                     top = 16.dp,
                     start = 16.dp,
@@ -155,7 +161,7 @@ fun SettingsScreen(
                 )
                 .verticalScroll(scrollState)
         ) {
-            // Header with natural BiDi placement (Title at Start, Close at End)
+            // Header with strict BiDi compliance: physical right corner grouping in Persian RTL
             SettingsHeader(
                 strings = strings,
                 onClose = {
@@ -172,7 +178,7 @@ fun SettingsScreen(
                     .background(Color(0xFF070D18))
                     .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
                     .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
                     SettingsTab.API_KEYS to ("🔑 " + strings.settingsTabApiKeys),
@@ -236,7 +242,8 @@ fun SettingsScreen(
                             onSave = {
                                 flushPendingKeys()
                                 showSavedMessage = true
-                            }
+                            },
+                            isCompact = isCompactLayout
                         )
                     }
                     SettingsTab.GENERAL_PRIVACY -> {
@@ -275,38 +282,73 @@ fun SettingsScreen(
 }
 
 /**
- * Top Header ensuring physical right-alignment for Dismiss button (✕) in both LTR & RTL layouts.
+ * Top Header ensuring physical right-alignment for Dismiss button (✕) and Settings title in Persian RTL.
  */
 @Composable
 private fun SettingsHeader(
     strings: AppStrings,
     onClose: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        HeaderTitle(strings = strings)
-        DismissButton(onClose = onClose)
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isRtl) {
+                // Persian RTL: Anchored on the physical right edge
+                Surface(
+                    color = PrimaryCyan.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = "SECURITY CONSOLE // SETTINGS",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = PrimaryCyan.copy(alpha = 0.8f),
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                HeaderTitle(strings = strings, isRtl = true)
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                DismissButton(onClose = onClose)
+            } else {
+                // LTR (English / Russian): Title at left, Dismiss button at right
+                HeaderTitle(strings = strings, isRtl = false)
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                DismissButton(onClose = onClose)
+            }
+        }
     }
 }
 
 @Composable
-private fun HeaderTitle(strings: AppStrings) {
-    Column {
+private fun HeaderTitle(strings: AppStrings, isRtl: Boolean) {
+    Column(horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start) {
         Text(
             text = "⚙️ ${strings.settingsTitle}",
             style = MaterialTheme.typography.headlineMedium,
             color = PrimaryCyan,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            textAlign = if (isRtl) TextAlign.End else TextAlign.Start
         )
         Text(
             text = strings.menuSettings,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = if (isRtl) TextAlign.End else TextAlign.Start
         )
     }
 }
@@ -335,7 +377,7 @@ private fun DismissButton(onClose: () -> Unit) {
 }
 
 /**
- * Language Selector Card with Canvas Vector Flags and Active Indicators.
+ * Language Selector Card with Canvas Vector Flags and 3-Column Bento Row.
  */
 @Composable
 private fun LanguageCard(
@@ -347,61 +389,61 @@ private fun LanguageCard(
         title = "🌐 ${strings.languageLabel}",
         badge = settingsState.appLanguage.badgeCode
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppLanguage.entries.forEach { lang ->
+        val languages = listOf(
+            Pair(AppLanguage.ENGLISH, "English"),
+            Pair(AppLanguage.PERSIAN, "فارسی"),
+            Pair(AppLanguage.RUSSIAN, "Русский")
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            languages.forEach { (lang, label) ->
                 val isSelected = lang == settingsState.appLanguage
                 Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onLanguageSelected(lang) }
                         .pointerHoverIcon(PointerIcon.Hand),
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        PrimaryCyan.copy(alpha = 0.15f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        Color(0xFF070D18)
                     },
-                    border = if (isSelected) {
-                        androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan)
-                    } else {
-                        androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-                    },
+                    border = androidx.compose.foundation.BorderStroke(
+                        if (isSelected) 1.5.dp else 1.dp,
+                        if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+                    ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CountryFlag(language = lang)
-                            Column {
-                                Text(
-                                    text = lang.displayName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            CountryFlag(language = lang, modifier = Modifier.size(22.dp, 15.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
                         }
                         if (isSelected) {
-                            Surface(
-                                color = PrimaryCyan.copy(alpha = 0.2f),
-                                shape = CircleShape
-                            ) {
-                                Text(
-                                    text = "✓",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    color = PrimaryCyan,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 15.sp
-                                )
-                            }
+                            Text(
+                                text = "✓",
+                                color = PrimaryCyan,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
                         }
                     }
                 }
@@ -411,7 +453,7 @@ private fun LanguageCard(
 }
 
 /**
- * Theme Selector Card with Cyberpunk Neon Accents.
+ * Theme Selector Card with Cyberpunk Accents in 2-Column Bento Row.
  */
 @Composable
 private fun ThemeCard(
@@ -428,32 +470,34 @@ private fun ThemeCard(
         title = "🎨 ${strings.themeLabel}",
         badge = if (settingsState.appTheme == AppTheme.DARK) "CYBER DARK" else "AUTO SYSTEM"
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             themeOptions.forEach { (theme, pair) ->
                 val (icon, label) = pair
                 val isSelected = theme == settingsState.appTheme
                 Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onThemeSelected(theme) }
                         .pointerHoverIcon(PointerIcon.Hand),
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        PrimaryCyan.copy(alpha = 0.15f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        Color(0xFF070D18)
                     },
-                    border = if (isSelected) {
-                        androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan)
-                    } else {
-                        androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-                    },
+                    border = androidx.compose.foundation.BorderStroke(
+                        if (isSelected) 1.5.dp else 1.dp,
+                        if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+                    ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -464,24 +508,18 @@ private fun ThemeCard(
                             Text(text = icon, fontSize = 20.sp)
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                         }
                         if (isSelected) {
-                            Surface(
-                                color = PrimaryCyan.copy(alpha = 0.2f),
-                                shape = CircleShape
-                            ) {
-                                Text(
-                                    text = "✓",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    color = PrimaryCyan,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 15.sp
-                                )
-                            }
+                            Text(
+                                text = "✓",
+                                color = PrimaryCyan,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
                         }
                     }
                 }
@@ -491,7 +529,7 @@ private fun ThemeCard(
 }
 
 /**
- * Privacy Guard Card detailing RFC 1918 Private IP Shielding.
+ * Privacy Guard Settings Card with RFC 1918 Invariant Shield.
  */
 @Composable
 private fun PrivacyGuardCard(
@@ -501,7 +539,7 @@ private fun PrivacyGuardCard(
 ) {
     SettingsCard(
         title = "🛡️ ${strings.menuPrivacyGuard}",
-        badge = if (settingsState.privacyGuardEnabled) "RFC 1918 ACTIVE" else "STANDBY"
+        badge = if (settingsState.privacyGuardEnabled) "RFC 1918 ACTIVE" else "GUARD DISABLED"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -509,14 +547,13 @@ private fun PrivacyGuardCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                     Text(
                         text = strings.privacyGuardSetting,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = strings.privacyGuardNotice,
                         style = MaterialTheme.typography.bodyMedium,
@@ -529,7 +566,7 @@ private fun PrivacyGuardCard(
                 )
             }
 
-            // Cyberpunk Shield Status Banner
+            // Cyber Shield Status Banner
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
@@ -569,7 +606,7 @@ private fun PrivacyGuardCard(
 }
 
 /**
- * Dedicated Threat Intelligence API Key Manager Card.
+ * Dedicated Threat Intelligence API Key Manager Card in Balanced 3x2 Grid.
  */
 @Composable
 private fun ApiKeysCard(
@@ -585,7 +622,8 @@ private fun ApiKeysCard(
     onIpqsKeyChange: (String) -> Unit,
     strings: AppStrings,
     showSavedMessage: Boolean,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    isCompact: Boolean = false
 ) {
     val configuredCount = listOf(vtKey, abuseKey, alienKey, pulseKey, ipqsKey).count { it.isNotBlank() }
 
@@ -597,95 +635,197 @@ private fun ApiKeysCard(
             // Explanatory Information Banner
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF0D1424),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF090E17).copy(alpha = 0.9f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.3f))
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = strings.apiKeysZeroKeyBanner,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = PrimaryCyan
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = strings.apiKeysSubtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8)
-                    )
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(text = "⚡", fontSize = 22.sp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = strings.apiKeysZeroKeyBanner,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = strings.apiKeysSubtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8),
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
             }
 
-            // 5 Individual Credential Input Fields
-            CyberApiKeyField(
-                title = strings.vtApiKeyLabel,
-                subtitle = strings.vtSubtitle,
-                value = vtKey,
-                onValueChange = onVtKeyChange,
-                strings = strings
-            )
+            if (isCompact) {
+                // Fluid Single-Column Layout for Mobile Screens
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CyberApiKeyField(title = strings.vtApiKeyLabel, subtitle = strings.vtSubtitle, value = vtKey, onValueChange = onVtKeyChange, strings = strings)
+                    CyberApiKeyField(title = strings.abuseApiKeyLabel, subtitle = strings.abuseSubtitle, value = abuseKey, onValueChange = onAbuseKeyChange, strings = strings)
+                    CyberApiKeyField(title = strings.alienApiKeyLabel, subtitle = strings.alienSubtitle, value = alienKey, onValueChange = onAlienKeyChange, strings = strings)
+                    CyberApiKeyField(title = strings.pulseApiKeyLabel, subtitle = strings.pulseSubtitle, value = pulseKey, onValueChange = onPulseKeyChange, strings = strings)
+                    CyberApiKeyField(title = strings.ipqsApiKeyLabel, subtitle = strings.ipqsSubtitle, value = ipqsKey, onValueChange = onIpqsKeyChange, strings = strings)
+                    SaveActionHubCard(configuredCount = configuredCount, strings = strings, showSavedMessage = showSavedMessage, onSave = onSave)
+                }
+            } else {
+                // Responsive 3x2 Grid for Desktop & Tablets (Prevents stretched, empty single-row aesthetics)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Row 1: VirusTotal & AbuseIPDB
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CyberApiKeyField(
+                                title = strings.vtApiKeyLabel,
+                                subtitle = strings.vtSubtitle,
+                                value = vtKey,
+                                onValueChange = onVtKeyChange,
+                                strings = strings
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            CyberApiKeyField(
+                                title = strings.abuseApiKeyLabel,
+                                subtitle = strings.abuseSubtitle,
+                                value = abuseKey,
+                                onValueChange = onAbuseKeyChange,
+                                strings = strings
+                            )
+                        }
+                    }
 
-            CyberApiKeyField(
-                title = strings.abuseApiKeyLabel,
-                subtitle = strings.abuseSubtitle,
-                value = abuseKey,
-                onValueChange = onAbuseKeyChange,
-                strings = strings
-            )
+                    // Row 2: AlienVault OTX & Pulsedive
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CyberApiKeyField(
+                                title = strings.alienApiKeyLabel,
+                                subtitle = strings.alienSubtitle,
+                                value = alienKey,
+                                onValueChange = onAlienKeyChange,
+                                strings = strings
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            CyberApiKeyField(
+                                title = strings.pulseApiKeyLabel,
+                                subtitle = strings.pulseSubtitle,
+                                value = pulseKey,
+                                onValueChange = onPulseKeyChange,
+                                strings = strings
+                            )
+                        }
+                    }
 
-            CyberApiKeyField(
-                title = strings.alienApiKeyLabel,
-                subtitle = strings.alienSubtitle,
-                value = alienKey,
-                onValueChange = onAlienKeyChange,
-                strings = strings
-            )
+                    // Row 3: IPQualityScore & Save Action Hub
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CyberApiKeyField(
+                                title = strings.ipqsApiKeyLabel,
+                                subtitle = strings.ipqsSubtitle,
+                                value = ipqsKey,
+                                onValueChange = onIpqsKeyChange,
+                                strings = strings
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            SaveActionHubCard(
+                                configuredCount = configuredCount,
+                                strings = strings,
+                                showSavedMessage = showSavedMessage,
+                                onSave = onSave
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
-            CyberApiKeyField(
-                title = strings.pulseApiKeyLabel,
-                subtitle = strings.pulseSubtitle,
-                value = pulseKey,
-                onValueChange = onPulseKeyChange,
-                strings = strings
-            )
-
-            CyberApiKeyField(
-                title = strings.ipqsApiKeyLabel,
-                subtitle = strings.ipqsSubtitle,
-                value = ipqsKey,
-                onValueChange = onIpqsKeyChange,
-                strings = strings
-            )
-
-            // Save Action Button
-            Button(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                shape = RoundedCornerShape(12.dp)
+/**
+ * Action Hub Card combining Active Key Counter, Quick Save Action, and Confirmation Banner.
+ */
+@Composable
+private fun SaveActionHubCard(
+    configuredCount: Int,
+    strings: AppStrings,
+    showSavedMessage: Boolean,
+    onSave: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(112.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF070E1A),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = strings.saveKeys,
-                    color = Color(0xFF0A0E17),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (configuredCount > 0) VerdictClean else PrimaryCyan))
+                    Text(
+                        text = if (configuredCount > 0) "$configuredCount/5 ${strings.keyConfiguredBadge}" else strings.zeroKeyInstantScanReady,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (showSavedMessage) {
+                    Surface(
+                        color = PrimaryCyan.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan)
+                    ) {
+                        Text(
+                            text = "✓ ${strings.savedSuccessfully}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            color = PrimaryCyan,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
-            if (showSavedMessage) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = PrimaryCyan.copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f))
+            Button(
+                onClick = onSave,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text(text = "💾", fontSize = 16.sp)
                     Text(
-                        text = "✓ ${strings.savedSuccessfully}",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        color = PrimaryCyan,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
+                        text = strings.saveKeys,
+                        color = Color(0xFF0A0E17),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.5.sp
                     )
                 }
             }
@@ -694,7 +834,7 @@ private fun ApiKeysCard(
 }
 
 /**
- * Cyberpunk Styled Input Field for Threat Intel API Credentials.
+ * Cyberpunk Styled Input Field for Threat Intel API Credentials (Uniform 112dp Grid Cell).
  */
 @Composable
 private fun CyberApiKeyField(
@@ -702,106 +842,117 @@ private fun CyberApiKeyField(
     subtitle: String,
     value: String,
     onValueChange: (String) -> Unit,
-    strings: AppStrings,
-    modifier: Modifier = Modifier
+    strings: AppStrings
 ) {
     val isConfigured = value.isNotBlank()
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF0A0F1D))
-            .border(
-                1.dp,
-                if (isConfigured) PrimaryCyan.copy(alpha = 0.35f) else Color(0xFF1E293B),
-                RoundedCornerShape(12.dp)
-            )
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(112.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF070D18),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isConfigured) PrimaryCyan.copy(alpha = 0.5f) else Color(0xFF1E293B)
+        )
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF94A3B8)
-                )
-            }
-            Surface(
-                color = if (isConfigured) PrimaryCyan.copy(alpha = 0.15f) else Color(0xFF1E293B),
-                shape = RoundedCornerShape(6.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isConfigured) PrimaryCyan.copy(alpha = 0.5f) else Color(0xFF334155)
-                )
-            ) {
-                Text(
-                    text = if (isConfigured) strings.keyConfiguredBadge else strings.keyOptionalBadge,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isConfigured) PrimaryCyan else Color(0xFF94A3B8)
-                )
-            }
-        }
-
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                placeholder = {
-                    Text(
-                        text = strings.keyInputPlaceholder,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF475569)
-                    )
-                },
-                trailingIcon = {
-                    if (value.isNotEmpty()) {
-                        Text(
-                            text = "✕",
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable { onValueChange("") }
-                                .padding(6.dp)
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = PrimaryCyan,
-                    unfocusedBorderColor = Color(0xFF1E293B),
-                    focusedContainerColor = Color(0xFF070B14),
-                    unfocusedContainerColor = Color(0xFF070B14),
-                    cursorColor = PrimaryCyan
-                ),
-                shape = RoundedCornerShape(10.dp)
-            )
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 6.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isConfigured) PrimaryCyan else Color.White,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.5.sp,
+                        color = Color(0xFF64748B),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+
+                Surface(
+                    color = if (isConfigured) PrimaryCyan.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.6.dp,
+                        if (isConfigured) PrimaryCyan.copy(alpha = 0.4f) else Color(0xFF334155)
+                    )
+                ) {
+                    Text(
+                        text = if (isConfigured) strings.keyConfiguredBadge else strings.keyOptionalBadge,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isConfigured) PrimaryCyan else Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    placeholder = {
+                        Text(
+                            text = strings.keyInputPlaceholder,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = Color(0xFF475569)
+                        )
+                    },
+                    trailingIcon = {
+                        if (value.isNotEmpty()) {
+                            Text(
+                                text = "✕",
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { onValueChange("") }
+                                    .padding(6.dp)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = PrimaryCyan,
+                        unfocusedBorderColor = Color(0xFF1E293B),
+                        focusedContainerColor = Color(0xFF030710),
+                        unfocusedContainerColor = Color(0xFF030710),
+                        cursorColor = PrimaryCyan
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
         }
     }
 }
 
 /**
- * About & Guide Replay Card.
+ * About Hub: Comprehensive Architectural Presentation for Defenders (Zero-Jargon, 4-Pillar Grid).
  */
 @Composable
 private fun AboutCard(
@@ -810,77 +961,213 @@ private fun AboutCard(
 ) {
     SettingsCard(
         title = "ℹ️ ${strings.menuAbout}",
-        badge = "KMP"
+        badge = "OPEN SOURCE v1.0"
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = strings.appTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryCyan
-            )
-            Text(
-                text = strings.versionLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = strings.appTagline,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Hero Presentation Hub
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF070E1A),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(54.dp),
+                        shape = CircleShape,
+                        color = PrimaryCyan.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(text = "🛡️", fontSize = 26.sp)
+                        }
+                    }
 
-            Spacer(modifier = Modifier.height(4.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "IOC LENS",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                letterSpacing = 1.sp
+                            )
+                            Surface(
+                                color = PrimaryCyan.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan)
+                            ) {
+                                Text(
+                                    text = strings.versionLabel,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryCyan
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = strings.appTagline,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF94A3B8),
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+            }
 
-            // Cyber Feature Badges
+            // 4 Architectural Security Pillars in 2x2 Grid
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Row 1: Zero Cloud DB & Client-Direct Engine
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        ArchitecturePillarCard(
+                            icon = "🔒",
+                            title = strings.badgeZeroCloudDb,
+                            description = "هیچ پایگاه داده ابری یا سرور میانی وجود ندارد؛ توکن‌ها و سوابق تنها در حافظه رمزنگاری‌شده محلی ذخیره می‌شوند."
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        ArchitecturePillarCard(
+                            icon = "⚡",
+                            title = strings.badgeClientDirect,
+                            description = "استعلام‌های تهدید مستقیماً از سیستم شما به APIهای رسمی ارسال می‌شوند بدون واسطه (۱۰۰٪ کلاینت-ساید)."
+                        )
+                    }
+                }
+
+                // Row 2: RFC 1918 Guard & 10 Threat Engines
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        ArchitecturePillarCard(
+                            icon = "🛡️",
+                            title = "سپر حریم خصوصی RFC 1918",
+                            description = "تشخیص و مسدودسازی بلادرنگ آی‌پی‌های محلی و خصوصی (10.0.0.0/8 و 192.168.0.0/16) جهت جلوگیری از نشت ترافیک."
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        ArchitecturePillarCard(
+                            icon = "🌐",
+                            title = strings.threatIntelProvidersTitle,
+                            description = "تلفیق بلادرنگ ۵ فید باز رایگان و ۵ موتور تخصصی برای تحلیل بدافزار، فیشینگ، دی‌ان‌اس و شهرت آی‌پی."
+                        )
+                    }
+                }
+            }
+
+            // Technical Architecture Specification Badges
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    color = Color(0xFF0D1424),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = strings.badgeClientDirect,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
-                        color = PrimaryCyan
-                    )
-                }
-                Surface(
-                    color = Color(0xFF0D1424),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-                ) {
-                    Text(
-                        text = strings.badgeZeroCloudDb,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
-                        color = Color(0xFF94A3B8)
-                    )
+                listOf(
+                    "Standalone Portable",
+                    "Zero Telemetry",
+                    "Apache 2.0 Open Source",
+                    "Multiplatform Engine"
+                ).forEach { spec ->
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        color = Color(0xFF070D18),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1E293B))
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = spec,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
                 }
             }
 
             if (onReplayGuide != null) {
-                Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = onReplayGuide,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.45f)),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0B192C)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(46.dp)
                 ) {
-                    Text(
-                        text = "💡 ${strings.introGuide}",
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(text = "✨", fontSize = 16.sp)
+                        Text(
+                            text = "مرور راهنمای تعاملی و آموزش برنامه (Replay Interactive Tour)",
+                            color = PrimaryCyan,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ArchitecturePillarCard(
+    icon: String,
+    title: String,
+    description: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(108.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF070D18),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = icon, fontSize = 16.sp)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryCyan,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Text(
+                text = description,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF94A3B8),
+                fontSize = 10.sp,
+                lineHeight = 15.sp
+            )
         }
     }
 }

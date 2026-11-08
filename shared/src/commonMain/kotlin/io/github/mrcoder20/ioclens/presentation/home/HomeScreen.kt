@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -319,6 +320,7 @@ fun HomeScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             val screenWidth = maxWidth
+            val screenHeight = maxHeight
             val isWideScreen = screenWidth >= 840.dp
             val isMediumScreen = screenWidth >= 560.dp && screenWidth < 840.dp
             val isCompactScreen = screenWidth < 600.dp
@@ -512,16 +514,22 @@ fun HomeScreen(
                 }
 
                 if (isWideScreen) {
-                    // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets)
+                    val minDashboardHeight = (screenHeight - 160.dp).coerceAtLeast(540.dp)
+
+                    // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Mathematically Equal Height)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = minDashboardHeight)
+                            .height(IntrinsicSize.Max)
                             .padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
                         Column(
-                            modifier = Modifier.weight(1.15f),
+                            modifier = Modifier
+                                .weight(1.08f)
+                                .fillMaxHeight(),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
@@ -562,7 +570,7 @@ fun HomeScreen(
                                 }
                             }
 
-                            // Desktop Recent Triage Scans HUD Feed directly in triage pane (fills the void)
+                            // Desktop Recent Triage Scans HUD Feed dynamically fills remaining height to balance Left Pane
                             RecentTriageFeedHUD(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
@@ -578,16 +586,22 @@ fun HomeScreen(
                                     viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
                                     viewModel.onEvent(HomeEvent.AnalyzeClicked)
                                     coroutineScope.launch { scrollState.animateScrollTo(0) }
-                                }
+                                },
+                                modifier = Modifier.weight(1f).fillMaxWidth()
                             )
                         }
 
                         // Right Pane: Threat Intel Provider Deck (Balanced Column on Widescreen)
-                        Column(modifier = Modifier.weight(0.95f)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(0.92f)
+                                .fillMaxHeight()
+                        ) {
                             LiveProviderDeck(
                                 uiState = uiState,
                                 onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                isTwoColumn = false
+                                isTwoColumn = false,
+                                modifier = Modifier.fillMaxWidth().fillMaxHeight()
                             )
                         }
                     }
@@ -1551,16 +1565,17 @@ private fun OverallVerdictCard(
 private fun LiveProviderDeck(
     uiState: HomeUiState,
     onToggle: () -> Unit,
-    isTwoColumn: Boolean = false
+    isTwoColumn: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1656,7 +1671,10 @@ private fun LiveProviderDeck(
                         }
                     }
                 } else {
-                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(top = 12.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
                         allProviders.forEach { (name, isZeroKey) ->
                             val result = activeMap[name]
                             ProviderRow(
@@ -1669,7 +1687,6 @@ private fun LiveProviderDeck(
                                 appLanguage = uiState.appLanguage,
                                 isTwoColumn = false
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
                         }
                     }
                 }
@@ -2079,18 +2096,19 @@ private fun RecentTriageFeedHUD(
     strings: AppStrings,
     onSelect: (TriageVerdict) -> Unit,
     onDelete: (TriageVerdict) -> Unit,
-    onReScan: (String) -> Unit
+    onReScan: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
     var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2126,6 +2144,7 @@ private fun RecentTriageFeedHUD(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f)
                         .defaultMinSize(minHeight = 150.dp),
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF090E17).copy(alpha = 0.75f),
@@ -2133,7 +2152,7 @@ private fun RecentTriageFeedHUD(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2171,7 +2190,10 @@ private fun RecentTriageFeedHUD(
                 }
             } else {
                 val recentScans = history.take(6)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     recentScans.forEach { item ->
                         val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
                         if (!isPendingDelete) {
