@@ -913,17 +913,17 @@ fun CyberSwitch(
     )
 
     val thumbColor by animateColorAsState(
-        targetValue = if (checked) PrimaryCyan else Color(0xFF94A3B8),
+        targetValue = if (checked) Color.White else Color(0xFF94A3B8),
         animationSpec = tween(250)
     )
 
     val thumbBorderColor by animateColorAsState(
-        targetValue = if (checked) Color.White else Color(0xFFCBD5E1),
+        targetValue = if (checked) PrimaryCyan else Color(0xFFCBD5E1),
         animationSpec = tween(250)
     )
 
     val coreColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF021018) else Color(0xFF1E293B),
+        targetValue = if (checked) PrimaryCyan else Color(0xFF1E293B),
         animationSpec = tween(250)
     )
 

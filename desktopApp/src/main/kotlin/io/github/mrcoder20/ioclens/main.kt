@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -232,23 +233,20 @@ fun main(args: Array<String>) {
                         .background(Color(0xFF041C24))
                         .pointerHoverIcon(PointerIcon.Default)
                 ) {
-                    // Custom Dead-Centered Window Title Bar with Right-Aligned Controls (Enforce LTR for Windows OS invariants)
+                    // Custom Dead-Centered Window Title Bar with Permanently Anchored Right Controls (Enforce LTR for Windows OS invariants)
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         WindowDraggableArea {
-                            Row(
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(38.dp)
                                     .background(Color(0xFF041C24))
-                                    .padding(horizontal = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(horizontal = 12.dp)
                             ) {
-                                // Left Slot: Device Mode Toggle Button
+                                // Left Slot: Device Mode Toggle Button (Anchored to Far-Left)
                                 Row(
-                                    modifier = Modifier.width(90.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Start
+                                    modifier = Modifier.align(Alignment.CenterStart),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Surface(
                                         modifier = Modifier
@@ -269,68 +267,76 @@ fun main(args: Array<String>) {
                                     }
                                 }
 
-                                // Center Slot: Dead-Centered Title Text
-                                Text(
-                                    text = "IOC Lens - Copy it. Know in a second.",
-                                    color = PrimaryCyan,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    textAlign = TextAlign.Center
-                                )
+                                // Center Slot: Dead-Centered Title Text with Safe Horizontal Insets and Ellipsis
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .padding(horizontal = 96.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (windowState.size.width < 520.dp) "IOC Lens" else "IOC Lens - Copy it. Know in a second.",
+                                        color = PrimaryCyan,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
-                                // Right Slot: Window Controls (Minimize, Maximize, Close at far right)
+                                // Right Slot: Window Controls (Minimize, Maximize, Close Permanently Anchored to Far-Right)
                                 Row(
-                                    modifier = Modifier.width(90.dp),
-                                    horizontalArrangement = Arrangement.End,
+                                    modifier = Modifier.align(Alignment.CenterEnd),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        // Minimize button (-)
-                                        Surface(
-                                            modifier = Modifier
-                                                .size(22.dp)
-                                                .clip(CircleShape)
-                                                .clickable { windowState.isMinimized = true }
-                                                .pointerHoverIcon(PointerIcon.Hand),
-                                            color = Color.White.copy(alpha = 0.12f)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(text = "─", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                            }
+                                    // Minimize button (-)
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .clickable { windowState.isMinimized = true }
+                                            .pointerHoverIcon(PointerIcon.Hand),
+                                        color = Color.White.copy(alpha = 0.12f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(text = "─", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                         }
+                                    }
 
-                                        // Maximize / Restore button
-                                        Surface(
-                                            modifier = Modifier
-                                                .size(22.dp)
-                                                .clip(CircleShape)
-                                                .clickable { toggleMaximize() }
-                                                .pointerHoverIcon(PointerIcon.Hand),
-                                            color = Color.White.copy(alpha = 0.12f)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = if (isMaximized) "❐" else "□",
-                                                    color = Color.White,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
+                                    // Maximize / Restore button
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .clickable { toggleMaximize() }
+                                            .pointerHoverIcon(PointerIcon.Hand),
+                                        color = Color.White.copy(alpha = 0.12f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = if (isMaximized) "❐" else "□",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
+                                    }
 
-                                        // Close button (✕) at the Far Right
-                                        Surface(
-                                            modifier = Modifier
-                                                .size(22.dp)
-                                                .clip(CircleShape)
-                                                .clickable { exitApplication() }
-                                                .pointerHoverIcon(PointerIcon.Hand),
-                                            color = Color(0xFFEF4444).copy(alpha = 0.85f)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(text = "✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                            }
+                                    // Close button (✕) at the Far Right
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .clickable { exitApplication() }
+                                            .pointerHoverIcon(PointerIcon.Hand),
+                                        color = Color(0xFFEF4444).copy(alpha = 0.85f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(text = "✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }

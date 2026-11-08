@@ -34,7 +34,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -301,7 +303,7 @@ fun HomeScreen(
             val screenWidth = maxWidth
             val isWideScreen = screenWidth >= 840.dp
             val isMediumScreen = screenWidth >= 560.dp && screenWidth < 840.dp
-            val isCompactScreen = screenWidth < 400.dp
+            val isCompactScreen = screenWidth < 600.dp
             val isMobileOrTablet = screenWidth < 840.dp
 
             // Ambient Top Glow
@@ -331,15 +333,17 @@ fun HomeScreen(
                     .align(Alignment.TopCenter)
                     .verticalScroll(scrollState)
             ) {
-                // Header Bar (☰ Hamburger, Title, Telemetry Badges, Actions)
-                Row(
+                // Header Bar (☰ Hamburger & Telemetry on Left, IOC LENS Dead-Centered, Actions on Right)
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Left / Start Slot: Hamburger & Telemetry Status Indicators (Desktop)
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (!isMobileOrTablet) {
                             Surface(
                                 modifier = Modifier
@@ -358,29 +362,9 @@ fun HomeScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
-                        }
+                            Spacer(modifier = Modifier.width(16.dp))
 
-                        Row {
-                            Text(
-                                text = "IOC ",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                text = "LENS",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryCyan,
-                                letterSpacing = 1.sp
-                            )
-                        }
-
-                        // Desktop Telemetry Status Indicators
-                        if (!isMobileOrTablet) {
-                            Spacer(modifier = Modifier.width(20.dp))
+                            // Desktop Telemetry Status Indicators
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(
                                     color = Color(0xFF0B192C),
@@ -430,8 +414,36 @@ fun HomeScreen(
                         }
                     }
 
+                    // Center Slot: Dead-Centered App Title with Strict LTR BiDi Protection
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(
+                            modifier = Modifier.align(Alignment.Center),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "IOC ",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "LENS",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = PrimaryCyan,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+
+                    // Right / End Slot: History and Settings Action Buttons (Desktop)
                     if (!isMobileOrTablet) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             // History Action Button with Counter
                             Surface(
                                 modifier = Modifier
@@ -541,12 +553,12 @@ fun HomeScreen(
                             )
                         }
 
-                        // Right Pane: Threat Intel Provider Deck (Balanced 2-Column Grid on Widescreen)
+                        // Right Pane: Threat Intel Provider Deck (Balanced Grid on Widescreen)
                         Column(modifier = Modifier.weight(0.85f)) {
                             LiveProviderDeck(
                                 uiState = uiState,
                                 onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                isTwoColumn = screenWidth >= 1100.dp
+                                isTwoColumn = screenWidth >= 1440.dp
                             )
                         }
                     }
@@ -1095,7 +1107,11 @@ private fun SearchCard(
                         text = strings.zeroKeyInstantScanReady,
                         style = MaterialTheme.typography.labelSmall,
                         color = VerdictClean,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth().basicMarquee(iterations = Int.MAX_VALUE)
                     )
 
                     Row(
@@ -1175,7 +1191,10 @@ private fun SearchCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = VerdictClean,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp).basicMarquee(iterations = Int.MAX_VALUE)
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1272,8 +1291,9 @@ private fun SearchCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .basicMarquee(iterations = Int.MAX_VALUE, velocity = 28.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     val samples = listOf(
                         "8.8.8.8" to strings.sampleGoogleDns,
@@ -1448,25 +1468,35 @@ private fun LiveProviderDeck(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = strings.threatIntelProvidersTitle,
                         style = MaterialTheme.typography.labelLarge,
                         color = PrimaryCyan,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = PrimaryCyan.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.wrapContentWidth()
                     ) {
                         Text(
                             text = strings.enginesCount,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = PrimaryCyan,
-                            fontSize = 10.sp
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
