@@ -116,11 +116,58 @@ class HomeViewModel(
             HomeEvent.ToggleProviderDeck -> {
                 _uiState.update { it.copy(isProviderDeckExpanded = !it.isProviderDeckExpanded) }
             }
+            is HomeEvent.SelectBottomNavTab -> {
+                when (event.tabIndex) {
+                    0 -> _uiState.update {
+                        it.copy(
+                            selectedBottomNavTab = 0,
+                            isSettingsSheetOpen = false,
+                            isHistorySheetOpen = false,
+                            isGuideOverlayOpen = false
+                        )
+                    }
+                    1 -> _uiState.update {
+                        it.copy(
+                            selectedBottomNavTab = 1,
+                            isProviderDeckExpanded = true,
+                            isSettingsSheetOpen = false,
+                            isHistorySheetOpen = false,
+                            isGuideOverlayOpen = false
+                        )
+                    }
+                    2 -> _uiState.update {
+                        it.copy(
+                            selectedBottomNavTab = 2,
+                            isHistorySheetOpen = true,
+                            isSettingsSheetOpen = false,
+                            isGuideOverlayOpen = false
+                        )
+                    }
+                    3 -> _uiState.update {
+                        it.copy(
+                            selectedBottomNavTab = 3,
+                            isSettingsSheetOpen = true,
+                            isHistorySheetOpen = false,
+                            isGuideOverlayOpen = false
+                        )
+                    }
+                }
+            }
             is HomeEvent.SetHistorySheetOpen -> {
-                _uiState.update { it.copy(isHistorySheetOpen = event.isOpen) }
+                _uiState.update {
+                    it.copy(
+                        isHistorySheetOpen = event.isOpen,
+                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 2) 0 else it.selectedBottomNavTab
+                    )
+                }
             }
             is HomeEvent.SetSettingsSheetOpen -> {
-                _uiState.update { it.copy(isSettingsSheetOpen = event.isOpen) }
+                _uiState.update {
+                    it.copy(
+                        isSettingsSheetOpen = event.isOpen,
+                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 3) 0 else it.selectedBottomNavTab
+                    )
+                }
             }
             is HomeEvent.SetGuideOverlayOpen -> {
                 _uiState.update { it.copy(isGuideOverlayOpen = event.isOpen) }

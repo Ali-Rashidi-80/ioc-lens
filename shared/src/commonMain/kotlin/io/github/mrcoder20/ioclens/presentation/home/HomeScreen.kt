@@ -115,6 +115,7 @@ fun HomeScreen(
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     // Android Back Button / Gesture Interceptor
     val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null
@@ -131,6 +132,7 @@ fun HomeScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -295,10 +297,10 @@ fun HomeScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             val screenWidth = maxWidth
-            val isWideScreen = screenWidth >= 880.dp
-            val isMediumScreen = screenWidth >= 560.dp && screenWidth < 880.dp
+            val isWideScreen = screenWidth >= 840.dp
+            val isMediumScreen = screenWidth >= 560.dp && screenWidth < 840.dp
             val isCompactScreen = screenWidth < 400.dp
-            val isMobileOrTablet = screenWidth < 720.dp
+            val isMobileOrTablet = screenWidth < 840.dp
 
             // Ambient Top Glow
             Box(
@@ -325,7 +327,7 @@ fun HomeScreen(
                     .padding(horizontal = 14.dp, vertical = 6.dp)
                     .widthIn(max = 1200.dp)
                     .align(Alignment.TopCenter)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
             ) {
                 // Header Bar (☰ Hamburger, Title, Actions)
                 Row(
@@ -541,7 +543,8 @@ fun HomeScreen(
                 HistorySheet(
                     history = uiState.scanHistory,
                     appLanguage = uiState.appLanguage,
-                    isDialogMode = isWideScreen || isMediumScreen,
+                    isDialogMode = isWideScreen,
+                    isMobileOrTablet = isMobileOrTablet,
                     onSelect = { viewModel.onEvent(HomeEvent.HistoryItemClicked(it)) },
                     onClear = { viewModel.onEvent(HomeEvent.ClearHistory) },
                     onClose = { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false)) }
@@ -552,6 +555,7 @@ fun HomeScreen(
             if (uiState.isSettingsSheetOpen) {
                 SettingsScreen(
                     settingsRepository = settingsRepository,
+                    isMobileOrTablet = isMobileOrTablet,
                     onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) },
                     onReplayGuide = {
                         viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
@@ -583,42 +587,16 @@ fun HomeScreen(
 
             // Mobile & Tablet Adaptive Cyberpunk Bottom Navigation Bar
             if (isMobileOrTablet && !uiState.isGuideOverlayOpen) {
-                val currentTab = when {
-                    uiState.isSettingsSheetOpen -> 3
-                    uiState.isHistorySheetOpen -> 2
-                    uiState.isProviderDeckExpanded && !uiState.isSettingsSheetOpen && !uiState.isHistorySheetOpen -> 1
-                    else -> 0
-                }
                 CyberpunkBottomNavBar(
-                    selectedTab = currentTab,
+                    selectedTab = uiState.selectedBottomNavTab,
                     historyCount = uiState.scanHistory.size,
                     appLanguage = uiState.appLanguage,
                     strings = strings,
                     onTabSelected = { tab ->
+                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(tab))
                         when (tab) {
-                            0 -> {
-                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                            }
-                            1 -> {
-                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                                if (!uiState.isProviderDeckExpanded) {
-                                    viewModel.onEvent(HomeEvent.ToggleProviderDeck)
-                                }
-                            }
-                            2 -> {
-                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
-                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                            }
-                            3 -> {
-                                viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
-                                viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                            }
+                            0 -> coroutineScope.launch { scrollState.animateScrollTo(0) }
+                            1 -> coroutineScope.launch { scrollState.animateScrollTo(scrollState.maxValue) }
                         }
                     },
                     modifier = Modifier.align(Alignment.BottomCenter)
@@ -886,6 +864,7 @@ private fun CyberpunkBottomNavBar(
                 Box(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxHeight()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onTabSelected(index) }
                         .pointerHoverIcon(PointerIcon.Hand)
@@ -899,7 +878,7 @@ private fun CyberpunkBottomNavBar(
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = icon,
-                                fontSize = if (isSelected) 19.sp else 17.sp
+                                fontSize = 18.sp
                             )
                             if (index == 2 && historyCount > 0) {
                                 Box(
@@ -931,16 +910,14 @@ private fun CyberpunkBottomNavBar(
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        if (isSelected) {
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Box(
-                                modifier = Modifier
-                                    .width(16.dp)
-                                    .height(2.dp)
-                                    .clip(RoundedCornerShape(1.dp))
-                                    .background(PrimaryCyan)
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(if (isSelected) 18.dp else 0.dp)
+                                .height(2.dp)
+                                .clip(RoundedCornerShape(1.dp))
+                                .background(if (isSelected) PrimaryCyan else Color.Transparent)
+                        )
                     }
                 }
             }
@@ -1512,6 +1489,7 @@ private fun HistorySheet(
     history: List<TriageVerdict>,
     appLanguage: AppLanguage,
     isDialogMode: Boolean,
+    isMobileOrTablet: Boolean = false,
     onSelect: (TriageVerdict) -> Unit,
     onClear: () -> Unit,
     onClose: () -> Unit
@@ -1536,7 +1514,12 @@ private fun HistorySheet(
                     }
                 }
                 .clickable(enabled = false) {}
-                .padding(horizontal = if (isDialogMode) 16.dp else 8.dp, vertical = 12.dp)
+                .padding(
+                    start = if (isDialogMode) 16.dp else 8.dp,
+                    end = if (isDialogMode) 16.dp else 8.dp,
+                    top = 12.dp,
+                    bottom = if (isMobileOrTablet) 84.dp else 12.dp
+                )
                 .navigationBarsPadding(),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

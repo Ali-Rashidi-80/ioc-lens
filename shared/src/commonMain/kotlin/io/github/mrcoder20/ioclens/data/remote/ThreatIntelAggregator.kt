@@ -81,7 +81,7 @@ class ThreatIntelAggregator(
         val results: List<SourceResult> = supervisorScope {
             applicable.map { provider ->
                 async {
-                    try {
+                    val res = try {
                         withTimeoutOrNull(timeoutMs) {
                             provider.query(client, indicator, settings)
                         } ?: SourceResult(
@@ -101,12 +101,14 @@ class ThreatIntelAggregator(
                             totalEngineCount = 0,
                             summary = "Service unavailable or filtered: ${e.message ?: "Skipped"}"
                         )
-                    } finally {
-                        counterMutex.withLock {
-                            finishedCount++
-                            onProgress?.invoke(finishedCount, totalCount)
-                        }
                     }
+
+                    counterMutex.withLock {
+                        finishedCount++
+                        onProgress?.invoke(finishedCount, totalCount)
+                    }
+
+                    res
                 }
             }.awaitAll()
         }

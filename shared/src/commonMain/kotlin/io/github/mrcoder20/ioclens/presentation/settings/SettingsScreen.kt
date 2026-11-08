@@ -35,6 +35,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -65,6 +68,7 @@ fun SettingsScreen(
     settingsRepository: SettingsRepository,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    isMobileOrTablet: Boolean = false,
     onReplayGuide: (() -> Unit)? = null
 ) {
     val settingsState by settingsRepository.settingsState.collectAsState()
@@ -79,15 +83,27 @@ fun SettingsScreen(
     var ipqsKey by remember(settingsState.ipQualityScoreApiKey) { mutableStateOf(settingsState.ipQualityScoreApiKey) }
     var showSavedMessage by remember { mutableStateOf(false) }
 
+    val flushPendingKeys = remember(settingsRepository, vtKey, abuseKey, alienKey, pulseKey, ipqsKey) {
+        {
+            val s = settingsRepository.getSettings()
+            if (vtKey != s.virusTotalApiKey) settingsRepository.updateApiKey("virustotal", vtKey)
+            if (abuseKey != s.abuseIpDbApiKey) settingsRepository.updateApiKey("abuseipdb", abuseKey)
+            if (alienKey != s.alienVaultApiKey) settingsRepository.updateApiKey("alienvault", alienKey)
+            if (pulseKey != s.pulsediveApiKey) settingsRepository.updateApiKey("pulsedive", pulseKey)
+            if (ipqsKey != s.ipQualityScoreApiKey) settingsRepository.updateApiKey("ipqualityscore", ipqsKey)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            flushPendingKeys()
+        }
+    }
+
     // Automatic debounced persistence for API keys
     LaunchedEffect(vtKey, abuseKey, alienKey, pulseKey, ipqsKey) {
         delay(600)
-        val s = settingsRepository.getSettings()
-        if (vtKey != s.virusTotalApiKey) settingsRepository.updateApiKey("virustotal", vtKey)
-        if (abuseKey != s.abuseIpDbApiKey) settingsRepository.updateApiKey("abuseipdb", abuseKey)
-        if (alienKey != s.alienVaultApiKey) settingsRepository.updateApiKey("alienvault", alienKey)
-        if (pulseKey != s.pulsediveApiKey) settingsRepository.updateApiKey("pulsedive", pulseKey)
-        if (ipqsKey != s.ipQualityScoreApiKey) settingsRepository.updateApiKey("ipqualityscore", ipqsKey)
+        flushPendingKeys()
     }
 
     Box(
@@ -102,7 +118,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .widthIn(max = 760.dp)
-                .padding(top = 16.dp, start = 14.dp, end = 14.dp, bottom = 24.dp)
+                .padding(top = 16.dp, start = 14.dp, end = 14.dp, bottom = if (isMobileOrTablet) 84.dp else 24.dp)
                 .verticalScroll(scrollState)
         ) {
             // Header with Right-Aligned Close Button in both LTR & RTL
@@ -116,7 +132,10 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { onClose() }
+                            .clickable {
+                                flushPendingKeys()
+                                onClose()
+                            }
                             .pointerHoverIcon(PointerIcon.Hand),
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp),
@@ -163,7 +182,10 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable { onClose() }
+                            .clickable {
+                                flushPendingKeys()
+                                onClose()
+                            }
                             .pointerHoverIcon(PointerIcon.Hand),
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp),
@@ -448,7 +470,7 @@ fun SettingsScreen(
 
 /**
  * Cyberpunk Neon Switch with High-Contrast Track and Distinct Core Diode.
- * Guaranteed visible contrast in both ON and OFF states.
+ * Guaranteed visible contrast in both ON and OFF states with RTL-independent LTR orientation.
  */
 @Composable
 fun CyberSwitch(
@@ -457,7 +479,7 @@ fun CyberSwitch(
     modifier: Modifier = Modifier
 ) {
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 24.dp else 4.dp,
+        targetValue = if (checked) 26.dp else 4.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
     )
 
@@ -476,37 +498,45 @@ fun CyberSwitch(
         animationSpec = tween(250)
     )
 
+    val thumbBorderColor by animateColorAsState(
+        targetValue = if (checked) Color(0xFF80F5FF) else Color(0xFFCBD5E1),
+        animationSpec = tween(250)
+    )
+
     val coreColor by animateColorAsState(
         targetValue = if (checked) Color(0xFF031018) else Color(0xFF1E293B),
         animationSpec = tween(250)
     )
 
-    Box(
-        modifier = modifier
-            .width(52.dp)
-            .height(30.dp)
-            .clip(RoundedCornerShape(50))
-            .background(trackBgColor)
-            .border(1.5.dp, trackBorderColor, RoundedCornerShape(50))
-            .clickable { onCheckedChange(!checked) }
-            .pointerHoverIcon(PointerIcon.Hand)
-            .padding(vertical = 3.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Box(
-            modifier = Modifier
-                .padding(start = thumbOffset)
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(thumbColor),
-            contentAlignment = Alignment.Center
+            modifier = modifier
+                .width(52.dp)
+                .height(30.dp)
+                .clip(RoundedCornerShape(50))
+                .background(trackBgColor)
+                .border(1.5.dp, trackBorderColor, RoundedCornerShape(50))
+                .clickable(role = Role.Switch) { onCheckedChange(!checked) }
+                .pointerHoverIcon(PointerIcon.Hand)
+                .padding(vertical = 3.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .padding(start = thumbOffset)
+                    .size(22.dp)
                     .clip(CircleShape)
-                    .background(coreColor)
-            )
+                    .background(thumbColor)
+                    .border(1.dp, thumbBorderColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(coreColor)
+                )
+            }
         }
     }
 }

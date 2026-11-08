@@ -60,6 +60,7 @@ import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.model.IntroSlide
+import kotlin.math.abs
 
 /**
  * Ultra-Sleek Translucent Glassmorphism Intro Screen with Parallax Zoom Transition & Zero-Lag Scrolling.
@@ -86,9 +87,13 @@ fun IntroScreen(
         viewModel.onEvent(IntroEvent.PageChanged(pagerState.currentPage))
     }
 
+    var hasHandledInitialCompletion by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isCompleted) {
-        if (uiState.isCompleted) {
+        if (uiState.isCompleted && hasHandledInitialCompletion) {
             onIntroFinished()
+        }
+        if (!uiState.isCompleted) {
+            hasHandledInitialCompletion = true
         }
     }
 
@@ -117,9 +122,11 @@ fun IntroScreen(
             skipText = currentStrings.skip,
             onSkipClicked = {
                 viewModel.onEvent(IntroEvent.SkipClicked)
+                onIntroFinished()
             },
             onFinishClicked = {
                 viewModel.onEvent(IntroEvent.CompleteClicked)
+                onIntroFinished()
             },
             topBarContent = {
                 // Command Header
@@ -231,10 +238,12 @@ fun IntroScreen(
                 }
             }
         ) { slide, page ->
+            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+            val isVisibleSlide = abs(pageOffset) < 1.05f
             IntroSlideCard(
                 slide = slide,
                 isScrollInProgress = pagerState.isScrollInProgress,
-                isActive = (pagerState.currentPage == page)
+                isActive = isVisibleSlide
             )
         }
     }

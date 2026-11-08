@@ -316,4 +316,51 @@ class HomeViewModelTest {
         assertFalse(viewModel.uiState.value.isLoading)
         assertNotNull(viewModel.uiState.value.activeVerdict)
     }
+
+    @Test
+    fun testBottomNavTabSelectionAndStateManagement() {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // 1. Initial State: Tab 0 (Scanner) is selected by default
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
+        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
+        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
+
+        // 2. Select Tab 1 (Engines): expands provider deck and marks tab 1 selected
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
+        assertTrue(viewModel.uiState.value.isProviderDeckExpanded)
+        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
+        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
+
+        // 3. Select Tab 2 (History): opens history sheet and marks tab 2 selected
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
+        assertTrue(viewModel.uiState.value.isHistorySheetOpen)
+        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
+
+        // 4. Closing history sheet restores tab 0 (Scanner)
+        viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
+        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
+
+        // 5. Select Tab 3 (Settings): opens settings sheet and marks tab 3 selected
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
+        assertEquals(3, viewModel.uiState.value.selectedBottomNavTab)
+        assertTrue(viewModel.uiState.value.isSettingsSheetOpen)
+        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
+
+        // 6. Closing settings sheet restores tab 0 (Scanner)
+        viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
+        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
+
+        // 7. Explicitly selecting tab 0 keeps tab 0 selected
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
+    }
 }

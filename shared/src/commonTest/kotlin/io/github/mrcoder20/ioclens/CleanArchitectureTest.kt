@@ -145,4 +145,20 @@ class CleanArchitectureTest {
         assertEquals(0, introViewModel.uiState.value.currentPageIndex, "currentPageIndex must reset to 0")
         assertFalse(introViewModel.uiState.value.isLastPage)
     }
+
+    @Test
+    fun testMainViewModelSplashNotReplayedOnIntroReplay() {
+        val storage = InMemoryKeyValueStorage()
+        val settingsRepo = SettingsRepositoryImpl(storage)
+        val getAppSettingsUseCase = io.github.mrcoder20.ioclens.domain.usecase.GetAppSettingsUseCase(settingsRepo)
+        val mainViewModel = io.github.mrcoder20.ioclens.presentation.main.MainViewModel(getAppSettingsUseCase)
+
+        // App starts, splash finishes
+        mainViewModel.onSplashFinished()
+        assertTrue(mainViewModel.uiState.value.isSplashFinished)
+
+        // Replay guide is triggered
+        mainViewModel.resetIntroForReplay()
+        assertTrue(mainViewModel.uiState.value.isSplashFinished, "Splash must NOT replay when guide is replayed")
+    }
 }

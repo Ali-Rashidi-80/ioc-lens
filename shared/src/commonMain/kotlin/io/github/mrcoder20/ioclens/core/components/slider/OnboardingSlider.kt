@@ -303,7 +303,7 @@ fun <T> OnboardingSlider(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Start side: Previous button (when currentPage > 0) OR Skip (on first slide)
+                    // Start side: Previous button (when currentPage > 0) OR symmetrical invisible placeholder
                     if (pagerState.currentPage > 0) {
                         Button(
                             onClick = {
@@ -337,7 +337,12 @@ fun <T> OnboardingSlider(
                                 }
                             }
                         }
-                    } else if (onSkipClicked != null && !isLastPage) {
+                    } else {
+                        Spacer(modifier = Modifier.width(96.dp))
+                    }
+
+                    // Middle: Symmetrical Skip button locked dead-center at X = 50%
+                    if (!isLastPage && onSkipClicked != null) {
                         TextButton(
                             onClick = {
                                 onSkipClicked()
@@ -349,29 +354,11 @@ fun <T> OnboardingSlider(
                                 text = skipText ?: if (isRtl) "رد کردن" else "Skip",
                                 color = Color.White.copy(alpha = 0.7f),
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 13.sp
+                                fontSize = 12.5.sp
                             )
                         }
                     } else {
-                        Spacer(modifier = Modifier.width(42.dp))
-                    }
-
-                    // Middle: Discreet Skip button if currentPage > 0 and not last page
-                    if (pagerState.currentPage > 0 && !isLastPage && onSkipClicked != null) {
-                        TextButton(
-                            onClick = {
-                                onSkipClicked()
-                                coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
-                            },
-                            modifier = Modifier.height(42.dp)
-                        ) {
-                            Text(
-                                text = skipText ?: if (isRtl) "رد کردن" else "Skip",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.sp
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(70.dp))
                     }
 
                     // End side: Next or Done button

@@ -17,5 +17,6 @@ sealed interface HomeEvent {
     data class SetHistorySheetOpen(val isOpen: Boolean) : HomeEvent
     data class SetSettingsSheetOpen(val isOpen: Boolean) : HomeEvent
     data class SetGuideOverlayOpen(val isOpen: Boolean) : HomeEvent
+    data class SelectBottomNavTab(val tabIndex: Int) : HomeEvent
     data object ClearHistory : HomeEvent
 }
