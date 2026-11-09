@@ -132,7 +132,6 @@ class CleanArchitectureTest {
         val introViewModel = io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel(setIntroUseCase, settingsRepo)
 
         // User navigates through slides and completes intro
-        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.PageChanged(3))
         introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.CompleteClicked)
 
         assertTrue(introViewModel.uiState.value.isCompleted)
@@ -142,8 +141,6 @@ class CleanArchitectureTest {
         introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.Reset)
 
         assertFalse(introViewModel.uiState.value.isCompleted, "isCompleted must be reset to false for smooth replay")
-        assertEquals(0, introViewModel.uiState.value.currentPageIndex, "currentPageIndex must reset to 0")
-        assertFalse(introViewModel.uiState.value.isLastPage)
     }
 
     @Test

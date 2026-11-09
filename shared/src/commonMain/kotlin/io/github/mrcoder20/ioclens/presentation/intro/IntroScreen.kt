@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +54,7 @@ import io.github.mrcoder20.ioclens.core.components.SlideAnimatedGraphic
 import io.github.mrcoder20.ioclens.core.components.TypewriterText
 import io.github.mrcoder20.ioclens.core.components.slider.OnboardingSlider
 import io.github.mrcoder20.ioclens.core.components.slider.PageTransitionStyle
+import io.github.mrcoder20.ioclens.core.components.slider.shouldShowOnboardingSkip
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
@@ -64,6 +63,7 @@ import kotlin.math.abs
 
 /**
  * Ultra-Sleek Translucent Glassmorphism Intro Screen with Parallax Zoom Transition & Zero-Lag Scrolling.
+ * Follows Single Source of Truth for PagerState and renders zero redundant recompositions.
  */
 @Composable
 fun IntroScreen(
@@ -83,19 +83,15 @@ fun IntroScreen(
         }
     }
 
-    LaunchedEffect(pagerState.currentPage) {
-        viewModel.onEvent(IntroEvent.PageChanged(pagerState.currentPage))
-    }
-
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        // 1. Liquidmorphism Animated Background Blobs (Optimized Zero Allocation)
+        // 1. Liquidmorphism Animated Background Blobs
         LiquidmorphicBackground(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Fractured Cyber Polygon Mesh Background (Optimized Zero Allocation Buffer)
+        // 2. Fractured Cyber Polygon Mesh Background
         CyberPolygonBackground(
             modifier = Modifier.fillMaxSize()
         )
@@ -144,6 +140,30 @@ fun IntroScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Skip Button (Visible on slides 1-3 only; hidden on slide 4)
+                        if (shouldShowOnboardingSkip(pagerState.currentPage, uiState.slides.size)) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.onEvent(IntroEvent.SkipClicked)
+                                        onIntroFinished()
+                                    }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+                            ) {
+                                Text(
+                                    text = currentStrings.skip,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
                         if (onClose != null && isRtl) {
                             Surface(
                                 modifier = Modifier
@@ -239,7 +259,7 @@ fun IntroScreen(
                     }
                 }
 
-                // Command Header (Close button permanently on physical right in both RTL & LTR)
+                // Command Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -275,7 +295,7 @@ private fun IntroSlideCard(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Translucent Glassmorphic Card
+    // Translucent Glassmorphic Card (Zero BoxWithConstraints overhead for silky 120 FPS transitions)
     Card(
         modifier = modifier.fillMaxSize(),
         shape = RoundedCornerShape(20.dp),
@@ -294,112 +314,102 @@ private fun IntroSlideCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxSize()
+        val scrollState = rememberScrollState()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            val isCompact = maxHeight < 560.dp
-            val scrollState = rememberScrollState()
-            val graphicSize = when {
-                maxHeight < 560.dp -> 100.dp
-                maxHeight < 720.dp -> 150.dp
-                else -> 190.dp
-            }
-
-            Column(
+            // Top Graphic (140dp)
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 20.dp, vertical = if (isCompact) 6.dp else 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .size(140.dp)
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
             ) {
-                // Top Graphic
-                Box(
-                    modifier = Modifier
-                        .size(graphicSize)
-                        .aspectRatio(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    SlideAnimatedGraphic(
-                        slideId = slide.id,
-                        emoji = slide.iconEmoji,
-                        size = graphicSize,
-                        emojiFontSize = if (isCompact) 28 else 44,
-                        isScrollInProgress = isScrollInProgress,
-                        isActive = isActive
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(if (isCompact) 6.dp else 12.dp))
-
-                // Status Badge Pill
-                Surface(
-                    color = Color(0xFF16233B).copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(50),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(PrimaryCyan)
-                        )
-                        Text(
-                            text = slide.badgeText,
-                            color = PrimaryCyan,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = if (isCompact) 10.sp else 11.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(if (isCompact) 6.dp else 12.dp))
-
-                // Responsive Title
-                Text(
-                    text = slide.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color(0xFFF9FAFB),
-                    fontWeight = FontWeight.Black,
-                    textAlign = TextAlign.Center,
-                    fontSize = if (isCompact) 17.sp else 22.sp,
-                    lineHeight = if (isCompact) 22.sp else 28.sp,
-                    letterSpacing = (-0.02).sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (slide.subtitle.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = slide.subtitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(if (isCompact) 6.dp else 10.dp))
-
-                // High-Performance Instant Description Text
-                TypewriterText(
-                    text = slide.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF9CA3AF),
-                    textAlign = TextAlign.Center,
-                    fontSize = if (isCompact) 12.sp else 14.sp,
-                    lineHeight = if (isCompact) 17.sp else 22.sp
+                SlideAnimatedGraphic(
+                    slideId = slide.id,
+                    emoji = slide.iconEmoji,
+                    size = 140.dp,
+                    emojiFontSize = 36,
+                    isScrollInProgress = isScrollInProgress,
+                    isActive = isActive
                 )
             }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Status Badge Pill
+            Surface(
+                color = Color(0xFF16233B).copy(alpha = 0.85f),
+                shape = RoundedCornerShape(50),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryCyan)
+                    )
+                    Text(
+                        text = slide.badgeText,
+                        color = PrimaryCyan,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Responsive Title
+            Text(
+                text = slide.title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color(0xFFF9FAFB),
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                fontSize = 20.sp,
+                lineHeight = 26.sp,
+                letterSpacing = (-0.02).sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (slide.subtitle.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = slide.subtitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    fontSize = 12.5.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // High-Performance Instant Description Text
+            TypewriterText(
+                text = slide.description,
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF9CA3AF),
+                textAlign = TextAlign.Center,
+                fontSize = 13.5.sp,
+                lineHeight = 20.sp
+            )
         }
     }
 }

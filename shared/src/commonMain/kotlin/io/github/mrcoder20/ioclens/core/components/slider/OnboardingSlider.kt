@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,16 +18,13 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -49,7 +45,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,17 +66,42 @@ enum class PageTransitionStyle {
     BOOK_FLIP_3D
 }
 
+enum class OnboardingArrowDirection {
+    LEFT,
+    RIGHT
+}
+
 /**
- * Replicates and elevates V2rayNG/WhiteSIM IntroSliderActivity behavior.
- * Features 360-Degree (0,0) Origin Clock Rotation Page Transitions, Symmetrical Stacked Control Deck with High Z-Index,
- * RTL Keyboard Navigation Fix, Permanent Keyboard Focus Retention, Expanded 420dp Top Glow, and Crisp Vector Arrows.
+ * Returns directional orientation for forward Next arrow.
+ * In RTL (Persian), advancing forward points LEFT (←).
+ * In LTR (English, Russian), advancing forward points RIGHT (→).
+ */
+fun getOnboardingNextArrowDirection(isRtl: Boolean): OnboardingArrowDirection {
+    return if (isRtl) OnboardingArrowDirection.LEFT else OnboardingArrowDirection.RIGHT
+}
+
+/**
+ * Determines whether Skip action is visible.
+ * Visible on slides 1..N-1 (indices 0..N-2); hidden on the final slide to eliminate vertical layout shift.
+ */
+fun shouldShowOnboardingSkip(pageIndex: Int, pageCount: Int): Boolean {
+    return pageIndex in 0 until (pageCount - 1)
+}
+
+/**
+ * High-performance Onboarding Slider with Single Source of Truth PagerState.
+ * - Single 2-element bottom control deck (Dots + Next/DONE) with zero vertical layout shift.
+ * - Previous button completely eliminated.
+ * - Skip moved to top header bar on slides 1-3.
+ * - Zero focus-stealing side-effects ensuring instant first-click execution of DONE.
+ * - Smooth 60/120 FPS GPU-accelerated parallax/zoom transitions.
  */
 @Composable
 fun <T> OnboardingSlider(
     items: List<T>,
     pagerState: PagerState,
     modifier: Modifier = Modifier,
-    transitionStyle: PageTransitionStyle = PageTransitionStyle.CLOCK_DIAL_360,
+    transitionStyle: PageTransitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
     containerBackgroundColor: Color = Color(0xFF06080D).copy(alpha = 0.82f),
     topBarContent: @Composable (() -> Unit)? = null,
     onFinishClicked: () -> Unit,
@@ -98,10 +118,6 @@ fun <T> OnboardingSlider(
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     val animSpec = remember { tween<Float>(durationMillis = 350, easing = FastOutSlowInEasing) }
-
-    LaunchedEffect(pagerState.currentPage) {
-        runCatching { focusRequester.requestFocus() }
-    }
 
     Box(
         modifier = modifier
@@ -157,7 +173,7 @@ fun <T> OnboardingSlider(
                 } else false
             }
     ) {
-        // Expanded 420dp Vercel Top Mesh Glow Gradient matching Header #041C24
+        // Expanded 420dp Top Mesh Glow Gradient matching Header #041C24
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -181,12 +197,12 @@ fun <T> OnboardingSlider(
                 .statusBarsPadding()
                 .padding(top = 2.dp)
         ) {
-            // Top Slot Header
+            // Top Slot Header (Houses Title badge, Skip action on slides 1-3, Language selector, and Close button)
             if (topBarContent != null) {
                 topBarContent()
             }
 
-            // Pager Content with (0,0) Origin 360 Clock Rotation Transforms
+            // Pager Content with Hardware GPU Transitions
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -204,7 +220,6 @@ fun <T> OnboardingSlider(
                         .graphicsLayer {
                             when (transitionStyle) {
                                 PageTransitionStyle.CLOCK_DIAL_360 -> {
-                                    // Pivot anchored at (X = 0f, Y = 0f) top-left origin
                                     transformOrigin = TransformOrigin(0f, 0f)
                                     rotationZ = signOffset * 180f
                                     scaleX = (1f - absOffset * 0.25f).coerceIn(0.2f, 1f)
@@ -272,17 +287,17 @@ fun <T> OnboardingSlider(
                 }
             }
 
-            // Stacked Center-Axis Symmetrical Control Deck with High Z-Index
-            Column(
+            // Clean 2-Element Bottom Control Deck (Zero Vertical Shift, Fixed Height)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
                     .zIndex(10f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Row 1: WormDotsIndicator Locked Dead-Center at X = 50%
+                // Side 1: Pagination Indicator Dots
                 WormDotsIndicator(
                     pageCount = items.size,
                     currentPage = pagerState.currentPage,
@@ -290,134 +305,64 @@ fun <T> OnboardingSlider(
                     onDotClick = { targetPage ->
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(targetPage, animationSpec = animSpec)
-                            runCatching { focusRequester.requestFocus() }
                         }
                     }
                 )
 
-                // Row 2: Symmetric Control Bar with Previous, Skip & Next/Done
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Start side: Previous button (when currentPage > 0) OR symmetrical invisible placeholder
-                    if (pagerState.currentPage > 0) {
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(pagerState.currentPage - 1, animationSpec = animSpec)
-                                    runCatching { focusRequester.requestFocus() }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0E182A),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier
-                                .height(42.dp)
-                                .border(1.5.dp, PrimaryCyan.copy(alpha = 0.75f), RoundedCornerShape(50))
+                // Side 2: Next (Slides 1-3) or DONE Button (Slide 4)
+                if (isLastPage) {
+                    Button(
+                        onClick = onFinishClicked,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryCyan,
+                            contentColor = Color(0xFF041019)
+                        ),
+                        shape = RoundedCornerShape(50),
+                        contentPadding = PaddingValues(horizontal = 26.dp, vertical = 10.dp),
+                        modifier = Modifier
+                            .height(44.dp)
+                            .border(1.2.dp, PrimaryCyan, RoundedCornerShape(50))
+                    ) {
+                        Text(
+                            text = doneText,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF041019),
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1, animationSpec = animSpec)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(50),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+                        modifier = Modifier
+                            .height(44.dp)
+                            .border(1.2.dp, PrimaryCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                VectorPrevArrow(isRtl = isRtl)
+                            if (nextText != null) {
                                 Text(
-                                    text = previousText ?: if (isRtl) "قبلی" else "Previous",
-                                    fontWeight = FontWeight.Bold,
+                                    text = nextText,
+                                    fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp,
                                     color = Color.White
                                 )
                             }
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(96.dp))
-                    }
-
-                    // Middle: Symmetrical Skip button locked dead-center at X = 50%
-                    if (!isLastPage && onSkipClicked != null) {
-                        TextButton(
-                            onClick = {
-                                onSkipClicked()
-                                coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
-                            },
-                            modifier = Modifier.height(42.dp)
-                        ) {
-                            Text(
-                                text = skipText ?: if (isRtl) "رد کردن" else "Skip",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.5.sp
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(70.dp))
-                    }
-
-                    // End side: Next or Done button
-                    if (isLastPage) {
-                        Button(
-                            onClick = {
-                                onFinishClicked()
-                                coroutineScope.launch { runCatching { focusRequester.requestFocus() } }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PrimaryCyan,
-                                contentColor = Color(0xFF041019)
-                            ),
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp),
-                            modifier = Modifier
-                                .height(42.dp)
-                                .border(1.2.dp, PrimaryCyan, RoundedCornerShape(50))
-                        ) {
-                            Text(
-                                text = doneText,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF041019),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    } else {
-                        Button(
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(pagerState.currentPage + 1, animationSpec = animSpec)
-                                    runCatching { focusRequester.requestFocus() }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(50),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier
-                                .height(42.dp)
-                                .border(1.2.dp, PrimaryCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                if (nextText != null) {
-                                    Text(
-                                        text = nextText,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.5.sp,
-                                        color = Color.White
-                                    )
-                                }
-                                VectorNextArrow(isRtl = isRtl)
-                            }
+                            VectorNextArrow(isRtl = isRtl)
                         }
                     }
                 }
@@ -427,54 +372,9 @@ fun <T> OnboardingSlider(
 }
 
 /**
- * Crisp Vector Path Arrow Icon for Previous Button.
- */
-@Composable
-fun VectorPrevArrow(
-    isRtl: Boolean,
-    modifier: Modifier = Modifier,
-    color: Color = Color.White
-) {
-    Canvas(modifier = modifier.size(20.dp)) {
-        val w = size.width
-        val h = size.height
-        val strokeWidth = 2.2.dp.toPx()
-
-        // Horizontal stem line
-        drawLine(
-            color = color,
-            start = Offset(if (isRtl) w * 0.28f else w * 0.72f, h * 0.5f),
-            end = Offset(if (isRtl) w * 0.72f else w * 0.28f, h * 0.5f),
-            strokeWidth = strokeWidth,
-            cap = StrokeCap.Round
-        )
-
-        // Arrow head path
-        val path = Path().apply {
-            if (isRtl) {
-                moveTo(w * 0.52f, h * 0.28f)
-                lineTo(w * 0.72f, h * 0.5f)
-                lineTo(w * 0.52f, h * 0.72f)
-            } else {
-                moveTo(w * 0.48f, h * 0.28f)
-                lineTo(w * 0.28f, h * 0.5f)
-                lineTo(w * 0.48f, h * 0.72f)
-            }
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(
-                width = strokeWidth,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
-            )
-        )
-    }
-}
-
-/**
  * Crisp Vector Path Arrow Icon for Next Button.
+ * In RTL (Persian), arrow points Left (←) towards reading progression.
+ * In LTR (English, Russian), arrow points Right (→).
  */
 @Composable
 fun VectorNextArrow(
@@ -482,40 +382,57 @@ fun VectorNextArrow(
     modifier: Modifier = Modifier,
     color: Color = Color.White
 ) {
-    Canvas(modifier = modifier.size(20.dp)) {
+    Canvas(modifier = modifier.size(18.dp)) {
         val w = size.width
         val h = size.height
         val strokeWidth = 2.2.dp.toPx()
 
-        // Horizontal stem line
-        drawLine(
-            color = color,
-            start = Offset(if (isRtl) w * 0.72f else w * 0.28f, h * 0.5f),
-            end = Offset(if (isRtl) w * 0.28f else w * 0.72f, h * 0.5f),
-            strokeWidth = strokeWidth,
-            cap = StrokeCap.Round
-        )
-
-        // Arrow head path
-        val path = Path().apply {
-            if (isRtl) {
+        if (isRtl) {
+            // Arrow points Left (←)
+            drawLine(
+                color = color,
+                start = Offset(w * 0.72f, h * 0.5f),
+                end = Offset(w * 0.28f, h * 0.5f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+            val path = Path().apply {
                 moveTo(w * 0.48f, h * 0.28f)
                 lineTo(w * 0.28f, h * 0.5f)
                 lineTo(w * 0.48f, h * 0.72f)
-            } else {
+            }
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(
+                    width = strokeWidth,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+        } else {
+            // Arrow points Right (→)
+            drawLine(
+                color = color,
+                start = Offset(w * 0.28f, h * 0.5f),
+                end = Offset(w * 0.72f, h * 0.5f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+            val path = Path().apply {
                 moveTo(w * 0.52f, h * 0.28f)
                 lineTo(w * 0.72f, h * 0.5f)
                 lineTo(w * 0.52f, h * 0.72f)
             }
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(
-                width = strokeWidth,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
+            drawPath(
+                path = path,
+                color = color,
+                style = Stroke(
+                    width = strokeWidth,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
             )
-        )
+        }
     }
 }

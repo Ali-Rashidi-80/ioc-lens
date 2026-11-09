@@ -44,15 +44,6 @@ class IntroViewModel(
 
     fun onEvent(event: IntroEvent) {
         when (event) {
-            is IntroEvent.PageChanged -> {
-                val isLast = event.pageIndex == _uiState.value.slides.size - 1
-                _uiState.update {
-                    it.copy(
-                        currentPageIndex = event.pageIndex,
-                        isLastPage = isLast
-                    )
-                }
-            }
             is IntroEvent.LanguageChanged -> {
                 settingsRepository.setAppLanguage(event.language)
             }
@@ -65,8 +56,6 @@ class IntroViewModel(
             IntroEvent.Reset -> {
                 _uiState.update {
                     it.copy(
-                        currentPageIndex = 0,
-                        isLastPage = false,
                         isCompleted = false
                     )
                 }
