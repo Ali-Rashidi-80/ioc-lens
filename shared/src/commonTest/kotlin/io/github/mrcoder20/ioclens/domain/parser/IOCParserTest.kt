@@ -216,4 +216,30 @@ class IOCParserTest {
         val unknown = parser.parse("this is a random sentence from user")
         assertIs<ParsedIoc.Unknown>(unknown)
     }
+
+    @Test
+    fun testExtractIocFromNoisySentenceAndShareMessages() {
+        // Message with IPv4 (Google Lens style auto-extraction)
+        val ipMessage = "هشدار امنیتی: آدرس 185.220.101.5 در لاگ‌های فایروال شناسایی شد"
+        val extractedIp = parser.parse(ipMessage)
+        val ipResult = assertIs<ParsedIoc.IpAddress>(extractedIp)
+        assertEquals("185.220.101.5", ipResult.normalizedValue)
+
+        // Message with SHA256 file hash
+        val hashMessage = "Malware payload detected with SHA-256: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f in file"
+        val extractedHash = parser.parse(hashMessage)
+        val hashResult = assertIs<ParsedIoc.Hash>(extractedHash)
+        assertEquals("275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f", hashResult.normalizedValue)
+
+        // Message with refanged URL
+        val urlMessage = "Check this suspicious link: hxxps[://]evil-tracker[.]com/gate.php immediately"
+        val extractedUrl = parser.parse(urlMessage)
+        val urlResult = assertIs<ParsedIoc.Url>(extractedUrl)
+        assertEquals("https://evil-tracker.com/gate.php", urlResult.normalizedValue)
+
+        // Multi-IOC extraction
+        val multiMessage = "Found C2 at 1.1.1.1 and backup at evil-backup.org"
+        val allIocs = parser.extractAllIocs(multiMessage)
+        assertEquals(2, allIocs.size)
+    }
 }

@@ -145,30 +145,6 @@ fun IntroScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Skip Button (Visible on slides 1-3 only; hidden on slide 4)
-                        if (shouldShowOnboardingSkip(pagerState.currentPage, uiState.slides.size)) {
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        viewModel.onEvent(IntroEvent.SkipClicked)
-                                        onIntroFinished()
-                                    }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color.White.copy(alpha = 0.08f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
-                            ) {
-                                Text(
-                                    text = currentStrings.skip,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-
                         if (onClose != null && isRtl) {
                             Surface(
                                 modifier = Modifier

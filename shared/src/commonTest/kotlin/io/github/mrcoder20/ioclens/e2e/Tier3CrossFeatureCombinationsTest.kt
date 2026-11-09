@@ -158,9 +158,9 @@ class Tier3CrossFeatureCombinationsTest {
         val introUseCase = SetIntroCompletedUseCase(settingsRepo)
         val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
 
-        // User navigates to History Screen (Tab 2)
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
+        // User navigates to History Screen (Tab 1)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
 
         // User taps a history card
         viewModel.onEvent(HomeEvent.HistoryItemClicked(sampleVerdict))
@@ -231,7 +231,7 @@ class Tier3CrossFeatureCombinationsTest {
         assertEquals(2, viewModel.uiState.value.scanHistory.size)
 
         // Navigate to History Tab
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
 
         // Trigger Clear History
         viewModel.onEvent(HomeEvent.ClearHistory)
@@ -313,20 +313,20 @@ class Tier3CrossFeatureCombinationsTest {
         val introUseCase = SetIntroCompletedUseCase(settingsRepo)
         val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
 
-        // Navigate to Engines Tab (Tab 1)
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
-        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
+        // Navigate to Settings Tab (Tab 2)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
 
         // Switch theme to SYSTEM
         viewModel.onEvent(HomeEvent.ThemeChanged(AppTheme.SYSTEM))
         advanceUntilIdle()
         assertEquals(AppTheme.SYSTEM, viewModel.uiState.value.appTheme)
-        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab, "Tab selection must remain at 1")
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab, "Tab selection must remain at 2")
 
         // Switch theme back to DARK
         viewModel.onEvent(HomeEvent.ThemeChanged(AppTheme.DARK))
         advanceUntilIdle()
         assertEquals(AppTheme.DARK, viewModel.uiState.value.appTheme)
-        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
     }
 }

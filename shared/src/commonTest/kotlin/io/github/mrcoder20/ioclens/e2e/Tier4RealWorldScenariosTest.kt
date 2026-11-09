@@ -148,8 +148,8 @@ class Tier4RealWorldScenariosTest {
         assertEquals(parsed.normalizedValue, history.first().indicator.normalizedValue)
 
         // 6. User switches to History Tab to view logged triage
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
     }
 

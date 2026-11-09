@@ -77,6 +77,19 @@ class MainActivity : ComponentActivity() {
                     return
                 }
             }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val streamUris = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                }
+                val firstUri = streamUris?.firstOrNull()
+                if (firstUri != null) {
+                    copyUriToCacheAndDispatchAsync(firstUri)
+                    return
+                }
+            }
             Intent.ACTION_VIEW -> {
                 val dataUri = intent.data
                 if (dataUri != null) {

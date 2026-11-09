@@ -27,12 +27,26 @@ class IOCParser {
             .replace(Regex("""\[://\]|\(://\)"""), "://")
             .replace(Regex("""\[:\]|\(:\)"""), ":")
             .replace(Regex("""\[@\]|\[at\]""", RegexOption.IGNORE_CASE), "@")
-            .replace(Regex("""^hx[xt]ps://""", RegexOption.IGNORE_CASE), "https://")
-            .replace(Regex("""^hx[xt]p://""", RegexOption.IGNORE_CASE), "http://")
-            .replace(Regex("""^fxp://""", RegexOption.IGNORE_CASE), "ftp://")
+            .replace(Regex("""(?:^|\b)hx[xt]ps://""", RegexOption.IGNORE_CASE), "https://")
+            .replace(Regex("""(?:^|\b)hx[xt]p://""", RegexOption.IGNORE_CASE), "http://")
+            .replace(Regex("""(?:^|\b)fxp://""", RegexOption.IGNORE_CASE), "ftp://")
     }
 
     fun parse(rawInput: String): ParsedIoc {
+        val exact = parseExact(rawInput)
+        if (exact !is ParsedIoc.Unknown) return exact
+
+        // If input contains spaces or surrounding sentence words (e.g. from Telegram, Eitaa, logs),
+        // extract the first recognized threat indicator automatically (Google Lens style).
+        if (rawInput.contains(Regex("""\s"""))) {
+            val extracted = extractFirstIoc(rawInput)
+            if (extracted != null) return extracted
+        }
+
+        return exact
+    }
+
+    fun parseExact(rawInput: String): ParsedIoc {
         val trimmed = rawInput.trim().replace(INVISIBLE_CHARS_REGEX, "")
         if (trimmed.isEmpty()) {
             return ParsedIoc.Unknown(rawInput, "")
@@ -123,6 +137,66 @@ class IOCParser {
         }
 
         return ParsedIoc.Unknown(trimmed, refanged)
+    }
+
+    /**
+     * Extracts the first valid threat indicator from freeform, noisy, or sentence-wrapped text
+     * (e.g. shared Telegram/Eitaa messages, security alerts, firewall logs).
+     */
+    fun extractFirstIoc(rawInput: String): ParsedIoc? {
+        val exact = parseExact(rawInput)
+        if (exact !is ParsedIoc.Unknown) return exact
+        return extractAllIocs(rawInput).firstOrNull()
+    }
+
+    /**
+     * Extracts all unique valid threat indicators from freeform or formatted multi-indicator text.
+     */
+    fun extractAllIocs(rawInput: String): List<ParsedIoc> {
+        val trimmed = rawInput.trim()
+        if (trimmed.isEmpty()) return emptyList()
+
+        val refanged = refang(trimmed)
+        val results = mutableListOf<ParsedIoc>()
+        val seenValues = mutableSetOf<String>()
+
+        // 1. Scan for URLs
+        val urlRegex = Regex("""(?:https?|ftp)://[^\s<>"'{}|\\^`]+""", RegexOption.IGNORE_CASE)
+        urlRegex.findAll(refanged).forEach { match ->
+            val parsed = parseExact(match.value)
+            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
+                results.add(parsed)
+            }
+        }
+
+        // 2. Scan for Hashes (SHA-256, SHA-1, MD5)
+        val hashRegex = Regex("""\b([a-fA-F0-9]{64}|[a-fA-F0-9]{40}|[a-fA-F0-9]{32})\b""")
+        hashRegex.findAll(refanged).forEach { match ->
+            val parsed = parseExact(match.value)
+            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
+                results.add(parsed)
+            }
+        }
+
+        // 3. Scan for IPv4
+        val ipv4Regex = Regex("""\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::\d{1,5})?\b""")
+        ipv4Regex.findAll(refanged).forEach { match ->
+            val parsed = parseExact(match.value)
+            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
+                results.add(parsed)
+            }
+        }
+
+        // 4. Scan for Domains
+        val domainRegex = Regex("""\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,})\b""")
+        domainRegex.findAll(refanged).forEach { match ->
+            val parsed = parseExact(match.value)
+            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
+                results.add(parsed)
+            }
+        }
+
+        return results
     }
 
     private fun isPrivateIpv4(octets: List<Int>): Boolean =

@@ -40,32 +40,26 @@ class HomeNavigationTest {
     }
 
     @Test
-    fun testNavigatingBetweenAllFourTabsRendersDedicatedViewsWithoutModalDialogs() = runTest {
+    fun testNavigatingBetweenAllThreeTabsRendersDedicatedViewsWithoutModalDialogs() = runTest {
         val settingsRepo = HomeViewModelTest.FakeSettingsRepository()
         val threatRepo = HomeViewModelTest.FakeThreatIntelRepository()
         val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
         val introUseCase = SetIntroCompletedUseCase(settingsRepo)
         val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
 
-        // 1. Select Tab 1 - Engines View (Dedicated full-screen view)
+        // 1. Select Tab 1 - History View (Dedicated full-screen view without modal dialog overlay)
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
-        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab, "Engines tab must be selected")
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab, "History tab must be selected")
         assertFalse(viewModel.uiState.value.isHistorySheetOpen, "History modal overlay must not be open")
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen, "Settings modal overlay must not be open")
 
-        // 2. Select Tab 2 - History View (Dedicated full-screen view without modal dialog overlay)
+        // 2. Select Tab 2 - Settings View (Dedicated full-screen view without modal dialog overlay)
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab, "History tab must be selected")
-        assertFalse(viewModel.uiState.value.isHistorySheetOpen, "History modal overlay must not be open")
-        assertFalse(viewModel.uiState.value.isSettingsSheetOpen, "Settings modal overlay must not be open")
-
-        // 3. Select Tab 3 - Settings View (Dedicated full-screen view without modal dialog overlay)
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
-        assertEquals(3, viewModel.uiState.value.selectedBottomNavTab, "Settings tab must be selected")
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab, "Settings tab must be selected")
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen, "Settings modal overlay must not be open")
         assertFalse(viewModel.uiState.value.isHistorySheetOpen, "History modal overlay must not be open")
 
-        // 4. Return to Tab 0 - Scanner View
+        // 3. Return to Tab 0 - Scanner View
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab, "Scanner tab must be selected")
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
@@ -90,9 +84,9 @@ class HomeNavigationTest {
 
         val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
 
-        // User is browsing Tab 2 (History)
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
+        // User is browsing Tab 1 (History)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
 
         // User selects a history item -> Must switch to Tab 0 (Scanner) and load verdict
         viewModel.onEvent(HomeEvent.HistoryItemClicked(sampleVerdict))

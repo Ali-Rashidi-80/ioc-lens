@@ -102,13 +102,10 @@ class Tier1FeatureCoverageTest {
     fun testOnboardingSkipVisibilityAcrossSlides() {
         val totalSlides = 4
 
-        // Skip must be visible on slides 0, 1, 2 (Slides 1 to 3)
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 0, pageCount = totalSlides))
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 1, pageCount = totalSlides))
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 2, pageCount = totalSlides))
-
-        // Skip must be hidden on slide 3 (Slide 4 - final slide) to give prominence to DONE
-        assertFalse(shouldShowOnboardingSkip(pageIndex = 3, pageCount = totalSlides))
+        // Skip button is completely removed from all onboarding slides
+        for (i in 0 until totalSlides) {
+            assertFalse(shouldShowOnboardingSkip(pageIndex = i, pageCount = totalSlides))
+        }
     }
 
     @Test
@@ -211,21 +208,15 @@ class Tier1FeatureCoverageTest {
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 
-        // Select Tab 1: Engines View
+        // Select Tab 1: History View
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
         assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 
-        // Select Tab 2: History View
+        // Select Tab 2: Settings View
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
         assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
-        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
-        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
-
-        // Select Tab 3: Settings View
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
-        assertEquals(3, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 

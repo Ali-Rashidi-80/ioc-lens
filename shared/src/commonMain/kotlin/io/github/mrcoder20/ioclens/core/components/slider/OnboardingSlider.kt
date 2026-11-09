@@ -82,10 +82,10 @@ fun getOnboardingNextArrowDirection(isRtl: Boolean): OnboardingArrowDirection {
 
 /**
  * Determines whether Skip action is visible.
- * Visible on slides 1..N-1 (indices 0..N-2); hidden on the final slide to eliminate vertical layout shift.
+ * Completely removed per UX simplification guidelines; users proceed via Next/Swipe to completion.
  */
 fun shouldShowOnboardingSkip(pageIndex: Int, pageCount: Int): Boolean {
-    return pageIndex in 0 until (pageCount - 1)
+    return false
 }
 
 /**

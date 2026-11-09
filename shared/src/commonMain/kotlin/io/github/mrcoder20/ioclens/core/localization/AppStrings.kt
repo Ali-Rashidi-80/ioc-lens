@@ -133,7 +133,14 @@ data class AppStrings(
     val visitWebsite: String,
     val copyWebsiteUrl: String,
     val websiteUrlCopied: String,
-    val filterByIocType: String
+    val filterByIocType: String,
+    val githubRepoUrl: String,
+    val openGithubRepo: String,
+    val copyGithubUrl: String,
+    val githubUrlCopied: String,
+    val clientManifestoTitle: String,
+    val clientManifestoDesc: String,
+    val replayGuideTitle: String
 )
 
 object LocalizationProvider {
@@ -693,7 +700,14 @@ object LocalizationProvider {
                 visitWebsite = "Visit Website",
                 copyWebsiteUrl = "Copy Link",
                 websiteUrlCopied = "Link copied to clipboard",
-                filterByIocType = "Filter by Indicator Type"
+                filterByIocType = "Filter by Indicator Type",
+                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                openGithubRepo = "Open GitHub Repository",
+                copyGithubUrl = "Copy GitHub Link",
+                githubUrlCopied = "GitHub link copied",
+                clientManifestoTitle = "100% Client-Side Architecture",
+                clientManifestoDesc = "All 10 threat intel feeds query directly from your device—zero middleman servers, zero cloud database, and zero telemetry. RFC 1918 local IP protection is enforced automatically on-device.",
+                replayGuideTitle = "Replay App Guide"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -824,7 +838,14 @@ object LocalizationProvider {
                 visitWebsite = "مشاهده تارنما",
                 copyWebsiteUrl = "کپی پیوند",
                 websiteUrlCopied = "پیوند در حافظه کپی شد",
-                filterByIocType = "فیلتر بر اساس نوع نشانگر"
+                filterByIocType = "فیلتر بر اساس نوع نشانگر",
+                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                openGithubRepo = "مشاهده مخزن در گیت‌هاب",
+                copyGithubUrl = "کپی پیوند گیت‌هاب",
+                githubUrlCopied = "پیوند گیت‌هاب در حافظه کپی شد",
+                clientManifestoTitle = "معماری ۱۰۰٪ کلاینت‌ساید و مستقیم",
+                clientManifestoDesc = "تمامی ۱۰ موتور هوش تهدیدات مستقیماً از روی دستگاه شما استعلام می‌شوند؛ بدون سرور واسط، بدون پایگاه داده ابری و بدون رهگیری. حفاظت از نشانگرهای محلی (RFC 1918) به‌طور خودکار فعال است.",
+                replayGuideTitle = "مرور مجدد راهنمای برنامه"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -955,7 +976,14 @@ object LocalizationProvider {
                 visitWebsite = "Открыть сайт",
                 copyWebsiteUrl = "Копировать ссылку",
                 websiteUrlCopied = "Ссылка скопирована",
-                filterByIocType = "Фильтр по типу индикатора"
+                filterByIocType = "Фильтр по типу индикатора",
+                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                openGithubRepo = "Репозиторий на GitHub",
+                copyGithubUrl = "Скопировать ссылку GitHub",
+                githubUrlCopied = "Ссылка GitHub скопирована",
+                clientManifestoTitle = "100% Клиентская архитектура",
+                clientManifestoDesc = "Все 10 источников аналитики угроз опрашиваются напрямую с вашего устройства: без промежуточных серверов, облачных баз данных и телеметрии. Защита локальных IP (RFC 1918) активна постоянно.",
+                replayGuideTitle = "Повторить руководство программы"
             )
         }
     }

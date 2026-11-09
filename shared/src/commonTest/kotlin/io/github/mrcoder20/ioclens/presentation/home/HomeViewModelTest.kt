@@ -333,40 +333,33 @@ class HomeViewModelTest {
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 2. Select Tab 1 (Engines): expands provider deck and marks tab 1 selected
+        // 2. Select Tab 1 (History): dedicated full-screen view without modal dialog overlay
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
         assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
-        assertTrue(viewModel.uiState.value.isProviderDeckExpanded)
-        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
-        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
-
-        // 3. Select Tab 2 (History): dedicated full-screen view without modal dialog overlay
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 
-        // 4. SetHistorySheetOpen directly handles modal sheet lifecycle
+        // 3. SetHistorySheetOpen directly handles modal sheet lifecycle
         viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
         assertTrue(viewModel.uiState.value.isHistorySheetOpen)
         viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 5. Select Tab 3 (Settings): dedicated full-screen view without modal dialog overlay
-        viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
-        assertEquals(3, viewModel.uiState.value.selectedBottomNavTab)
+        // 4. Select Tab 2 (Settings): dedicated full-screen view without modal dialog overlay
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 6. SetSettingsSheetOpen directly handles modal sheet lifecycle
+        // 5. SetSettingsSheetOpen directly handles modal sheet lifecycle
         viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
         assertTrue(viewModel.uiState.value.isSettingsSheetOpen)
         viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 
-        // 7. Explicitly selecting tab 0 keeps tab 0 selected
+        // 6. Explicitly selecting tab 0 keeps tab 0 selected
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
     }
@@ -403,8 +396,8 @@ class HomeViewModelTest {
         assertEquals(2, activeViewModel.uiState.value.scanHistory.size)
 
         // 1. History Item Click jumps navigation to Tab 0 and sets active verdict
-        activeViewModel.onEvent(HomeEvent.SelectBottomNavTab(2)) // On history tab
-        assertEquals(2, activeViewModel.uiState.value.selectedBottomNavTab)
+        activeViewModel.onEvent(HomeEvent.SelectBottomNavTab(1)) // On history tab
+        assertEquals(1, activeViewModel.uiState.value.selectedBottomNavTab)
 
         activeViewModel.onEvent(HomeEvent.HistoryItemClicked(item2))
         assertEquals(0, activeViewModel.uiState.value.selectedBottomNavTab)

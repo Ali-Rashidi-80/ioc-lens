@@ -267,8 +267,13 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "🌐", fontSize = 18.sp) },
-                        label = { Text(text = strings.tabEngines, fontWeight = FontWeight.SemiBold) },
+                        icon = { Text(text = "📜", fontSize = 18.sp) },
+                        label = {
+                            Text(
+                                text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage)})",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
                         selected = uiState.selectedBottomNavTab == 1 && !uiState.isGuideOverlayOpen,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
@@ -281,30 +286,11 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "📜", fontSize = 18.sp) },
-                        label = {
-                            Text(
-                                text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage)})",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
+                        icon = { Text(text = "⚙️", fontSize = 18.sp) },
+                        label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
                         selected = uiState.selectedBottomNavTab == 2 && !uiState.isGuideOverlayOpen,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
-                            coroutineScope.launch { drawerState.close() }
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text(text = "⚙️", fontSize = 18.sp) },
-                        label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
-                        selected = uiState.selectedBottomNavTab == 3 && !uiState.isGuideOverlayOpen,
-                        onClick = {
-                            viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
                             coroutineScope.launch { drawerState.close() }
                         },
                         colors = NavigationDrawerItemDefaults.colors(
@@ -510,10 +496,10 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        val nextTab = if (uiState.selectedBottomNavTab == 2) 0 else 2
+                                        val nextTab = if (uiState.selectedBottomNavTab == 1) 0 else 1
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
                                     },
-                                color = if (uiState.selectedBottomNavTab == 2) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                color = if (uiState.selectedBottomNavTab == 1) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                                 shape = RoundedCornerShape(12.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
@@ -539,10 +525,10 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        val nextTab = if (uiState.selectedBottomNavTab == 3) 0 else 3
+                                        val nextTab = if (uiState.selectedBottomNavTab == 2) 0 else 2
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
                                     },
-                                color = if (uiState.selectedBottomNavTab == 3) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                color = if (uiState.selectedBottomNavTab == 2) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                                 shape = RoundedCornerShape(12.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
@@ -561,12 +547,6 @@ fun HomeScreen(
 
                     when (uiState.selectedBottomNavTab) {
                         1 -> {
-                            EnginesDashboardView(
-                                uiState = uiState,
-                                isTwoColumn = true
-                            )
-                        }
-                        2 -> {
                             HistoryFullScreenView(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
@@ -580,8 +560,8 @@ fun HomeScreen(
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
                         }
-                        3 -> {
-                            // TAB 4: SETTINGS VIEW (Dedicated full-screen view without modal backdrop)
+                        2 -> {
+                            // TAB 3: SETTINGS VIEW (Dedicated full-screen view without modal backdrop)
                             SettingsScreen(
                                 settingsRepository = settingsRepository,
                                 isMobileOrTablet = false,
@@ -732,14 +712,7 @@ fun HomeScreen(
                             }
                         }
                         1 -> {
-                            // TAB 2: ENGINES VIEW (Dedicated full-screen dashboard of the 10 Threat Intel Providers)
-                            EnginesDashboardView(
-                                uiState = uiState,
-                                isTwoColumn = screenWidth >= 680.dp
-                            )
-                        }
-                        2 -> {
-                            // TAB 3: HISTORY VIEW (Dedicated full-screen view without modal backdrop or close button)
+                            // TAB 2: HISTORY VIEW (Dedicated full-screen view without modal backdrop or close button)
                             HistoryFullScreenView(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
@@ -753,8 +726,8 @@ fun HomeScreen(
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
                         }
-                        3 -> {
-                            // TAB 4: SETTINGS VIEW (Dedicated full-screen view without modal backdrop or close button)
+                        2 -> {
+                            // TAB 3: SETTINGS VIEW (Dedicated full-screen view without modal backdrop or close button)
                             SettingsScreen(
                                 settingsRepository = settingsRepository,
                                 isMobileOrTablet = true,
@@ -1100,9 +1073,8 @@ private fun CyberpunkBottomNavBar(
         ) {
             val tabs = listOf(
                 Triple(0, "🔍", strings.tabScanner),
-                Triple(1, "🌐", strings.tabEngines),
-                Triple(2, "📜", strings.tabHistory),
-                Triple(3, "⚙️", strings.tabSettings)
+                Triple(1, "📜", strings.tabHistory),
+                Triple(2, "⚙️", strings.tabSettings)
             )
 
             tabs.forEach { (index, icon, label) ->
@@ -1129,7 +1101,7 @@ private fun CyberpunkBottomNavBar(
                                 text = icon,
                                 fontSize = 18.sp
                             )
-                            if (index == 2 && historyCount > 0) {
+                            if (index == 1 && historyCount > 0) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -1927,524 +1899,6 @@ private fun ProviderRow(
 }
 
 @Composable
-private fun EnginesDashboardView(
-    uiState: HomeUiState,
-    isTwoColumn: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val strings = LocalizationProvider.getStrings(uiState.appLanguage)
-
-    val allProviders = remember {
-        listOf(
-            "URLhaus (abuse.ch)" to true,
-            "MalwareBazaar (abuse.ch)" to true,
-            "ThreatFox (abuse.ch)" to true,
-            "RDAP / Registry" to true,
-            "Cloudflare DoH" to true,
-            "Shodan InternetDB" to true,
-            "AlienVault OTX" to true,
-            "RIPE Stat" to true,
-            "crt.sh" to true,
-            "Feodo Tracker (abuse.ch)" to true
-        )
-    }
-
-    var selectedTypeFilter by remember { mutableStateOf<IndicatorType?>(null) }
-    var copiedFeedbackProvider by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(copiedFeedbackProvider) {
-        if (copiedFeedbackProvider != null) {
-            delay(2000)
-            copiedFeedbackProvider = null
-        }
-    }
-
-    val filteredProviders = remember(selectedTypeFilter) {
-        if (selectedTypeFilter == null) {
-            allProviders
-        } else {
-            allProviders.filter { (name, _) ->
-                val types = LocalizationProvider.getProviderSupportedTypes(name)
-                selectedTypeFilter in types
-            }
-        }
-    }
-
-    val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
-    val activeMap = activeSources.associateBy { it.providerName }
-    val currentIndicatorType = uiState.targetIndicator?.type ?: uiState.activeVerdict?.indicator?.type
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // Dashboard Header Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(
-                            text = "${strings.threatIntelProvidersTitle} (${LocalizationProvider.formatNumber(filteredProviders.size, uiState.appLanguage)} / ${LocalizationProvider.formatNumber(allProviders.size, uiState.appLanguage)})",
-                            style = if (!isTwoColumn) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
-                            color = PrimaryCyan,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = strings.enginesZeroKeySubtitle,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            lineHeight = 15.sp
-                        )
-                    }
-
-                    Surface(
-                        color = VerdictClean.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.45f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(VerdictClean))
-                            Text(
-                                text = strings.systemReadyEngines,
-                                fontSize = 11.sp,
-                                color = VerdictClean,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
-                }
-
-                // Interactive IOC Type Filter Row
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = strings.filterByIocType + ":",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8),
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // "ALL" Filter Chip
-                        val isAllSelected = selectedTypeFilter == null
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { selectedTypeFilter = null }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = if (isAllSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF131F33),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isAllSelected) PrimaryCyan else Color(0xFF1E293B)
-                            )
-                        ) {
-                            Text(
-                                text = "${strings.filterAll} (${LocalizationProvider.formatNumber(allProviders.size, uiState.appLanguage)})",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                color = if (isAllSelected) PrimaryCyan else Color(0xFF94A3B8),
-                                fontSize = 11.sp,
-                                fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-
-                        // Specific IOC Type Filter Chips
-                        listOf(
-                            IndicatorType.IP_ADDRESS to "IP",
-                            IndicatorType.DOMAIN to "DOMAIN",
-                            IndicatorType.URL to "URL",
-                            IndicatorType.FILE_HASH to "HASH"
-                        ).forEach { (type, label) ->
-                            val isSelected = selectedTypeFilter == type
-                            val count = allProviders.count { (name, _) ->
-                                type in LocalizationProvider.getProviderSupportedTypes(name)
-                            }
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { selectedTypeFilter = if (isSelected) null else type }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = if (isSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF131F33),
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) PrimaryCyan else Color(0xFF1E293B)
-                                )
-                            ) {
-                                Text(
-                                    text = "$label (${LocalizationProvider.formatNumber(count, uiState.appLanguage)})",
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                    color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Provider cards list
-        if (isTwoColumn) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                filteredProviders.chunked(2).forEach { pair ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        pair.forEach { (name, isZeroKey) ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                EngineDetailCard(
-                                    name = name,
-                                    isZeroKey = isZeroKey,
-                                    isLoading = uiState.isLoading,
-                                    result = activeMap[name],
-                                    indicatorType = currentIndicatorType,
-                                    hasActiveVerdict = uiState.activeVerdict != null,
-                                    appLanguage = uiState.appLanguage,
-                                    strings = strings,
-                                    isCopiedFeedback = copiedFeedbackProvider == name,
-                                    onCopyUrl = { copiedFeedbackProvider = name }
-                                )
-                            }
-                        }
-                        if (pair.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                filteredProviders.forEach { (name, isZeroKey) ->
-                    EngineDetailCard(
-                        name = name,
-                        isZeroKey = isZeroKey,
-                        isLoading = uiState.isLoading,
-                        result = activeMap[name],
-                        indicatorType = currentIndicatorType,
-                        hasActiveVerdict = uiState.activeVerdict != null,
-                        appLanguage = uiState.appLanguage,
-                        strings = strings,
-                        isCopiedFeedback = copiedFeedbackProvider == name,
-                        onCopyUrl = { copiedFeedbackProvider = name }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EngineDetailCard(
-    name: String,
-    isZeroKey: Boolean,
-    isLoading: Boolean,
-    result: SourceResult?,
-    indicatorType: IndicatorType?,
-    hasActiveVerdict: Boolean,
-    appLanguage: AppLanguage,
-    strings: AppStrings,
-    isCopiedFeedback: Boolean = false,
-    onCopyUrl: ((String) -> Unit)? = null
-) {
-    val isApplicable = isProviderApplicable(name, indicatorType)
-    val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
-    val isTimedOut = result?.summary?.contains("timed out", ignoreCase = true) == true
-
-    val statusColor = when {
-        isRateLimited -> Color(0xFFF59E0B)
-        isTimedOut -> Color(0xFF94A3B8)
-        isLoading && !isApplicable && indicatorType != null -> VerdictNoData
-        isLoading && isApplicable -> PrimaryCyan
-        result != null -> when (result.verdict) {
-            VerdictLevel.CLEAN -> VerdictClean
-            VerdictLevel.LOW_RISK -> VerdictLowRisk
-            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-            VerdictLevel.MALICIOUS -> VerdictMalicious
-            VerdictLevel.NO_DATA -> VerdictNoData
-        }
-        isZeroKey -> VerdictClean
-        else -> Color(0xFFF59E0B)
-    }
-
-    val statusText = when {
-        isLoading && !isApplicable && indicatorType != null -> strings.statusNotApplicable
-        isLoading -> strings.statusScanning
-        isRateLimited -> strings.statusRateLimited
-        isTimedOut -> strings.statusTimedOut
-        result != null -> LocalizationProvider.getVerdictName(result.verdict, appLanguage)
-        hasActiveVerdict && !isApplicable -> strings.statusNotApplicable
-        hasActiveVerdict -> strings.statusKeyRequired
-        isZeroKey -> strings.statusReadyZeroKey
-        else -> strings.statusKeyRequired
-    }
-
-    val supportedTypes = LocalizationProvider.getProviderSupportedTypes(name)
-    val description = LocalizationProvider.getProviderDescription(name, appLanguage)
-    val websiteUrl = LocalizationProvider.getProviderWebsiteUrl(name)
-    val domain = LocalizationProvider.getProviderDomain(name)
-    val uriHandler = LocalUriHandler.current
-    val clipboardManager = LocalClipboardManager.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = if (result != null) statusColor.copy(alpha = 0.6f) else PrimaryCyan.copy(alpha = 0.25f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Header Row: Provider Display Name (Ellipsized, single-line) + Live Status Badge (never wrapped)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Surface(
-                    color = statusColor.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, statusColor.copy(alpha = 0.45f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(statusColor)
-                        )
-                        Text(
-                            text = statusText,
-                            color = statusColor,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.5.sp,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-
-            // Interactive Website & Portal Link Row (Direct utility!)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Clickable Domain Pill (opens official portal in user's browser)
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            try {
-                                uriHandler.openUri(websiteUrl)
-                            } catch (_: Exception) {
-                                clipboardManager.setText(AnnotatedString(websiteUrl))
-                            }
-                        }
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    color = Color(0xFF0F172A),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "🌐",
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = domain,
-                            color = PrimaryCyan,
-                            fontSize = 11.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        Text(
-                            text = "↗",
-                            color = PrimaryCyan.copy(alpha = 0.85f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // Quick Copy Link Pill
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            clipboardManager.setText(AnnotatedString(websiteUrl))
-                            onCopyUrl?.invoke(websiteUrl)
-                        }
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    color = if (isCopiedFeedback) VerdictClean.copy(alpha = 0.2f) else Color(0xFF1E293B).copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        0.6.dp,
-                        if (isCopiedFeedback) VerdictClean else Color(0xFF334155)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (isCopiedFeedback) "✓" else "📋",
-                            fontSize = 10.5.sp,
-                            color = if (isCopiedFeedback) VerdictClean else Color(0xFF94A3B8)
-                        )
-                        Text(
-                            text = if (isCopiedFeedback) strings.websiteUrlCopied else strings.copyWebsiteUrl,
-                            color = if (isCopiedFeedback) VerdictClean else Color(0xFF94A3B8),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-
-            // Description
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF94A3B8),
-                fontSize = 12.sp,
-                lineHeight = 17.5.sp
-            )
-
-            // Supported Indicators Chips Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = strings.indicatorTypeLabel + ":",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                supportedTypes.forEach { type ->
-                    val typeLabel = when (type) {
-                        IndicatorType.IP_ADDRESS -> "IP"
-                        IndicatorType.DOMAIN -> "DOMAIN"
-                        IndicatorType.URL -> "URL"
-                        IndicatorType.FILE_HASH -> "HASH"
-                        IndicatorType.UNKNOWN -> "ANY"
-                    }
-                    Surface(
-                        color = Color(0xFF131F33),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, PrimaryCyan.copy(alpha = 0.35f))
-                    ) {
-                        Text(
-                            text = typeLabel,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = PrimaryCyan.copy(alpha = 0.9f),
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-
-            // If active scan result exists for this provider, show summary
-            if (result != null) {
-                HorizontalDivider(color = Color(0xFF1E293B).copy(alpha = 0.6f))
-                ControlledMarqueeText(
-                    text = LocalizationProvider.getLocalizedSourceSummary(result.summary, appLanguage),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor,
-                    fontSize = 11.sp,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun HistoryFullScreenView(
     history: List<TriageVerdict>,
     appLanguage: AppLanguage,
@@ -3231,50 +2685,6 @@ private fun RecentTriageFeedHUD(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/**
- * Cyber Telemetry Footer: Transparent status pill showing serverless client architecture, no DB, and active privacy invariants.
- */
-@Composable
-private fun CyberTelemetryFooter(
-    strings: AppStrings,
-    isMobileOrTablet: Boolean
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color(0xFF070B14).copy(alpha = 0.85f),
-            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.25f))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(VerdictClean)
-                )
-                ControlledMarqueeText(
-                    text = strings.serverlessStatus,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF94A3B8),
-                    fontSize = if (isMobileOrTablet) 9.5.sp else 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
             }
         }
     }

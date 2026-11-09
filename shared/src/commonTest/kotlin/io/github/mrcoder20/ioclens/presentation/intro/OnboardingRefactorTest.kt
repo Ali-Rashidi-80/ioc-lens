@@ -75,15 +75,11 @@ class OnboardingRefactorTest {
     fun testSkipVisibilityLogicAcrossSlides() {
         val totalSlides = 4
 
-        // Slides 1, 2, 3 (indices 0, 1, 2): Skip must be visible
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 0, pageCount = totalSlides))
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 1, pageCount = totalSlides))
-        assertTrue(shouldShowOnboardingSkip(pageIndex = 2, pageCount = totalSlides))
-
-        // Slide 4 (index 3): Skip must be hidden to prevent vertical shift and focus on DONE
+        // Skip button completely eliminated per UX simplification
+        assertFalse(shouldShowOnboardingSkip(pageIndex = 0, pageCount = totalSlides))
+        assertFalse(shouldShowOnboardingSkip(pageIndex = 1, pageCount = totalSlides))
+        assertFalse(shouldShowOnboardingSkip(pageIndex = 2, pageCount = totalSlides))
         assertFalse(shouldShowOnboardingSkip(pageIndex = 3, pageCount = totalSlides))
-
-        // Edge case: out of bounds
         assertFalse(shouldShowOnboardingSkip(pageIndex = 4, pageCount = totalSlides))
     }
 

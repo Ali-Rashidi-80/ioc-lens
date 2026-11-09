@@ -71,10 +71,22 @@ class HomeViewModel(
     }
 
     private fun handleIncomingPayload(payload: SharedPayload) {
+        // Automatically switch to Scanner view (Tab 0) and dismiss any open overlays
+        _uiState.update {
+            it.copy(
+                selectedBottomNavTab = 0,
+                isSettingsSheetOpen = false,
+                isHistorySheetOpen = false,
+                isGuideOverlayOpen = false
+            )
+        }
         if (!payload.filePath.isNullOrBlank()) {
             onEvent(HomeEvent.FileDropped(payload.filePath, payload.fileName ?: "payload.bin"))
         } else if (!payload.textOrUrl.isNullOrBlank()) {
-            _uiState.update { it.copy(queryInput = payload.textOrUrl) }
+            val iocParser = io.github.mrcoder20.ioclens.domain.parser.IOCParser()
+            val extracted = iocParser.extractFirstIoc(payload.textOrUrl)
+            val queryText = extracted?.rawValue ?: payload.textOrUrl.trim()
+            _uiState.update { it.copy(queryInput = queryText) }
             analyzeQuery()
         }
     }
@@ -158,7 +170,7 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         isHistorySheetOpen = event.isOpen,
-                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 2) 0 else it.selectedBottomNavTab
+                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 1) 0 else it.selectedBottomNavTab
                     )
                 }
             }
@@ -166,7 +178,7 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         isSettingsSheetOpen = event.isOpen,
-                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 3) 0 else it.selectedBottomNavTab
+                        selectedBottomNavTab = if (!event.isOpen && it.selectedBottomNavTab == 2) 0 else it.selectedBottomNavTab
                     )
                 }
             }
