@@ -13,10 +13,13 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -77,7 +80,6 @@ import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import kotlinx.coroutines.delay
 
 enum class SettingsTab {
-    API_KEYS,
     GENERAL_PRIVACY,
     ABOUT
 }
@@ -88,56 +90,13 @@ fun SettingsScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     isMobileOrTablet: Boolean = false,
+    isFullScreen: Boolean = false,
     onReplayGuide: (() -> Unit)? = null
 ) {
     val settingsState by settingsRepository.settingsState.collectAsState()
     val strings = LocalizationProvider.getStrings(settingsState.appLanguage)
     val scrollState = rememberScrollState()
-    var currentTab by remember { mutableStateOf(SettingsTab.API_KEYS) }
-
-    var vtKey by remember(settingsState.virusTotalApiKey) { mutableStateOf(settingsState.virusTotalApiKey) }
-    var abuseKey by remember(settingsState.abuseIpDbApiKey) { mutableStateOf(settingsState.abuseIpDbApiKey) }
-    var alienKey by remember(settingsState.alienVaultApiKey) { mutableStateOf(settingsState.alienVaultApiKey) }
-    var pulseKey by remember(settingsState.pulsediveApiKey) { mutableStateOf(settingsState.pulsediveApiKey) }
-    var ipqsKey by remember(settingsState.ipQualityScoreApiKey) { mutableStateOf(settingsState.ipQualityScoreApiKey) }
-    var showSavedMessage by remember { mutableStateOf(false) }
-
-    val flushPendingKeys = remember(settingsRepository, vtKey, abuseKey, alienKey, pulseKey, ipqsKey) {
-        {
-            val s = settingsRepository.getSettings()
-            val trimmedVt = vtKey.trim()
-            val trimmedAbuse = abuseKey.trim()
-            val trimmedAlien = alienKey.trim()
-            val trimmedPulse = pulseKey.trim()
-            val trimmedIpqs = ipqsKey.trim()
-            if (trimmedVt != s.virusTotalApiKey) settingsRepository.updateApiKey("virustotal", trimmedVt)
-            if (trimmedAbuse != s.abuseIpDbApiKey) settingsRepository.updateApiKey("abuseipdb", trimmedAbuse)
-            if (trimmedAlien != s.alienVaultApiKey) settingsRepository.updateApiKey("alienvault", trimmedAlien)
-            if (trimmedPulse != s.pulsediveApiKey) settingsRepository.updateApiKey("pulsedive", trimmedPulse)
-            if (trimmedIpqs != s.ipQualityScoreApiKey) settingsRepository.updateApiKey("ipqualityscore", trimmedIpqs)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            flushPendingKeys()
-        }
-    }
-
-    // Automatic debounced persistence for API keys and reset saved indicator on input change
-    LaunchedEffect(vtKey, abuseKey, alienKey, pulseKey, ipqsKey) {
-        showSavedMessage = false
-        delay(600)
-        flushPendingKeys()
-    }
-
-    // Auto-dismiss confirmation banner after 3 seconds
-    LaunchedEffect(showSavedMessage) {
-        if (showSavedMessage) {
-            delay(3000)
-            showSavedMessage = false
-        }
-    }
+    var currentTab by remember { mutableStateOf(SettingsTab.GENERAL_PRIVACY) }
 
     val isRtl = settingsState.appLanguage.isRtl
     val layoutDirection = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
@@ -170,31 +129,29 @@ fun SettingsScreen(
             // Header with strict BiDi compliance: physical right corner grouping in Persian RTL
             SettingsHeader(
                 strings = strings,
-                onClose = {
-                    flushPendingKeys()
-                    onClose()
-                }
+                isFullScreen = isFullScreen,
+                onClose = onClose
             )
 
-            // Sleek Cyberpunk Segmented Tab Switcher
+            // Sleek Cyberpunk Segmented Tab Switcher with Horizontal Scroll for Zero Truncation
+            val tabScrollState = rememberScrollState()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF070D18))
                     .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(14.dp))
+                    .horizontalScroll(tabScrollState)
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
-                    SettingsTab.API_KEYS to ("🔑 " + strings.settingsTabApiKeys),
                     SettingsTab.GENERAL_PRIVACY to ("🛡️ " + strings.settingsTabGeneralPrivacy),
                     SettingsTab.ABOUT to ("ℹ️ " + strings.settingsTabAbout)
                 ).forEach { (tab, title) ->
                     val isSelected = currentTab == tab
                     Surface(
                         modifier = Modifier
-                            .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { currentTab = tab }
                             .pointerHoverIcon(PointerIcon.Hand),
@@ -203,7 +160,7 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Box(
-                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 14.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -211,7 +168,7 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
-                                fontSize = 11.5.sp,
+                                fontSize = 12.sp,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -231,32 +188,43 @@ fun SettingsScreen(
                 }
             ) { tab ->
                 when (tab) {
-                    SettingsTab.API_KEYS -> {
-                        ApiKeysCard(
-                            vtKey = vtKey,
-                            onVtKeyChange = { vtKey = it },
-                            abuseKey = abuseKey,
-                            onAbuseKeyChange = { abuseKey = it },
-                            alienKey = alienKey,
-                            onAlienKeyChange = { alienKey = it },
-                            pulseKey = pulseKey,
-                            onPulseKeyChange = { pulseKey = it },
-                            ipqsKey = ipqsKey,
-                            onIpqsKeyChange = { ipqsKey = it },
-                            strings = strings,
-                            showSavedMessage = showSavedMessage,
-                            onSave = {
-                                flushPendingKeys()
-                                showSavedMessage = true
-                            },
-                            isCompact = isCompactLayout
-                        )
-                    }
                     SettingsTab.GENERAL_PRIVACY -> {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            // 100% Zero-Key Architecture Status Banner
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF090E17).copy(alpha = 0.9f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(text = "⚡", fontSize = 22.sp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = strings.apiKeysZeroKeyBanner,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PrimaryCyan
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = strings.serverlessStatus,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF94A3B8),
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+
                             LanguageCard(
                                 settingsState = settingsState,
                                 strings = strings,
+                                isCompact = isCompactLayout,
                                 onLanguageSelected = { settingsRepository.setAppLanguage(it) }
                             )
 
@@ -276,6 +244,7 @@ fun SettingsScreen(
                     SettingsTab.ABOUT -> {
                         AboutCard(
                             strings = strings,
+                            isCompact = isCompactLayout,
                             onReplayGuide = onReplayGuide
                         )
                     }
@@ -294,6 +263,7 @@ fun SettingsScreen(
 @Composable
 private fun SettingsHeader(
     strings: AppStrings,
+    isFullScreen: Boolean = false,
     onClose: () -> Unit
 ) {
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -326,9 +296,10 @@ private fun SettingsHeader(
 
                 HeaderTitle(strings = strings, isRtl = true)
 
-                Spacer(modifier = Modifier.width(16.dp))
-
-                DismissButton(onClose = onClose)
+                if (!isFullScreen) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    DismissButton(onClose = onClose)
+                }
             } else {
                 // LTR (English / Russian): Title at left, Dismiss button at right
                 HeaderTitle(strings = strings, isRtl = false)
@@ -350,9 +321,10 @@ private fun SettingsHeader(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
-
-                DismissButton(onClose = onClose)
+                if (!isFullScreen) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    DismissButton(onClose = onClose)
+                }
             }
         }
     }
@@ -401,12 +373,14 @@ private fun DismissButton(onClose: () -> Unit) {
 }
 
 /**
- * Language Selector Card with Canvas Vector Flags and 3-Column Bento Row.
+ * Language Selector Card with Canvas Vector Flags and Responsive Layout.
+ * Supports vertical stack on compact mobile screens to prevent text wrapping.
  */
 @Composable
 private fun LanguageCard(
     settingsState: AppSettings,
     strings: AppStrings,
+    isCompact: Boolean = false,
     onLanguageSelected: (AppLanguage) -> Unit
 ) {
     SettingsCard(
@@ -415,58 +389,94 @@ private fun LanguageCard(
     ) {
         val languages = AppLanguage.entries.map { it to it.displayName }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            languages.forEach { (lang, label) ->
-                val isSelected = lang == settingsState.appLanguage
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onLanguageSelected(lang) }
-                        .pointerHoverIcon(PointerIcon.Hand),
-                    color = if (isSelected) {
-                        PrimaryCyan.copy(alpha = 0.15f)
-                    } else {
-                        Color(0xFF070D18)
-                    },
-                    border = androidx.compose.foundation.BorderStroke(
-                        if (isSelected) 1.5.dp else 1.dp,
-                        if (isSelected) PrimaryCyan else Color(0xFF1E293B)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CountryFlag(language = lang, modifier = Modifier.size(22.dp, 15.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        if (isSelected) {
-                            Text(
-                                text = "✓",
-                                color = PrimaryCyan,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp
-                            )
-                        }
+        if (isCompact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                languages.forEach { (lang, label) ->
+                    val isSelected = lang == settingsState.appLanguage
+                    LanguageTile(
+                        lang = lang,
+                        label = label,
+                        isSelected = isSelected,
+                        onClick = { onLanguageSelected(lang) }
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                languages.forEach { (lang, label) ->
+                    val isSelected = lang == settingsState.appLanguage
+                    Box(modifier = Modifier.weight(1f)) {
+                        LanguageTile(
+                            lang = lang,
+                            label = label,
+                            isSelected = isSelected,
+                            onClick = { onLanguageSelected(lang) }
+                        )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageTile(
+    lang: AppLanguage,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .pointerHoverIcon(PointerIcon.Hand),
+        color = if (isSelected) {
+            PrimaryCyan.copy(alpha = 0.15f)
+        } else {
+            Color(0xFF070D18)
+        },
+        border = androidx.compose.foundation.BorderStroke(
+            if (isSelected) 1.5.dp else 1.dp,
+            if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CountryFlag(language = lang, modifier = Modifier.size(24.dp, 16.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            if (isSelected) {
+                Text(
+                    text = "✓",
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
             }
         }
     }
@@ -488,7 +498,7 @@ private fun ThemeCard(
 
     SettingsCard(
         title = "🎨 ${strings.themeLabel}",
-        badge = if (settingsState.appTheme == AppTheme.DARK) "CYBER DARK" else "AUTO SYSTEM"
+        badge = if (settingsState.appTheme == AppTheme.DARK) strings.badgeThemeCyberDark else strings.badgeThemeAutoSystem
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -559,7 +569,7 @@ private fun PrivacyGuardCard(
 ) {
     SettingsCard(
         title = "🛡️ ${strings.menuPrivacyGuard}",
-        badge = if (settingsState.privacyGuardEnabled) "RFC 1918 ACTIVE" else "GUARD DISABLED"
+        badge = if (settingsState.privacyGuardEnabled) strings.badgeGuardActive else strings.badgeGuardDisabled
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -972,16 +982,17 @@ private fun CyberApiKeyField(
 }
 
 /**
- * About Hub: Comprehensive Architectural Presentation for Defenders (Zero-Jargon, 4-Pillar Grid).
+ * About Hub: Comprehensive Architectural Presentation for Defenders (Zero-Jargon, Responsive List/Grid).
  */
 @Composable
 private fun AboutCard(
     strings: AppStrings,
+    isCompact: Boolean = false,
     onReplayGuide: (() -> Unit)?
 ) {
     SettingsCard(
         title = "ℹ️ ${strings.menuAbout}",
-        badge = "OPEN SOURCE v1.0"
+        badge = strings.badgeOpenSourceVersion
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // Hero Presentation Hub
@@ -1045,55 +1056,76 @@ private fun AboutCard(
                 }
             }
 
-            // 4 Architectural Security Pillars in 2x2 Grid
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Row 1: Zero Cloud DB & Client-Direct Engine
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
+            // 4 Architectural Security Pillars
+            val pillars = listOf(
+                Triple("🔒", strings.badgeZeroCloudDb, strings.aboutZeroCloudDesc),
+                Triple("⚡", strings.badgeClientDirect, strings.aboutClientDirectDesc),
+                Triple("🛡️", strings.cardPrivacyGuardTitle, strings.aboutPrivacyGuardDesc),
+                Triple("🌐", strings.cardThreatIntelTitle, strings.aboutThreatIntelDesc)
+            )
+
+            if (isCompact) {
+                // Responsive 1-column vertical list on mobile screens: full width, zero text truncation
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pillars.forEach { (icon, title, desc) ->
                         ArchitecturePillarCard(
-                            icon = "🔒",
-                            title = strings.badgeZeroCloudDb,
-                            description = strings.aboutZeroCloudDesc
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        ArchitecturePillarCard(
-                            icon = "⚡",
-                            title = strings.badgeClientDirect,
-                            description = strings.aboutClientDirectDesc
+                            icon = icon,
+                            title = title,
+                            description = desc
                         )
                     }
                 }
-
-                // Row 2: RFC 1918 Guard & 10 Threat Engines
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        ArchitecturePillarCard(
-                            icon = "🛡️",
-                            title = strings.cardPrivacyGuardTitle,
-                            description = strings.aboutPrivacyGuardDesc
-                        )
+            } else {
+                // 2x2 Bento Grid on desktop wide screens
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            ArchitecturePillarCard(
+                                icon = pillars[0].first,
+                                title = pillars[0].second,
+                                description = pillars[0].third
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            ArchitecturePillarCard(
+                                icon = pillars[1].first,
+                                title = pillars[1].second,
+                                description = pillars[1].third
+                            )
+                        }
                     }
-                    Box(modifier = Modifier.weight(1f)) {
-                        ArchitecturePillarCard(
-                            icon = "🌐",
-                            title = strings.cardThreatIntelTitle,
-                            description = strings.aboutThreatIntelDesc
-                        )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            ArchitecturePillarCard(
+                                icon = pillars[2].first,
+                                title = pillars[2].second,
+                                description = pillars[2].third
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            ArchitecturePillarCard(
+                                icon = pillars[3].first,
+                                title = pillars[3].second,
+                                description = pillars[3].third
+                            )
+                        }
                     }
                 }
             }
 
-            // Technical Architecture Specification Badges
-            Row(
+            // Technical Architecture Specification Badges with Wrapping FlowRow
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
                     strings.specStandalonePortable,
@@ -1102,19 +1134,18 @@ private fun AboutCard(
                     strings.specMultiplatformEngine
                 ).forEach { spec ->
                     Surface(
-                        modifier = Modifier.weight(1f),
                         color = Color(0xFF070D18),
                         shape = RoundedCornerShape(8.dp),
                         border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF1E293B))
                     ) {
                         Box(
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = spec,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
+                                fontSize = 10.5.sp,
                                 color = Color(0xFF94A3B8),
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -1147,6 +1178,9 @@ private fun AboutCard(
                     }
                 }
             }
+
+            // Generous bottom spacer so the replay tour button never clips at the viewport bottom edge
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
@@ -1158,23 +1192,23 @@ private fun ArchitecturePillarCard(
     description: String
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(108.dp),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = Color(0xFF070D18),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = icon, fontSize = 16.sp)
+                Text(text = icon, fontSize = 18.sp)
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryCyan,
                     maxLines = 1,
@@ -1183,10 +1217,10 @@ private fun ArchitecturePillarCard(
             }
             Text(
                 text = description,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF94A3B8),
-                fontSize = 10.sp,
-                lineHeight = 15.sp
+                fontSize = 11.5.sp,
+                lineHeight = 17.sp
             )
         }
     }

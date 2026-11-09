@@ -139,7 +139,7 @@ class HomeViewModel(
                     2 -> _uiState.update {
                         it.copy(
                             selectedBottomNavTab = 2,
-                            isHistorySheetOpen = true,
+                            isHistorySheetOpen = false,
                             isSettingsSheetOpen = false,
                             isGuideOverlayOpen = false
                         )
@@ -147,7 +147,7 @@ class HomeViewModel(
                     3 -> _uiState.update {
                         it.copy(
                             selectedBottomNavTab = 3,
-                            isSettingsSheetOpen = true,
+                            isSettingsSheetOpen = false,
                             isHistorySheetOpen = false,
                             isGuideOverlayOpen = false
                         )

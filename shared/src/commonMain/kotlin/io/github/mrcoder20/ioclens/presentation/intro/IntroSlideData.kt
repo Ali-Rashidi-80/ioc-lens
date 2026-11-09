@@ -18,7 +18,7 @@ object IntroSlideData {
                 IntroSlide(
                     id = 2,
                     badgeText = "100% Privacy Protection",
-                    title = "Local Privacy Guard",
+                    title = "Local Privacy Guard (RFC 1918)",
                     subtitle = "",
                     description = "Automatically blocks private IP ranges and internal domain lookups locally before any external request is sent. Zero data leakage.",
                     iconEmoji = "🛡️"
@@ -28,50 +28,50 @@ object IntroSlideData {
                     badgeText = "Multi-Source Threat Intel",
                     title = "Corroborated Global Intelligence",
                     subtitle = "",
-                    description = "Consolidates detection signals from top global security feeds into one clear, explainable score backed by transparent vendor breakdown.",
+                    description = "Consolidates detection signals from 10 global security feeds into one clear, explainable score backed by transparent vendor breakdown.",
                     iconEmoji = "🌐"
                 ),
                 IntroSlide(
                     id = 4,
-                    badgeText = "Zero Telemetry",
-                    title = "Direct HTTPS & OS Secure Storage",
+                    badgeText = "100% Zero-Key Client",
+                    title = "Direct HTTPS · Zero Middleman",
                     subtitle = "",
-                    description = "No backend server, no registration, no tracking. API keys are kept safely in your operating system's native secure vault.",
-                    iconEmoji = "🔑"
+                    description = "No backend server, no registration, no tracking, and zero API keys required. Threat queries dispatch directly from your device over encrypted HTTPS.",
+                    iconEmoji = "⚡"
                 )
             )
             AppLanguage.PERSIAN -> listOf(
                 IntroSlide(
                     id = 1,
-                    badgeText = "تریاژ هوشمند IOC",
-                    title = "تحلیل آنی نشانگرهای آلودگی (IOCs)",
+                    badgeText = "تریاژ آنی نشانگرها",
+                    title = "تحلیل بلادرنگ نشانگرهای تهدید (IOC)",
                     subtitle = "",
-                    description = "بررسی فوری آدرس‌های IP، دامنه‌ها، URLها و هش فایل‌ها. دریافت حکم یکپارچه و دقیق از دیتابیس‌های معتبر بدون سردرگمی در تب‌های مرورگر.",
+                    description = "بررسی فوری نشانی‌های IP، دامنه‌ها، URLها و هش فایل‌ها؛ دریافت ارزیابی یکپارچه و دقیق از معتبرترین پایگاه‌های جهانی هوش تهدیدات.",
                     iconEmoji = "🔍"
                 ),
                 IntroSlide(
                     id = 2,
                     badgeText = "حریم خصوصی ۱۰۰٪",
-                    title = "محافظت هوشمند از داده‌های داخلی",
+                    title = "سپر محافظت از داده‌های داخلی (RFC 1918)",
                     subtitle = "",
-                    description = "شناسایی و مسدودسازی خودکار نشانگرهای خصوصی و درون‌شبکه‌ای (IPهای داخلی و دامنه‌های محرمانه) به صورت محلی جهت جلوگیری از نشت داده.",
+                    description = "شناسایی و مسدودسازی خودکار نشانگرهای خصوصی و درون‌شبکه‌ای (آی‌پی‌های داخلی و لوپ‌بک) به صورت محلی جهت جلوگیری از هرگونه نشت اطلاعات.",
                     iconEmoji = "🛡️"
                 ),
                 IntroSlide(
                     id = 3,
-                    badgeText = "Threat Intel چندمنبعه",
-                    title = "ارزیابی همزمان چندین دیتابیس جهانی",
+                    badgeText = "هوش تهدیدات چندمنبعی",
+                    title = "ارزیابی هم‌زمان پایگاه‌های داده جهانی",
                     subtitle = "",
-                    description = "ادغام هوشمند سیگنال‌های امنیتی معتبرترین دیتابیس‌های threat intelligence و ارائه پاسخ واحد با جزئیات کامل و شفاف.",
+                    description = "تلفیق هوشمند سیگنال‌های امنیتی از ۱۰ منبع معتبر جهانی هوش تهدیدات و ارائه ارزیابی یکپارچه همراه با تفکیک دقیق نتایج هر سرویس.",
                     iconEmoji = "🌐"
                 ),
                 IntroSlide(
                     id = 4,
-                    badgeText = "معماری غیرمتمرکز",
-                    title = "بدون سرور واسط و ردیابی",
+                    badgeText = "معماری ۱۰۰٪ بدون کلید",
+                    title = "ارتباط مستقیم کلاینت بدون واسطه",
                     subtitle = "",
-                    description = "بدون نیاز به ساخت حساب، بدون تله‌متری و بدون سرور مرکزی. ارتباط مستقیم و امن HTTPS دستگاه شما با دیتابیس‌های هدف.",
-                    iconEmoji = "🔑"
+                    description = "بدون سرور میانی، بدون پایگاه داده ابری، بدون تله‌متری و بدون نیاز به کلید API؛ استعلام‌ها مستقیماً با پروتکل امن HTTPS بین دستگاه شما و منابع تهدید انجام می‌شود.",
+                    iconEmoji = "⚡"
                 )
             )
             AppLanguage.RUSSIAN -> listOf(
@@ -86,26 +86,26 @@ object IntroSlideData {
                 IntroSlide(
                     id = 2,
                     badgeText = "100% Защита данных",
-                    title = "Модуль Privacy Guard",
+                    title = "Модуль Privacy Guard (RFC 1918)",
                     subtitle = "",
                     description = "Автоматическая локальная блокировка запросов внутренних IP и приватных доменов для исключения утечек информации.",
                     iconEmoji = "🛡️"
                 ),
                 IntroSlide(
                     id = 3,
-                    badgeText = "Мультипровайдерный Threat Intel",
+                    badgeText = "Мультипровайдерная разведка угроз",
                     title = "Единый вердикт из мировых баз",
                     subtitle = "",
-                    description = "Объединение сигналов ведущих глобальных сервисов threat intelligence в один понятный вердикт с подробной детализацией.",
+                    description = "Объединение сигналов 10 ведущих глобальных сервисов threat intelligence в один понятный вердикт с подробной детализацией.",
                     iconEmoji = "🌐"
                 ),
                 IntroSlide(
                     id = 4,
-                    badgeText = "Без телеметрии",
-                    title = "Прямое соединение и локальная защита",
+                    badgeText = "100% Zero-Key архитектура",
+                    title = "Прямой клиент без посредников",
                     subtitle = "",
-                    description = "Без сторонних серверов, регистрации и слежки. Ключи API хранятся исключительно в локальном защищённом хранилище ОС.",
-                    iconEmoji = "🔑"
+                    description = "Без промежуточных серверов, облачных баз, регистрации и ключей API. Все проверки выполняются напрямую с вашего устройства по защищённому HTTPS.",
+                    iconEmoji = "⚡"
                 )
             )
         }

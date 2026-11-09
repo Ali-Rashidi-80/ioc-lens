@@ -340,24 +340,28 @@ class HomeViewModelTest {
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 3. Select Tab 2 (History): opens history sheet and marks tab 2 selected
+        // 3. Select Tab 2 (History): dedicated full-screen view without modal dialog overlay
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
         assertEquals(2, viewModel.uiState.value.selectedBottomNavTab)
-        assertTrue(viewModel.uiState.value.isHistorySheetOpen)
+        assertFalse(viewModel.uiState.value.isHistorySheetOpen)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
 
-        // 4. Closing history sheet restores tab 0 (Scanner)
+        // 4. SetHistorySheetOpen directly handles modal sheet lifecycle
+        viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
+        assertTrue(viewModel.uiState.value.isHistorySheetOpen)
         viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 5. Select Tab 3 (Settings): opens settings sheet and marks tab 3 selected
+        // 5. Select Tab 3 (Settings): dedicated full-screen view without modal dialog overlay
         viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
         assertEquals(3, viewModel.uiState.value.selectedBottomNavTab)
-        assertTrue(viewModel.uiState.value.isSettingsSheetOpen)
+        assertFalse(viewModel.uiState.value.isSettingsSheetOpen)
         assertFalse(viewModel.uiState.value.isHistorySheetOpen)
 
-        // 6. Closing settings sheet restores tab 0 (Scanner)
+        // 6. SetSettingsSheetOpen directly handles modal sheet lifecycle
+        viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
+        assertTrue(viewModel.uiState.value.isSettingsSheetOpen)
         viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab)
         assertFalse(viewModel.uiState.value.isSettingsSheetOpen)

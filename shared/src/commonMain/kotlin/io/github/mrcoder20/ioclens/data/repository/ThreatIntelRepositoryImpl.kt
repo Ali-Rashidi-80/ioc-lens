@@ -1,6 +1,7 @@
 package io.github.mrcoder20.ioclens.data.repository
 
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelAggregator
+import io.github.mrcoder20.ioclens.data.remote.createZeroKeyHttpClient
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
@@ -10,7 +11,7 @@ import io.ktor.client.HttpClient
 
 class ThreatIntelRepositoryImpl(
     private val settingsRepository: SettingsRepository? = null,
-    private val aggregator: ThreatIntelAggregator = ThreatIntelAggregator(HttpClient())
+    private val aggregator: ThreatIntelAggregator = ThreatIntelAggregator(createZeroKeyHttpClient())
 ) : ThreatIntelRepository {
 
     override suspend fun analyzeIndicator(indicator: Indicator): TriageVerdict {

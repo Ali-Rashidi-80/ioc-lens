@@ -299,7 +299,7 @@ class CloudflareDnsProvider : ThreatIntelProvider {
         val dnsStatus = body["Status"]?.jsonPrimitive?.intOrNull ?: -1
 
         return when (dnsStatus) {
-            0 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 1, "DNS Resolution active: NOERROR (Status 0)")
+            0 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 1, "DNS Resolution active: NOERROR (Status 0): Domain successfully resolved")
             1 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS FORMERR: Format error in DNS query (Status 1)")
             2 -> SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS SERVFAIL: Server failure while resolving domain (Status 2)")
             3 -> SourceResult(name, VerdictLevel.LOW_RISK, 0, 1, "DNS NXDOMAIN: Domain does not resolve (Status 3)")
@@ -310,7 +310,316 @@ class CloudflareDnsProvider : ThreatIntelProvider {
     }
 }
 
-// 6. VirusTotal (Authenticated)
+// 6. Shodan InternetDB (Zero-Key)
+class ShodanInternetDbProvider : ThreatIntelProvider {
+    override val name = "Shodan InternetDB"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type == IndicatorType.IP_ADDRESS
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val response = client.get("https://internetdb.shodan.io/${indicator.normalizedValue}")
+
+        if (response.status == HttpStatusCode.NotFound) {
+            return SourceResult(
+                name,
+                VerdictLevel.CLEAN,
+                detectionsCount = 0,
+                totalEngineCount = 1,
+                summary = "No exposed ports or CVE vulnerabilities in Shodan InternetDB"
+            )
+        }
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Shodan InternetDB response payload")
+
+        val vulns = (body["vulns"] ?: body["cves"])?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        val ports = body["ports"]?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
+        val hostnames = body["hostnames"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+
+        val verdict = when {
+            vulns.isNotEmpty() -> VerdictLevel.MALICIOUS
+            ports.isNotEmpty() -> VerdictLevel.LOW_RISK
+            else -> VerdictLevel.CLEAN
+        }
+
+        val summary = when {
+            vulns.isNotEmpty() -> "Shodan: ${vulns.size} CVEs (${vulns.take(3).joinToString()}), ${ports.size} open ports"
+            ports.isNotEmpty() -> "Shodan: ${ports.size} open ports (${ports.take(5).joinToString()})" + if (hostnames.isNotEmpty()) " [${hostnames.first()}]" else ""
+            else -> "Shodan: No open ports or known vulnerabilities found"
+        }
+
+        return SourceResult(
+            name,
+            verdict,
+            detectionsCount = vulns.size,
+            totalEngineCount = if (ports.isNotEmpty()) ports.size else 1,
+            summary = summary
+        )
+    }
+}
+
+// 7. AlienVault OTX Public API (Zero-Key)
+class AlienVaultOtxProvider : ThreatIntelProvider {
+    override val name = "AlienVault OTX"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type != IndicatorType.UNKNOWN
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val (section, value) = when (indicator.type) {
+            IndicatorType.DOMAIN -> "domain" to indicator.normalizedValue
+            IndicatorType.IP_ADDRESS -> "IPv4" to indicator.normalizedValue
+            IndicatorType.FILE_HASH -> "file" to indicator.normalizedValue
+            IndicatorType.URL -> "url" to indicator.normalizedValue
+            IndicatorType.UNKNOWN -> return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unknown indicator")
+        }
+
+        val apiKey = settings.alienVaultApiKey.trim()
+        val response = client.get("https://otx.alienvault.com/api/v1/indicators/$section/$value/general") {
+            if (apiKey.isNotBlank()) {
+                header("X-OTX-API-KEY", apiKey)
+            }
+        }
+
+        if (response.status == HttpStatusCode.NotFound) {
+            return SourceResult(name, VerdictLevel.CLEAN, 0, 0, "0 threat pulses found in AlienVault OTX")
+        }
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload")
+
+        val pulseInfo = body["pulse_info"]?.jsonObject
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload: missing pulse_info")
+
+        val pulseCount = pulseInfo["count"]?.jsonPrimitive?.intOrNull ?: 0
+
+        val verdict = when {
+            pulseCount >= 3 -> VerdictLevel.MALICIOUS
+            pulseCount in 1..2 -> VerdictLevel.SUSPICIOUS
+            else -> VerdictLevel.CLEAN
+        }
+
+        return SourceResult(
+            name,
+            verdict,
+            detectionsCount = pulseCount,
+            totalEngineCount = 50,
+            summary = "$pulseCount active threat intelligence pulses recorded"
+        )
+    }
+}
+
+// 8. RIPE Stat / BGPView (Zero-Key)
+class RipeStatProvider : ThreatIntelProvider {
+    override val name = "RIPE Stat"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type == IndicatorType.IP_ADDRESS
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val response = client.get("https://stat.ripe.net/data/network-info/data.json") {
+            parameter("resource", indicator.normalizedValue)
+        }
+
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid RIPE Stat response payload")
+
+        val data = body["data"]?.jsonObject
+        val asns = data?.get("asns")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        val prefix = data?.get("prefix")?.jsonPrimitive?.contentOrNull ?: "Unknown Prefix"
+
+        val asnStr = if (asns.isNotEmpty()) asns.joinToString { "AS$it" } else "Unannounced ASN"
+        return SourceResult(
+            name,
+            VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = 1,
+            summary = "RIPE Stat Routing: $asnStr (Prefix: $prefix)"
+        )
+    }
+}
+
+// 9. crt.sh Certificate Transparency (Zero-Key)
+class CrtShProvider : ThreatIntelProvider {
+    override val name = "crt.sh"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type == IndicatorType.DOMAIN
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val response = client.get("https://crt.sh/") {
+            parameter("q", indicator.normalizedValue)
+            parameter("output", "json")
+        }
+
+        if (response.status == HttpStatusCode.NotFound) {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "No SSL certificates logged in Certificate Transparency")
+        }
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val text = response.bodyAsText().trim()
+        if (text.isEmpty() || text == "[]") {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "No SSL certificates logged in Certificate Transparency")
+        }
+
+        val certCount = try {
+            jsonParser.parseToJsonElement(text).jsonArray.size
+        } catch (_: Exception) {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Certificate Transparency response payload")
+        }
+
+        return SourceResult(
+            name,
+            VerdictLevel.NO_DATA,
+            detectionsCount = 0,
+            totalEngineCount = certCount,
+            summary = "Certificate Transparency: $certCount logged certificates discovered"
+        )
+    }
+}
+
+// 10. ipwho.is Threat & Geolocation (Zero-Key)
+class IpWhoIsProvider : ThreatIntelProvider {
+    override val name = "ipwho.is"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type == IndicatorType.IP_ADDRESS
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val response = client.get("https://ipwho.is/${indicator.normalizedValue}")
+
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val body = safeParseJsonObject(response.bodyAsText())
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid ipwho.is response payload")
+
+        val success = body["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+        if (!success) {
+            val message = body["message"]?.jsonPrimitive?.contentOrNull ?: "IP lookup unsuccessful"
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "ipwho.is: $message")
+        }
+
+        val security = body["security"]?.jsonObject
+        val isTor = security?.get("tor")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+        val isProxy = security?.get("proxy")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+        val isVpn = security?.get("vpn")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+        val isAnonymous = security?.get("anonymous")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+
+        val connection = body["connection"]?.jsonObject
+        val isp = connection?.get("isp")?.jsonPrimitive?.contentOrNull ?: "Unknown ISP"
+        val country = body["country"]?.jsonPrimitive?.contentOrNull ?: ""
+
+        val verdict = when {
+            isTor -> VerdictLevel.MALICIOUS
+            isProxy || isVpn || isAnonymous -> VerdictLevel.SUSPICIOUS
+            else -> VerdictLevel.CLEAN
+        }
+
+        val summary = when {
+            isTor -> "ipwho.is: Active TOR exit node ($isp, $country)"
+            isProxy || isVpn -> "ipwho.is: Proxy/VPN anonymous endpoint ($isp, $country)"
+            else -> "ipwho.is: Clean verified ISP connection ($isp, $country)"
+        }
+
+        return SourceResult(
+            name,
+            verdict,
+            detectionsCount = if (isTor || isProxy || isVpn) 1 else 0,
+            totalEngineCount = 1,
+            summary = summary
+        )
+    }
+}
+
+// 10. abuse.ch Feodo Tracker (Zero-Key C2 Botnet & IP Reputation)
+class FeodoTrackerProvider(
+    private val endpointUrl: String = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+) : ThreatIntelProvider {
+    override val name = "Feodo Tracker (abuse.ch)"
+    override val isZeroKey = true
+
+    override fun isApplicable(indicator: Indicator): Boolean {
+        return indicator.type == IndicatorType.IP_ADDRESS
+    }
+
+    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val response = try {
+            client.get(endpointUrl)
+        } catch (e: Exception) {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Feodo Tracker unavailable: ${e.message ?: "Network error"}")
+        }
+
+        if (response.status != HttpStatusCode.OK) {
+            return handleHttpError(name, response.status)
+        }
+
+        val text = response.bodyAsText().trim()
+        if (text.isEmpty() || text == "[]") {
+            return SourceResult(name, VerdictLevel.CLEAN, 0, 1, "No active C2 botnets recorded in Feodo Tracker")
+        }
+
+        val jsonArray = try {
+            jsonParser.parseToJsonElement(text).jsonArray
+        } catch (_: Exception) {
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Feodo Tracker response payload")
+        }
+
+        val targetIp = indicator.normalizedValue.substringBefore(':').lowercase()
+        val match = jsonArray.mapNotNull { it as? JsonObject }.firstOrNull { obj ->
+            obj["ip_address"]?.jsonPrimitive?.contentOrNull?.lowercase() == targetIp
+        }
+
+        return if (match != null) {
+            val malware = match["malware"]?.jsonPrimitive?.contentOrNull ?: "Botnet C2"
+            val status = match["status"]?.jsonPrimitive?.contentOrNull ?: "active"
+            val port = match["port"]?.jsonPrimitive?.intOrNull
+            val portSuffix = if (port != null) ":$port" else ""
+            SourceResult(
+                providerName = name,
+                verdict = VerdictLevel.MALICIOUS,
+                detectionsCount = 1,
+                totalEngineCount = 1,
+                summary = "Feodo Tracker confirmed C2 botnet node: $malware ($status$portSuffix)"
+            )
+        } else {
+            SourceResult(
+                providerName = name,
+                verdict = VerdictLevel.CLEAN,
+                detectionsCount = 0,
+                totalEngineCount = 1,
+                summary = "No active C2 botnet activity identified in Feodo Tracker"
+            )
+        }
+    }
+}
+
+// 6. VirusTotal (Authenticated - Legacy)
+@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
 class VirusTotalProvider : ThreatIntelProvider {
     override val name = "VirusTotal"
     override val isZeroKey = false
@@ -374,7 +683,8 @@ class VirusTotalProvider : ThreatIntelProvider {
     }
 }
 
-// 7. AbuseIPDB (Authenticated)
+// 7. AbuseIPDB (Authenticated - Legacy)
+@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
 class AbuseIpDbProvider : ThreatIntelProvider {
     override val name = "AbuseIPDB"
     override val isZeroKey = false
@@ -424,62 +734,9 @@ class AbuseIpDbProvider : ThreatIntelProvider {
     }
 }
 
-// 8. AlienVault OTX (Authenticated)
-class AlienVaultOtxProvider : ThreatIntelProvider {
-    override val name = "AlienVault OTX"
-    override val isZeroKey = false
 
-    override fun isApplicable(indicator: Indicator): Boolean {
-        return indicator.type != IndicatorType.UNKNOWN
-    }
-
-    override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val apiKey = settings.alienVaultApiKey.trim()
-        if (apiKey.isBlank()) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "API Key required (Configure in Settings)")
-        }
-
-        val (section, value) = when (indicator.type) {
-            IndicatorType.DOMAIN -> "domain" to indicator.normalizedValue
-            IndicatorType.IP_ADDRESS -> "IPv4" to indicator.normalizedValue
-            IndicatorType.FILE_HASH -> "file" to indicator.normalizedValue
-            IndicatorType.URL -> "url" to indicator.normalizedValue
-            IndicatorType.UNKNOWN -> return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unknown indicator")
-        }
-
-        val response = client.get("https://otx.alienvault.com/api/v1/indicators/$section/$value/general") {
-            header("X-OTX-API-KEY", apiKey)
-        }
-
-        if (response.status == HttpStatusCode.NotFound) {
-            return SourceResult(name, VerdictLevel.CLEAN, 0, 0, "0 threat pulses found in AlienVault OTX")
-        }
-        if (response.status != HttpStatusCode.OK) {
-            return handleHttpError(name, response.status)
-        }
-
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted AlienVault OTX response payload")
-
-        val pulseCount = body["pulse_info"]?.jsonObject?.get("count")?.jsonPrimitive?.intOrNull ?: 0
-
-        val verdict = when {
-            pulseCount >= 3 -> VerdictLevel.MALICIOUS
-            pulseCount in 1..2 -> VerdictLevel.SUSPICIOUS
-            else -> VerdictLevel.CLEAN
-        }
-
-        return SourceResult(
-            name,
-            verdict,
-            detectionsCount = pulseCount,
-            totalEngineCount = 50,
-            summary = "$pulseCount active threat intelligence pulses recorded"
-        )
-    }
-}
-
-// 9. Pulsedive (Authenticated)
+// 9. Pulsedive (Authenticated - Legacy)
+@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
 class PulsediveProvider : ThreatIntelProvider {
     override val name = "Pulsedive"
     override val isZeroKey = false
@@ -539,7 +796,8 @@ class PulsediveProvider : ThreatIntelProvider {
     }
 }
 
-// 10. IPQualityScore (Authenticated)
+// 10. IPQualityScore (Authenticated - Legacy)
+@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
 class IpQualityScoreProvider : ThreatIntelProvider {
     override val name = "IPQualityScore"
     override val isZeroKey = false

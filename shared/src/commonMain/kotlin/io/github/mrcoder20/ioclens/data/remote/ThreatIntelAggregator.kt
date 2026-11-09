@@ -6,48 +6,56 @@ import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
+import io.github.mrcoder20.ioclens.domain.parser.PrivacyGuardValidator
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+val DEFAULT_ZERO_KEY_PROVIDERS: List<ThreatIntelProvider> = listOf(
+    UrlhausProvider(),
+    MalwareBazaarProvider(),
+    ThreatFoxProvider(),
+    RdapProvider(),
+    CloudflareDnsProvider(),
+    ShodanInternetDbProvider(),
+    AlienVaultOtxProvider(),
+    RipeStatProvider(),
+    CrtShProvider(),
+    FeodoTrackerProvider()
+)
+
+val ALL_PROVIDERS: List<ThreatIntelProvider> = listOf(
+    @Suppress("DEPRECATION") VirusTotalProvider(),
+    @Suppress("DEPRECATION") AbuseIpDbProvider(),
+    @Suppress("DEPRECATION") PulsediveProvider(),
+    @Suppress("DEPRECATION") IpQualityScoreProvider()
+) + DEFAULT_ZERO_KEY_PROVIDERS + listOf(
+    IpWhoIsProvider()
+)
+
 class ThreatIntelAggregator(
-    private val client: HttpClient,
-    private val timeoutMs: Long = 10000L,
-    private val providers: List<ThreatIntelProvider> = listOf(
-        UrlhausProvider(),
-        MalwareBazaarProvider(),
-        ThreatFoxProvider(),
-        RdapProvider(),
-        CloudflareDnsProvider(),
-        VirusTotalProvider(),
-        AbuseIpDbProvider(),
-        AlienVaultOtxProvider(),
-        PulsediveProvider(),
-        IpQualityScoreProvider()
-    )
+    private val client: HttpClient = createZeroKeyHttpClient(),
+    val timeoutMs: Long = 10000L,
+    val providers: List<ThreatIntelProvider> = ALL_PROVIDERS
 ) {
 
     suspend fun aggregate(
         indicator: Indicator,
-        settings: AppSettings,
+        settings: AppSettings = AppSettings(),
         onProgress: ((finishedCount: Int, totalCount: Int) -> Unit)? = null
     ): TriageVerdict {
-        if (indicator.isInternalOrPrivate) {
+        if (indicator.isInternalOrPrivate || PrivacyGuardValidator.isPrivateOrInternal(indicator)) {
             onProgress?.invoke(1, 1)
-            return TriageVerdict(
-                indicator = indicator,
-                overallVerdict = VerdictLevel.CLEAN,
-                confidenceScore = 0,
-                summaryDescription = "🛡️ Privacy Guard Activated: Private/Internal indicator detected. Remote lookups blocked to protect internal infrastructure.",
-                sourceResults = listOf(
-                    SourceResult("Privacy Guard Local", VerdictLevel.CLEAN, 0, 1, "Internal indicator safely blocked locally")
-                )
-            )
+            return PrivacyGuardValidator.createPrivacyGuardVerdict(indicator)
         }
 
         if (indicator.type == IndicatorType.UNKNOWN) {
@@ -61,7 +69,18 @@ class ThreatIntelAggregator(
             )
         }
 
-        val applicable = providers.filter { it.isApplicable(indicator) }
+        val applicable = providers.filter { provider ->
+            if (!provider.isApplicable(indicator)) return@filter false
+            if (provider.isZeroKey) return@filter true
+            // Authenticated providers run only when their specific key is configured in settings
+            when (provider.name) {
+                "VirusTotal" -> settings.virusTotalApiKey.isNotBlank()
+                "AbuseIPDB" -> settings.abuseIpDbApiKey.isNotBlank()
+                "Pulsedive" -> settings.pulsediveApiKey.isNotBlank()
+                "IPQualityScore" -> settings.ipQualityScoreApiKey.isNotBlank()
+                else -> true
+            }
+        }
         if (applicable.isEmpty()) {
             onProgress?.invoke(0, 0)
             return TriageVerdict(
@@ -78,35 +97,37 @@ class ThreatIntelAggregator(
         var finishedCount = 0
         onProgress?.invoke(0, totalCount)
 
+        val semaphore = Semaphore(permits = 6)
+
         val results: List<SourceResult> = supervisorScope {
             applicable.map { provider ->
                 async {
-                    val res = try {
-                        withTimeoutOrNull(timeoutMs) {
-                            provider.query(client, indicator, settings)
-                        } ?: SourceResult(
-                            providerName = provider.name,
-                            verdict = VerdictLevel.NO_DATA,
-                            detectionsCount = 0,
-                            totalEngineCount = 0,
-                            summary = "Connection timed out after ${timeoutMs}ms (Provider skipped)"
-                        )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        SourceResult(
-                            providerName = provider.name,
-                            verdict = VerdictLevel.NO_DATA,
-                            detectionsCount = 0,
-                            totalEngineCount = 0,
-                            summary = "Service unavailable or filtered: ${e.message ?: "Skipped"}"
-                        )
+                    val res = semaphore.withPermit {
+                        try {
+                            withTimeoutOrNull(timeoutMs) {
+                                provider.query(client, indicator, settings)
+                            } ?: SourceResult(
+                                providerName = provider.name,
+                                verdict = VerdictLevel.NO_DATA,
+                                detectionsCount = 0,
+                                totalEngineCount = 0,
+                                summary = "Connection timed out after ${timeoutMs}ms (Provider skipped)"
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            SourceResult(
+                                providerName = provider.name,
+                                verdict = VerdictLevel.NO_DATA,
+                                detectionsCount = 0,
+                                totalEngineCount = 0,
+                                summary = "Service unavailable or filtered: ${e.message ?: "Skipped"}"
+                            )
+                        }
                     }
 
-                    counterMutex.withLock {
-                        finishedCount++
-                        onProgress?.invoke(finishedCount, totalCount)
-                    }
+                    val current = counterMutex.withLock { ++finishedCount }
+                    onProgress?.invoke(current, totalCount)
 
                     res
                 }

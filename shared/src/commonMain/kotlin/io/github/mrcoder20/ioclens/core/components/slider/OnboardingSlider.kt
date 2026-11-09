@@ -108,7 +108,6 @@ fun <T> OnboardingSlider(
     onSkipClicked: (() -> Unit)? = null,
     doneText: String = "DONE",
     nextText: String? = null,
-    previousText: String? = null,
     skipText: String? = null,
     pageContent: @Composable (item: T, page: Int) -> Unit
 ) {

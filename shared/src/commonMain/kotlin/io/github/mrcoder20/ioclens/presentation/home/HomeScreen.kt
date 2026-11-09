@@ -104,6 +104,7 @@ import io.github.mrcoder20.ioclens.core.components.AppBackHandler
 import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
 import io.github.mrcoder20.ioclens.core.components.TrainMarqueeRow
+import io.github.mrcoder20.ioclens.core.components.rememberFilePickerLauncher
 import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
@@ -138,6 +139,9 @@ fun HomeScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val filePickerLauncher = rememberFilePickerLauncher { path, name ->
+        viewModel.onEvent(HomeEvent.FileDropped(path, name))
+    }
 
     // Android Back Button / Gesture Interceptor
     val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null
@@ -247,11 +251,23 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         icon = { Text(text = "🔍", fontSize = 18.sp) },
                         label = { Text(text = strings.menuHome, fontWeight = FontWeight.SemiBold) },
-                        selected = !uiState.isSettingsSheetOpen && !uiState.isHistorySheetOpen && !uiState.isGuideOverlayOpen,
+                        selected = uiState.selectedBottomNavTab == 0 && !uiState.isGuideOverlayOpen,
                         onClick = {
-                            viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
-                            viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
-                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
+                            viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
+                            coroutineScope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text(text = "🌐", fontSize = 18.sp) },
+                        label = { Text(text = strings.tabEngines, fontWeight = FontWeight.SemiBold) },
+                        selected = uiState.selectedBottomNavTab == 1 && !uiState.isGuideOverlayOpen,
+                        onClick = {
+                            viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
                             coroutineScope.launch { drawerState.close() }
                         },
                         colors = NavigationDrawerItemDefaults.colors(
@@ -268,22 +284,28 @@ fun HomeScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                         },
-                        selected = uiState.isHistorySheetOpen,
+                        selected = uiState.selectedBottomNavTab == 2 && !uiState.isGuideOverlayOpen,
                         onClick = {
-                            viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true))
+                            viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
                             coroutineScope.launch { drawerState.close() }
                         },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
 
                     NavigationDrawerItem(
                         icon = { Text(text = "⚙️", fontSize = 18.sp) },
                         label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
-                        selected = uiState.isSettingsSheetOpen,
+                        selected = uiState.selectedBottomNavTab == 3 && !uiState.isGuideOverlayOpen,
                         onClick = {
-                            viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true))
+                            viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
                             coroutineScope.launch { drawerState.close() }
                         },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
 
@@ -344,16 +366,28 @@ fun HomeScreen(
             )
 
             // Main Dashboard Container with Responsive Width & Safe Area Padding
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-                    .widthIn(max = 1380.dp)
-                    .align(Alignment.TopCenter)
-                    .verticalScroll(scrollState)
-            ) {
+            if (uiState.selectedBottomNavTab == 3) {
+                SettingsScreen(
+                    settingsRepository = settingsRepository,
+                    isMobileOrTablet = isMobileOrTablet,
+                    isFullScreen = true,
+                    onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
+                    onReplayGuide = {
+                        viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
+                        introViewModel?.onEvent(IntroEvent.Reset)
+                    }
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .widthIn(max = 1380.dp)
+                        .align(Alignment.TopCenter)
+                        .verticalScroll(scrollState)
+                ) {
                 // Header Bar (☰ Hamburger & Telemetry on Left, IOC LENS Dead-Centered, Actions on Right)
                 Box(
                     modifier = Modifier
@@ -471,10 +505,13 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(true)) },
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    .clickable {
+                                        val nextTab = if (uiState.selectedBottomNavTab == 2) 0 else 2
+                                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
+                                    },
+                                color = if (uiState.selectedBottomNavTab == 2) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -497,10 +534,13 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(true)) },
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    .clickable {
+                                        val nextTab = if (uiState.selectedBottomNavTab == 3) 0 else 3
+                                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
+                                    },
+                                color = if (uiState.selectedBottomNavTab == 3) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Text(
                                     text = "⚙️",
@@ -515,21 +555,124 @@ fun HomeScreen(
                 if (isWideScreen) {
                     val dashboardHeight = (screenHeight - 165.dp).coerceAtLeast(535.dp)
 
-                    // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(dashboardHeight)
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
-                        Column(
-                            modifier = Modifier
-                                .weight(1.08f)
-                                .fillMaxHeight(),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
+                    when (uiState.selectedBottomNavTab) {
+                        1 -> {
+                            EnginesDashboardView(
+                                uiState = uiState,
+                                isTwoColumn = true
+                            )
+                        }
+                        2 -> {
+                            HistoryFullScreenView(
+                                history = uiState.scanHistory,
+                                appLanguage = uiState.appLanguage,
+                                onSelect = { item ->
+                                    viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                                    coroutineScope.launch { scrollState.scrollTo(0) }
+                                },
+                                onDelete = { item ->
+                                    viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                },
+                                onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
+                            )
+                        }
+                        else -> {
+                            // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(dashboardHeight)
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1.08f)
+                                        .fillMaxHeight(),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+
+                                    AnimatedVisibility(
+                                        visible = uiState.isLoading,
+                                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                                    ) {
+                                        LiveScanBanner(
+                                            targetIndicator = uiState.targetIndicator,
+                                            finishedEngines = uiState.scanFinishedEngines,
+                                            totalEngines = uiState.scanTotalEngines,
+                                            appLanguage = uiState.appLanguage,
+                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                        )
+                                    }
+
+                                    SearchCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        isCompact = isCompactScreen,
+                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        onOpenFilePicker = filePickerLauncher
+                                    )
+
+                                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
+
+                                    AnimatedVisibility(
+                                        visible = uiState.activeVerdict != null,
+                                        enter = fadeIn(tween(350)) + expandVertically(tween(350)),
+                                        exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
+                                    ) {
+                                        uiState.activeVerdict?.let { verdict ->
+                                            OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                        }
+                                    }
+
+                                    // Desktop Recent Triage Scans HUD Feed dynamically fills remaining height to balance Left Pane
+                                    RecentTriageFeedHUD(
+                                        history = uiState.scanHistory,
+                                        appLanguage = uiState.appLanguage,
+                                        strings = strings,
+                                        onSelect = { item ->
+                                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                                            coroutineScope.launch { scrollState.scrollTo(0) }
+                                        },
+                                        onDelete = { item ->
+                                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                        },
+                                        onReScan = { rawValue ->
+                                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                            coroutineScope.launch { scrollState.scrollTo(0) }
+                                        },
+                                        modifier = Modifier.weight(1f).fillMaxWidth()
+                                    )
+                                }
+
+                                // Right Pane: Threat Intel Provider Deck (Balanced Column on Widescreen)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(0.92f)
+                                        .fillMaxHeight()
+                                ) {
+                                    LiveProviderDeck(
+                                        uiState = uiState,
+                                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
+                                        isTwoColumn = false,
+                                        modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // TRUE MULTI-SCREEN TAB CONTAINER (Phones & Foldables)
+                    when (uiState.selectedBottomNavTab) {
+                        0 -> {
+                            // TAB 1: SCANNER VIEW (Display ONLY Header, IOC input box, Zero-Key pill, action buttons, samples, verdict)
                             FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
 
                             AnimatedVisibility(
@@ -553,10 +696,13 @@ fun HomeScreen(
                                 onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
                                 onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                 onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) }
+                                onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                onOpenFilePicker = filePickerLauncher
                             )
 
                             ErrorMessageBanner(errorMessage = uiState.errorMessage)
+
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             AnimatedVisibility(
                                 visible = uiState.activeVerdict != null,
@@ -567,111 +713,30 @@ fun HomeScreen(
                                     OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
                                 }
                             }
-
-                            // Desktop Recent Triage Scans HUD Feed dynamically fills remaining height to balance Left Pane
-                            RecentTriageFeedHUD(
+                        }
+                        1 -> {
+                            // TAB 2: ENGINES VIEW (Dedicated full-screen dashboard of the 10 Threat Intel Providers)
+                            EnginesDashboardView(
+                                uiState = uiState,
+                                isTwoColumn = screenWidth >= 680.dp
+                            )
+                        }
+                        2 -> {
+                            // TAB 3: HISTORY VIEW (Dedicated full-screen view without modal backdrop or close button)
+                            HistoryFullScreenView(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
-                                strings = strings,
                                 onSelect = { item ->
                                     viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
-                                    coroutineScope.launch { scrollState.animateScrollTo(0) }
+                                    coroutineScope.launch { scrollState.scrollTo(0) }
                                 },
                                 onDelete = { item ->
                                     viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
                                 },
-                                onReScan = { rawValue ->
-                                    viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                                    viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                                    coroutineScope.launch { scrollState.animateScrollTo(0) }
-                                },
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                        }
-
-                        // Right Pane: Threat Intel Provider Deck (Balanced Column on Widescreen)
-                        Column(
-                            modifier = Modifier
-                                .weight(0.92f)
-                                .fillMaxHeight()
-                        ) {
-                            LiveProviderDeck(
-                                uiState = uiState,
-                                onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                isTwoColumn = false,
-                                modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                                onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
                         }
                     }
-                } else {
-                    // FLUID SINGLE-COLUMN / FOLDABLE DASHBOARD (Phones & Foldables)
-                    FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
-
-                    AnimatedVisibility(
-                        visible = uiState.isLoading,
-                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-                    ) {
-                        LiveScanBanner(
-                            targetIndicator = uiState.targetIndicator,
-                            finishedEngines = uiState.scanFinishedEngines,
-                            totalEngines = uiState.scanTotalEngines,
-                            appLanguage = uiState.appLanguage,
-                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
-                        )
-                    }
-
-                    SearchCard(
-                        uiState = uiState,
-                        strings = strings,
-                        isCompact = isCompactScreen,
-                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) }
-                    )
-
-                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    AnimatedVisibility(
-                        visible = uiState.activeVerdict != null,
-                        enter = fadeIn(tween(350)) + expandVertically(tween(350)),
-                        exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
-                    ) {
-                        uiState.activeVerdict?.let { verdict ->
-                            OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    LiveProviderDeck(
-                        uiState = uiState,
-                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                        isTwoColumn = screenWidth >= 680.dp
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    RecentTriageFeedHUD(
-                        history = uiState.scanHistory,
-                        appLanguage = uiState.appLanguage,
-                        strings = strings,
-                        onSelect = { item ->
-                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
-                            coroutineScope.launch { scrollState.animateScrollTo(0) }
-                        },
-                        onDelete = { item ->
-                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
-                        },
-                        onReScan = { rawValue ->
-                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                            coroutineScope.launch { scrollState.animateScrollTo(0) }
-                        }
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -684,6 +749,7 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(if (isMobileOrTablet) 84.dp else 40.dp))
             }
+        }
 
             // History Sheet Overlay (Responsive: Floating Modal on Tablets/Desktop, Bottom Sheet on Phones)
             AnimatedVisibility(
@@ -757,10 +823,7 @@ fun HomeScreen(
                     strings = strings,
                     onTabSelected = { tab ->
                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(tab))
-                        when (tab) {
-                            0 -> coroutineScope.launch { scrollState.animateScrollTo(0) }
-                            1 -> coroutineScope.launch { scrollState.animateScrollTo(scrollState.maxValue) }
-                        }
+                        coroutineScope.launch { scrollState.scrollTo(0) }
                     },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
@@ -1136,7 +1199,8 @@ private fun SearchCard(
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onCancel: () -> Unit,
-    onAnalyze: () -> Unit
+    onAnalyze: () -> Unit,
+    onOpenFilePicker: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
 
@@ -1392,12 +1456,31 @@ private fun SearchCard(
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
-                        Text(
-                            text = strings.dropFileHint,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF6B7280),
-                            fontSize = 10.5.sp
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = PrimaryCyan.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onOpenFilePicker() }
+                                .pointerHoverIcon(PointerIcon.Hand)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = strings.dropFileHint,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = PrimaryCyan,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
                     }
 
                     val samples = listOf(
@@ -1606,7 +1689,6 @@ private fun LiveProviderDeck(
                         style = MaterialTheme.typography.labelLarge,
                         color = PrimaryCyan,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                 }
@@ -1629,11 +1711,11 @@ private fun LiveProviderDeck(
                     "ThreatFox (abuse.ch)" to true,
                     "RDAP / Registry" to true,
                     "Cloudflare DoH" to true,
-                    "VirusTotal" to false,
-                    "AbuseIPDB" to false,
-                    "AlienVault OTX" to false,
-                    "Pulsedive" to false,
-                    "IPQualityScore" to false
+                    "Shodan InternetDB" to true,
+                    "AlienVault OTX" to true,
+                    "RIPE Stat" to true,
+                    "crt.sh" to true,
+                    "Feodo Tracker (abuse.ch)" to true
                 )
 
                 val currentIndicatorType = uiState.targetIndicator?.type ?: uiState.activeVerdict?.indicator?.type
@@ -1701,9 +1783,13 @@ private fun isProviderApplicable(name: String, type: IndicatorType?): Boolean {
         "ThreatFox (abuse.ch)" -> true
         "RDAP / Registry" -> type == IndicatorType.IP_ADDRESS || type == IndicatorType.DOMAIN
         "Cloudflare DoH" -> type == IndicatorType.DOMAIN
+        "Shodan InternetDB" -> type == IndicatorType.IP_ADDRESS
+        "AlienVault OTX" -> true
+        "RIPE Stat" -> type == IndicatorType.IP_ADDRESS
+        "crt.sh" -> type == IndicatorType.DOMAIN
+        "ipwho.is" -> type == IndicatorType.IP_ADDRESS
         "VirusTotal" -> true
         "AbuseIPDB" -> type == IndicatorType.IP_ADDRESS
-        "AlienVault OTX" -> true
         "Pulsedive" -> true
         "IPQualityScore" -> type == IndicatorType.IP_ADDRESS
         else -> false
@@ -1814,6 +1900,612 @@ private fun ProviderRow(
                 fontWeight = FontWeight.Bold,
                 fontSize = if (isTwoColumn) 8.5.sp else 10.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun EnginesDashboardView(
+    uiState: HomeUiState,
+    isTwoColumn: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val strings = LocalizationProvider.getStrings(uiState.appLanguage)
+
+    val allProviders = listOf(
+        "URLhaus (abuse.ch)" to true,
+        "MalwareBazaar (abuse.ch)" to true,
+        "ThreatFox (abuse.ch)" to true,
+        "RDAP / Registry" to true,
+        "Cloudflare DoH" to true,
+        "Shodan InternetDB" to true,
+        "AlienVault OTX" to true,
+        "RIPE Stat" to true,
+        "crt.sh" to true,
+        "Feodo Tracker (abuse.ch)" to true
+    )
+
+    val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
+    val activeMap = activeSources.associateBy { it.providerName }
+    val currentIndicatorType = uiState.targetIndicator?.type ?: uiState.activeVerdict?.indicator?.type
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Dashboard Header Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "${strings.threatIntelProvidersTitle} (${LocalizationProvider.formatNumber(10, uiState.appLanguage)})",
+                        style = if (!isTwoColumn) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        color = PrimaryCyan,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = strings.enginesZeroKeySubtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+
+                Surface(
+                    color = VerdictClean.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
+                        Text(
+                            text = strings.systemReadyEngines,
+                            fontSize = 10.5.sp,
+                            color = VerdictClean,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Provider cards list
+        if (isTwoColumn) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                allProviders.chunked(2).forEach { pair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        pair.forEach { (name, isZeroKey) ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                EngineDetailCard(
+                                    name = name,
+                                    isZeroKey = isZeroKey,
+                                    isLoading = uiState.isLoading,
+                                    result = activeMap[name],
+                                    indicatorType = currentIndicatorType,
+                                    hasActiveVerdict = uiState.activeVerdict != null,
+                                    appLanguage = uiState.appLanguage,
+                                    strings = strings
+                                )
+                            }
+                        }
+                        if (pair.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                allProviders.forEach { (name, isZeroKey) ->
+                    EngineDetailCard(
+                        name = name,
+                        isZeroKey = isZeroKey,
+                        isLoading = uiState.isLoading,
+                        result = activeMap[name],
+                        indicatorType = currentIndicatorType,
+                        hasActiveVerdict = uiState.activeVerdict != null,
+                        appLanguage = uiState.appLanguage,
+                        strings = strings
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EngineDetailCard(
+    name: String,
+    isZeroKey: Boolean,
+    isLoading: Boolean,
+    result: SourceResult?,
+    indicatorType: IndicatorType?,
+    hasActiveVerdict: Boolean,
+    appLanguage: AppLanguage,
+    strings: AppStrings
+) {
+    val isApplicable = isProviderApplicable(name, indicatorType)
+    val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
+    val isTimedOut = result?.summary?.contains("timed out", ignoreCase = true) == true
+
+    val statusColor = when {
+        isRateLimited -> Color(0xFFF59E0B)
+        isTimedOut -> Color(0xFF94A3B8)
+        isLoading && !isApplicable && indicatorType != null -> VerdictNoData
+        isLoading && isApplicable -> PrimaryCyan
+        result != null -> when (result.verdict) {
+            VerdictLevel.CLEAN -> VerdictClean
+            VerdictLevel.LOW_RISK -> VerdictLowRisk
+            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+            VerdictLevel.MALICIOUS -> VerdictMalicious
+            VerdictLevel.NO_DATA -> VerdictNoData
+        }
+        isZeroKey -> VerdictClean
+        else -> Color(0xFFF59E0B)
+    }
+
+    val statusText = when {
+        isLoading && !isApplicable && indicatorType != null -> strings.statusNotApplicable
+        isLoading -> strings.statusScanning
+        isRateLimited -> strings.statusRateLimited
+        isTimedOut -> strings.statusTimedOut
+        result != null -> LocalizationProvider.getVerdictName(result.verdict, appLanguage)
+        hasActiveVerdict && !isApplicable -> strings.statusNotApplicable
+        hasActiveVerdict -> strings.statusKeyRequired
+        isZeroKey -> strings.statusReadyZeroKey
+        else -> strings.statusKeyRequired
+    }
+
+    val supportedTypes = LocalizationProvider.getProviderSupportedTypes(name)
+    val description = LocalizationProvider.getProviderDescription(name, appLanguage)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header Row: Provider Name + Free Badge + Live Status Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp
+                    )
+                    if (isZeroKey) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            color = VerdictClean.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = strings.freeBadge,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = VerdictClean,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    color = statusColor.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, statusColor.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = statusText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.5.sp
+                    )
+                }
+            }
+
+            // Description
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF94A3B8),
+                fontSize = 11.5.sp,
+                lineHeight = 16.sp
+            )
+
+            // Supported Indicators Chips Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = strings.indicatorTypeLabel + ":",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    fontSize = 10.sp
+                )
+                supportedTypes.forEach { type ->
+                    val typeLabel = when (type) {
+                        IndicatorType.IP_ADDRESS -> "IP"
+                        IndicatorType.DOMAIN -> "DOMAIN"
+                        IndicatorType.URL -> "URL"
+                        IndicatorType.FILE_HASH -> "HASH"
+                        IndicatorType.UNKNOWN -> "ANY"
+                    }
+                    Surface(
+                        color = Color(0xFF131F33),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, PrimaryCyan.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            text = typeLabel,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            color = PrimaryCyan.copy(alpha = 0.9f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            // If active scan result exists for this provider, show summary
+            if (result != null) {
+                HorizontalDivider(color = Color(0xFF1E293B).copy(alpha = 0.5f))
+                ControlledMarqueeText(
+                    text = LocalizationProvider.getLocalizedSourceSummary(result.summary, appLanguage),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                    fontSize = 10.5.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryFullScreenView(
+    history: List<TriageVerdict>,
+    appLanguage: AppLanguage,
+    onSelect: (TriageVerdict) -> Unit,
+    onDelete: (TriageVerdict) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val strings = LocalizationProvider.getStrings(appLanguage)
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedTypeFilter by remember { mutableStateOf<IndicatorType?>(null) }
+    var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
+    var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    val filteredHistory = remember(history, searchQuery, selectedTypeFilter, pendingDeletedRawValues) {
+        history.filter { item ->
+            item.indicator.rawValue !in pendingDeletedRawValues &&
+                (searchQuery.isBlank() || item.indicator.rawValue.contains(searchQuery.trim(), ignoreCase = true)) &&
+                (selectedTypeFilter == null || item.indicator.type == selectedTypeFilter)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Header Row (NO close button)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isRtl) {
+                if (history.isNotEmpty()) {
+                    TextButton(
+                        onClick = onClear,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(
+                            text = strings.clearHistory,
+                            color = VerdictMalicious,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+                Text(
+                    text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.Bold
+                )
+                if (history.isNotEmpty()) {
+                    TextButton(
+                        onClick = onClear,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(
+                            text = strings.clearHistory,
+                            color = VerdictMalicious,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Search & Filter Bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text(
+                    text = strings.searchHistoryPlaceholder,
+                    color = MaterialTheme.colorScheme.outline,
+                    fontSize = 12.5.sp
+                )
+            },
+            leadingIcon = {
+                Text(text = "🔍", fontSize = 13.sp)
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text(text = "✕", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = PrimaryCyan,
+                unfocusedBorderColor = Color(0xFF1E293B)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        // Filter chips (ALL, IP, DOMAIN, URL, HASH)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val filterOptions = listOf(
+                null to strings.filterAll,
+                IndicatorType.IP_ADDRESS to "IP",
+                IndicatorType.DOMAIN to "DOMAIN",
+                IndicatorType.URL to "URL",
+                IndicatorType.FILE_HASH to "HASH"
+            )
+
+            filterOptions.forEach { (type, label) ->
+                val isSelected = selectedTypeFilter == type
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { selectedTypeFilter = type }
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    color = if (isSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF0D1424),
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.8.dp,
+                        if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        // History items list or empty states
+        if (history.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "📜", fontSize = 36.sp)
+                    Text(
+                        text = strings.noHistory,
+                        color = MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else if (filteredHistory.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 36.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = strings.noFilterResults,
+                    color = MaterialTheme.colorScheme.outline,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filteredHistory.forEach { item ->
+                    val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
+                    if (!isPendingDelete) {
+                        val itemColor = when (item.overallVerdict) {
+                            VerdictLevel.CLEAN -> VerdictClean
+                            VerdictLevel.LOW_RISK -> VerdictLowRisk
+                            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
+                            VerdictLevel.MALICIOUS -> VerdictMalicious
+                            VerdictLevel.NO_DATA -> VerdictNoData
+                        }
+
+                        DisintegrationContainer(
+                            isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
+                            accent = itemColor,
+                            particleCount = 1800,
+                            collapseHeight = true,
+                            durationMs = 1200,
+                            onDisintegrated = {
+                                pendingDeletedRawValues = pendingDeletedRawValues + item.indicator.rawValue
+                                onDelete(item)
+                                if (deletingItemRawValue == item.indicator.rawValue) {
+                                    deletingItemRawValue = null
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0D1424))
+                                    .border(0.6.dp, itemColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                    .clickable { onSelect(item) }
+                                    .pointerHoverIcon(PointerIcon.Hand)
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                        ControlledMarqueeText(
+                                            text = item.indicator.rawValue,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Surface(
+                                        color = itemColor.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            color = itemColor,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .clickable {
+                                                if (deletingItemRawValue == null) {
+                                                    deletingItemRawValue = item.indicator.rawValue
+                                                }
+                                            }
+                                            .pointerHoverIcon(PointerIcon.Hand)
+                                            .springPress(),
+                                        color = Color.White.copy(alpha = 0.08f),
+                                        shape = CircleShape
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "✕",
+                                                color = Color(0xFFEF4444),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

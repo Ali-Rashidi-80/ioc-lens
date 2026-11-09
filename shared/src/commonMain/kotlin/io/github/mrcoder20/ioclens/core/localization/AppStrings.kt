@@ -120,7 +120,16 @@ data class AppStrings(
     val specZeroTelemetry: String,
     val specOpenSource: String,
     val specMultiplatformEngine: String,
-    val statusKeyRequiredShort: String
+    val statusKeyRequiredShort: String,
+    val badgeThemeCyberDark: String,
+    val badgeThemeAutoSystem: String,
+    val badgeGuardActive: String,
+    val badgeGuardDisabled: String,
+    val badgeOpenSourceVersion: String,
+    val searchHistoryPlaceholder: String,
+    val filterAll: String,
+    val noFilterResults: String,
+    val enginesZeroKeySubtitle: String
 )
 
 object LocalizationProvider {
@@ -255,18 +264,106 @@ object LocalizationProvider {
                 "ThreatFox (abuse.ch)" -> "ترت‌فاکس (ThreatFox)"
                 "RDAP / Registry" -> "ثبت‌کننده دامنه و آی‌پی (RDAP)"
                 "Cloudflare DoH" -> "کلودفلر DoH (دی‌ان‌اس امن)"
+                "Shodan InternetDB" -> "شودان اینترنت دی‌بی (Shodan)"
+                "AlienVault OTX" -> "الین‌والت OTX (AlienVault)"
+                "RIPE Stat" -> "رایپ استت (RIPE Stat)"
+                "crt.sh" -> "لاگ شفافیت گواهینامه (crt.sh)"
+                "Feodo Tracker (abuse.ch)" -> "فئودو ترکر (Feodo Tracker)"
+                "ipwho.is" -> "آی‌پی هوایز (ipwho.is)"
                 "VirusTotal" -> "ویروس‌توتال (VirusTotal)"
                 "AbuseIPDB" -> "ابوز آی‌پی‌دی‌بی (AbuseIPDB)"
-                "AlienVault OTX" -> "الین‌والت OTX (AlienVault)"
                 "Pulsedive" -> "پالس‌دایو (Pulsedive)"
                 "IPQualityScore" -> "آی‌پی کوالیتی‌اسکور (IPQS)"
                 else -> name
             }
             AppLanguage.RUSSIAN -> when (name) {
                 "RDAP / Registry" -> "RDAP / Реестр"
+                "crt.sh" -> "crt.sh (Сертификаты)"
+                "Feodo Tracker (abuse.ch)" -> "Feodo Tracker (Ботнеты C2)"
+                "ipwho.is" -> "ipwho.is (Гео и ISP)"
                 else -> name
             }
             AppLanguage.ENGLISH -> name
+        }
+    }
+
+    fun getProviderSupportedTypes(name: String): List<IndicatorType> {
+        return when (name) {
+            "URLhaus (abuse.ch)" -> listOf(IndicatorType.URL, IndicatorType.DOMAIN)
+            "MalwareBazaar (abuse.ch)" -> listOf(IndicatorType.FILE_HASH)
+            "ThreatFox (abuse.ch)" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN, IndicatorType.URL, IndicatorType.FILE_HASH)
+            "RDAP / Registry" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN)
+            "Cloudflare DoH" -> listOf(IndicatorType.DOMAIN)
+            "Shodan InternetDB" -> listOf(IndicatorType.IP_ADDRESS)
+            "AlienVault OTX" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN, IndicatorType.URL, IndicatorType.FILE_HASH)
+            "RIPE Stat" -> listOf(IndicatorType.IP_ADDRESS)
+            "crt.sh" -> listOf(IndicatorType.DOMAIN)
+            "Feodo Tracker (abuse.ch)" -> listOf(IndicatorType.IP_ADDRESS)
+            "ipwho.is" -> listOf(IndicatorType.IP_ADDRESS)
+            "VirusTotal" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN, IndicatorType.URL, IndicatorType.FILE_HASH)
+            "AbuseIPDB" -> listOf(IndicatorType.IP_ADDRESS)
+            "Pulsedive" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN, IndicatorType.URL, IndicatorType.FILE_HASH)
+            "IPQualityScore" -> listOf(IndicatorType.IP_ADDRESS)
+            else -> listOf(IndicatorType.UNKNOWN)
+        }
+    }
+
+    fun getProviderDescription(name: String, lang: AppLanguage): String {
+        return when (lang) {
+            AppLanguage.PERSIAN -> when (name) {
+                "URLhaus (abuse.ch)" -> "سامانه اشتراک‌گذاری آدرس‌های وب آلوده به بدافزار توسط abuse.ch."
+                "MalwareBazaar (abuse.ch)" -> "مخزن اشتراک نمونه‌های بدافزار و هشدارهای هش رمزنگاری توسط abuse.ch."
+                "ThreatFox (abuse.ch)" -> "پایگاه داده جمعی نشانگرهای تهدید و سرنخ‌های نفوذ (IOC) توسط abuse.ch."
+                "RDAP / Registry" -> "پروتکل رسمی دسترسی به داده‌های ثبت دامنه، آی‌پی و Autonomous System."
+                "Cloudflare DoH" -> "تحلیل‌گر امن دی‌ان‌اس بر بستر HTTPS برای شناسایی وضعیت دامنه‌ها."
+                "Shodan InternetDB" -> "پویشگر مستقیم پورت‌های باز، آسیب‌پذیری‌های CVE و نام‌های دامنه مرتبط بدون نیاز به کلید."
+                "AlienVault OTX" -> "شبکه تبادل آزاد اطلاعات تهدیدات سایبری و پالس‌های جامعه کاربری بدون نیاز به کلید."
+                "RIPE Stat" -> "تله‌متری مسیریابی اینترنت، ثبت نام سیستم خودگردان (ASN) و پیشوندهای شبکه RIPE."
+                "crt.sh" -> "جستجوی سوابق لاگ شفافیت گواهینامه‌های SSL/TLS و کشف خودکار زیردامنه‌ها."
+                "Feodo Tracker (abuse.ch)" -> "ردیاب و مسدودکننده سرورهای فرماندهی و کنترل بات‌نت‌ها (C2) توسط abuse.ch."
+                "ipwho.is" -> "موقعیت‌یابی جغرافیایی آی‌پی، اطلاعات ارائه‌دهنده اینترنت (ISP) و بررسی اتصال پروکسی، VPN و تور."
+                "VirusTotal" -> "تلفیق تحلیل تهدید و پویش بیش از ۷۰ موتور آنتی‌ویروس و امنیت وب."
+                "AbuseIPDB" -> "پایگاه رتبه‌بندی شهرت نشانی‌های آی‌پی و رهگیری فعالیت‌های خرابکارانه و اسپم."
+                "Pulsedive" -> "بستر هوش تهدیدات ارائه دهنده امتیاز ریسک و روابط نشانگرهای آلودگی."
+                "IPQualityScore" -> "سیستم پیشگیری از تقلب و شناسایی بی‌درنگ پروکسی، VPN و آی‌پی‌های مشکوک."
+                else -> name
+            }
+            AppLanguage.RUSSIAN -> when (name) {
+                "URLhaus (abuse.ch)" -> "Платформа сбора и обмена вредоносными URL-адресами от abuse.ch."
+                "MalwareBazaar (abuse.ch)" -> "Репозиторий вредоносных файлов и криптографических хэшей от abuse.ch."
+                "ThreatFox (abuse.ch)" -> "База данных актуальных индикаторов компрометации (IOC) от abuse.ch."
+                "RDAP / Registry" -> "Протокол доступа к регистрационным данным доменов, IP и номеров ASN."
+                "Cloudflare DoH" -> "Криптографический резолвер DNS-over-HTTPS для проверки доменов."
+                "Shodan InternetDB" -> "Бесплатная база данных Shodan для проверки открытых портов, уязвимостей (CVE) и хостов."
+                "AlienVault OTX" -> "Открытая сеть обмена данными об угрозах и индикаторах компрометации (OTX Pulses)."
+                "RIPE Stat" -> "Маршрутная телеметрия, автономные системы (ASN) и префиксы от координационного центра RIPE NCC."
+                "crt.sh" -> "Поиск по логам прозрачности сертификатов (CT Logs) и обнаружение поддоменов."
+                "Feodo Tracker (abuse.ch)" -> "Отслеживание серверов управления (C2) ботнетами Dridex, Emotet и QakBot от abuse.ch."
+                "ipwho.is" -> "Геолокация IP-адресов, метаданные провайдеров (ISP) и выявление прокси/VPN/TOR."
+                "VirusTotal" -> "Агрегированное сканирование более 70 антивирусных движков и баз угроз."
+                "AbuseIPDB" -> "База репутации IP-адресов для отслеживания атак и спам-активности."
+                "Pulsedive" -> "Платформа threat intelligence с оценкой рисков и связями индикаторов."
+                "IPQualityScore" -> "Оценка репутации IP, выявление прокси, VPN, TOR и мошеннической активности."
+                else -> name
+            }
+            AppLanguage.ENGLISH -> when (name) {
+                "URLhaus (abuse.ch)" -> "Community-driven malware URL sharing and threat feed platform by abuse.ch."
+                "MalwareBazaar (abuse.ch)" -> "Malware sample exchange and cryptographic hash intelligence repository by abuse.ch."
+                "ThreatFox (abuse.ch)" -> "Crowdsourced database of actionable Indicators of Compromise (IOCs) by abuse.ch."
+                "RDAP / Registry" -> "Authoritative Registration Data Access Protocol for domain, IP, and ASN registration data."
+                "Cloudflare DoH" -> "Cryptographically authenticated DNS-over-HTTPS resolver for live domain query resolution."
+                "Shodan InternetDB" -> "Zero-Key host intelligence indexing open ports, vulnerabilities (CVEs), and hostnames."
+                "AlienVault OTX" -> "Open Threat Exchange public pulse and indicator reputation lookups without authentication."
+                "RIPE Stat" -> "Authoritative RIPE NCC routing telemetry, Autonomous System Number (ASN), and prefix data."
+                "crt.sh" -> "Certificate Transparency log search for active SSL/TLS certificates and subdomain discovery."
+                "Feodo Tracker (abuse.ch)" -> "Botnet Command & Control (C2) tracker and blocklist provided by abuse.ch."
+                "ipwho.is" -> "Zero-Key IP geolocation, ISP metadata, and VPN/TOR proxy risk triage."
+                "VirusTotal" -> "Aggregated threat telemetry and scanning across 70+ antivirus and domain security engines."
+                "AbuseIPDB" -> "Global IP reputation database tracking abusive network activity, spamming, and brute-force attacks."
+                "Pulsedive" -> "Threat intelligence platform offering community risk scores, threat feeds, and IOC graphs."
+                "IPQualityScore" -> "Real-time fraud scoring, proxy/VPN/TOR detection, and IP reputation intelligence."
+                else -> name
+            }
         }
     }
 
@@ -292,18 +389,53 @@ object LocalizationProvider {
                     "نیازمند کلید API (در تنظیمات وارد کنید)"
                 summary.contains("0 threat pulses found in AlienVault OTX", ignoreCase = true) ->
                     "۰ پالس تهدید در شبکه AlienVault OTX یافت شد"
+                summary.contains("active threat intelligence pulses recorded", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("active threat intelligence pulses recorded", "پالس فعال هوش تهدیدات ثبت شده است")
+                summary.contains("No open ports or known vulnerabilities found", ignoreCase = true) ->
+                    "هیچ پورت باز یا آسیب‌پذیری شناخته‌شده‌ای در شودان ثبت نشده است"
+                summary.contains("Shodan:", ignoreCase = true) ->
+                    toPersianDigits(summary)
+                        .replace("Shodan:", "شودان:")
+                        .replace("open ports", "پورت باز")
+                        .replace("CVEs", "آسیب‌پذیری CVE")
+                summary.contains("RIPE Stat Routing:", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("RIPE Stat Routing:", "مسیریابی RIPE Stat:").replace("Prefix:", "پیشوند:")
+                summary.contains("Certificate Transparency:", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("Certificate Transparency:", "شفافیت گواهی:").replace("logged certificates discovered", "گواهی ثبت‌شده کشف شد")
+                summary.contains("No SSL certificates logged", ignoreCase = true) ->
+                    "هیچ گواهینامه SSL در لاگ‌های شفافیت ثبت نشده است"
+                summary.contains("No active C2 botnets recorded in Feodo Tracker", ignoreCase = true) ->
+                    "هیچ سرور فعال بات‌نت C2 در Feodo Tracker ثبت نشده است"
+                summary.contains("Botnet C2 host observed in Feodo Tracker", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("Botnet C2 host observed in Feodo Tracker", "میزبان سرور فرماندهی بات‌نت در Feodo Tracker شناسایی شد")
+                summary.contains("Active TOR exit node", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("ipwho.is: Active TOR exit node", "نود خروجی فعال شبکه تور (TOR)")
+                summary.contains("Proxy/VPN anonymous endpoint", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("ipwho.is: Proxy/VPN anonymous endpoint", "نقطه اتصال ناشناس پروکسی / VPN")
+                summary.contains("Clean verified ISP connection", ignoreCase = true) ->
+                    toPersianDigits(summary).replace("ipwho.is: Clean verified ISP connection", "اتصال پاک و تایید شده ارائه‌دهنده اینترنت")
                 summary.contains("No records found in VirusTotal database", ignoreCase = true) ->
                     "رکوردی در پایگاه داده ویروس‌توتال ثبت نشده است"
                 summary.contains("Rate limit exceeded", ignoreCase = true) ->
                     "محدودیت نرخ درخواست (۴۲۹): سهمیه به اتمام رسید"
-                summary.contains("Request timed out", ignoreCase = true) ->
+                summary.contains("timed out", ignoreCase = true) ->
                     "پایان مهلت زمانی ارتباط با سرور"
-                summary.contains("Network connection failure", ignoreCase = true) ->
-                    "خطای اتصال به شبکه هنگام استعلام از سرویس"
+                summary.contains("Network connection failure", ignoreCase = true) ||
+                summary.contains("Service unavailable or filtered", ignoreCase = true) ->
+                    "سرویس در دسترس نیست یا فیلتر شده است"
+                summary.contains("vendors flagged as malicious", ignoreCase = true) ||
                 summary.contains("engines detected malicious", ignoreCase = true) ->
-                    toPersianDigits(summary).replace("engines detected malicious", "موتور این نشانگر را آلوده شناسایی کردند")
-                summary.contains("Abuse Confidence Score:", ignoreCase = true) ->
-                    toPersianDigits(summary).replace("Abuse Confidence Score:", "شاخص سوءاستفاده:").replace("%", "٪")
+                    toPersianDigits(summary)
+                        .replace("vendors flagged as malicious", "فروشنده امنیتی این نشانگر را آلوده شناسایی کردند")
+                        .replace("engines detected malicious", "موتور این نشانگر را آلوده شناسایی کردند")
+                        .replace("suspicious", "مشکوک")
+                        .replace("(out of", "(از مجموع")
+                summary.contains("Abuse confidence score", ignoreCase = true) ->
+                    toPersianDigits(summary)
+                        .replace("Abuse confidence score:", "شاخص سوءاستفاده:")
+                        .replace("Abuse Confidence Score:", "شاخص سوءاستفاده:")
+                        .replace("reports in last 90 days", "گزارش در ۹۰ روز اخیر")
+                        .replace("%", "٪")
                 summary.contains("Fraud Score:", ignoreCase = true) ->
                     toPersianDigits(summary).replace("Fraud Score:", "شاخص تقلب:")
                 summary.contains("RDAP Network Allocation:", ignoreCase = true) ->
@@ -329,18 +461,51 @@ object LocalizationProvider {
                     "Требуется ключ API (настройте в Настройках)"
                 summary.contains("0 threat pulses found in AlienVault OTX", ignoreCase = true) ->
                     "0 импульсов угроз в AlienVault OTX"
+                summary.contains("active threat intelligence pulses recorded", ignoreCase = true) ->
+                    summary.replace("active threat intelligence pulses recorded", "активных импульсов угроз зафиксировано")
+                summary.contains("No open ports or known vulnerabilities found", ignoreCase = true) ->
+                    "В Shodan не найдено открытых портов или уязвимостей"
+                summary.contains("Shodan:", ignoreCase = true) ->
+                    summary
+                        .replace("open ports", "открытых портов")
+                        .replace("CVEs", "уязвимостей CVE")
+                summary.contains("RIPE Stat Routing:", ignoreCase = true) ->
+                    summary.replace("RIPE Stat Routing:", "Маршрутизация RIPE Stat:").replace("Prefix:", "Префикс:")
+                summary.contains("Certificate Transparency:", ignoreCase = true) ->
+                    summary.replace("Certificate Transparency:", "Прозрачность сертификатов:").replace("logged certificates discovered", "сертификатов обнаружено")
+                summary.contains("No SSL certificates logged", ignoreCase = true) ->
+                    "Сертификаты SSL в логах прозрачности не найдены"
+                summary.contains("No active C2 botnets recorded in Feodo Tracker", ignoreCase = true) ->
+                    "Активных C2-серверов ботнетов в Feodo Tracker не зафиксировано"
+                summary.contains("Botnet C2 host observed in Feodo Tracker", ignoreCase = true) ->
+                    summary.replace("Botnet C2 host observed in Feodo Tracker", "Узел управления ботнетом (C2) обнаружен в Feodo Tracker")
+                summary.contains("Active TOR exit node", ignoreCase = true) ->
+                    summary.replace("ipwho.is: Active TOR exit node", "Активный выходной узел сети TOR")
+                summary.contains("Proxy/VPN anonymous endpoint", ignoreCase = true) ->
+                    summary.replace("ipwho.is: Proxy/VPN anonymous endpoint", "Анонимная конечная точка прокси/VPN")
+                summary.contains("Clean verified ISP connection", ignoreCase = true) ->
+                    summary.replace("ipwho.is: Clean verified ISP connection", "Чистое подтвержденное подключение провайдера")
                 summary.contains("No records found in VirusTotal database", ignoreCase = true) ->
                     "Записей в базе VirusTotal не обнаружено"
                 summary.contains("Rate limit exceeded", ignoreCase = true) ->
                     "Превышен лимит запросов API (HTTP 429)"
-                summary.contains("Request timed out", ignoreCase = true) ->
+                summary.contains("timed out", ignoreCase = true) ->
                     "Тайм-аут запроса к поставщику аналитики"
-                summary.contains("Network connection failure", ignoreCase = true) ->
-                    "Сбой сетевого подключения к поставщику"
+                summary.contains("Network connection failure", ignoreCase = true) ||
+                summary.contains("Service unavailable or filtered", ignoreCase = true) ->
+                    "Сбой сетевого подключения или сервис недоступен"
+                summary.contains("vendors flagged as malicious", ignoreCase = true) ||
                 summary.contains("engines detected malicious", ignoreCase = true) ->
-                    summary.replace("engines detected malicious", "движков определили как вредоносный")
-                summary.contains("Abuse Confidence Score:", ignoreCase = true) ->
-                    summary.replace("Abuse Confidence Score:", "Индекс злоупотреблений:")
+                    summary
+                        .replace("vendors flagged as malicious", "поставщиков безопасности определили как вредоносный")
+                        .replace("engines detected malicious", "движков определили как вредоносный")
+                        .replace("suspicious", "подозрительно")
+                        .replace("(out of", "(из")
+                summary.contains("Abuse confidence score", ignoreCase = true) ->
+                    summary
+                        .replace("Abuse confidence score:", "Индекс злоупотреблений:")
+                        .replace("Abuse Confidence Score:", "Индекс злоупотреблений:")
+                        .replace("reports in last 90 days", "отчетов за последние 90 дней")
                 summary.contains("Fraud Score:", ignoreCase = true) ->
                     summary.replace("Fraud Score:", "Индекс мошенничества:")
                 summary.contains("RDAP Network Allocation:", ignoreCase = true) ->
@@ -363,7 +528,7 @@ object LocalizationProvider {
                 done = "DONE",
                 changeLanguage = "🌐 Language",
                 searchPlaceholder = "Enter an IP, domain, URL or file hash...",
-                searchFieldPlaceholder = "Paste IP, URL, Hash, Domain, or drop file...",
+                searchFieldPlaceholder = "Enter IP, Domain, URL, or Hash...",
                 clear = "Clear",
                 analyzeInstant = "Instant Lookup ⚡",
                 scanPayload = "⚡ SCAN PAYLOAD",
@@ -379,7 +544,7 @@ object LocalizationProvider {
                 menuHome = "Home / Triage",
                 menuSettings = "App Settings",
                 menuGuide = "Intro Guide",
-                menuProviders = "API Keys",
+                menuProviders = "Threat Feeds",
                 menuPrivacyGuard = "Privacy Guard",
                 menuAbout = "About IOC Lens",
                 settingsTitle = "Settings",
@@ -387,8 +552,8 @@ object LocalizationProvider {
                 versionLabel = "v1.0.0 (Open Source)",
                 systemDefaultTheme = "System Default",
                 darkTheme = "Signature Dark Theme",
-                apiKeysTitle = "Threat Intel API Keys",
-                apiKeysSubtitle = "⚡ Built-in Public Threat Intel feeds active. You can optionally enter custom private API keys below:",
+                apiKeysTitle = "Advanced Custom API Keys (Optional)",
+                apiKeysSubtitle = "⚡ Built-in Zero-Key threat intelligence feeds are fully active. You may optionally configure custom private API keys below:",
                 vtApiKeyLabel = "VirusTotal API Key (Optional)",
                 abuseApiKeyLabel = "AbuseIPDB API Key (Optional)",
                 alienApiKeyLabel = "AlienVault OTX API Key (Optional)",
@@ -429,8 +594,8 @@ object LocalizationProvider {
                 sampleGoogleDns = "8.8.8.8 (Google DNS)",
                 sampleMalwareUrl = "malware-test.com (Threat URL)",
                 sampleHash = "WannaCry Hash",
-                pasteFromClipboard = "📋 Paste (Ctrl+V)",
-                dropFileHint = "📁 Drop any file onto window to hash",
+                pasteFromClipboard = "📋 Paste",
+                dropFileHint = "📁 Select File to Hash",
                 recentTriageFeed = "Recent Scans Feed",
                 deleteItem = "Delete",
                 reAnalyze = "Re-Scan",
@@ -439,12 +604,12 @@ object LocalizationProvider {
                 categoryThreats = "Threat Feeds & Botnet C2",
                 serverlessStatus = "Serverless Direct Client · Zero Database · On-Device Privacy Guard (RFC 1918)",
                 systemReadyEngines = "10 Engines Ready",
-                freeFeedsBadge = "4 Zero-Key Feeds",
+                freeFeedsBadge = "10 Zero-Key Feeds",
                 privacyGuardActiveBadge = "Privacy Guard Active",
-                settingsTabApiKeys = "API Keys",
+                settingsTabApiKeys = "Advanced Keys (Optional)",
                 settingsTabGeneralPrivacy = "General & Privacy",
                 settingsTabAbout = "About",
-                apiKeysZeroKeyBanner = "⚡ Free feeds (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) are active immediately without keys.",
+                apiKeysZeroKeyBanner = "⚡ 100% Zero-Key Architecture: All 10 Threat Intel feeds are free and active out-of-the-box without requiring API keys.",
                 vtSubtitle = "70+ Antivirus & Sandbox Engines (v3 API)",
                 abuseSubtitle = "IP Reputation & Abuse Database (v2 API)",
                 alienSubtitle = "Global Threat Pulses & IOC Database (v1 API)",
@@ -467,9 +632,18 @@ object LocalizationProvider {
                 replayInteractiveTour = "Replay Interactive Tour & App Guide",
                 specStandalonePortable = "Standalone Portable",
                 specZeroTelemetry = "Zero Telemetry",
-                specOpenSource = "Apache 2.0 Open Source",
+                specOpenSource = "MIT License Open Source",
                 specMultiplatformEngine = "Multiplatform Engine",
-                statusKeyRequiredShort = "Key Required"
+                statusKeyRequiredShort = "Key Required",
+                badgeThemeCyberDark = "CYBER DARK",
+                badgeThemeAutoSystem = "AUTO SYSTEM",
+                badgeGuardActive = "RFC 1918 ACTIVE",
+                badgeGuardDisabled = "GUARD DISABLED",
+                badgeOpenSourceVersion = "OPEN SOURCE v1.0",
+                searchHistoryPlaceholder = "Filter history by IOC...",
+                filterAll = "ALL",
+                noFilterResults = "No matching records found for filter",
+                enginesZeroKeySubtitle = "10 Direct Zero-Key Threat Feeds • 100% Free & Tokenless"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -477,27 +651,27 @@ object LocalizationProvider {
                 skip = "رد کردن",
                 next = "بعدی",
                 previous = "قبلی",
-                start = "شروع کنید 🚀",
+                start = "شروع برنامه 🚀",
                 done = "شروع برنامه",
                 changeLanguage = "🌐 تغییر زبان",
-                searchPlaceholder = "یک IP، دامنه، URL یا هش فایل وارد کنید...",
-                searchFieldPlaceholder = "آی‌پی، دامنه، نشانی وب، هش فایل یا فایل رها شده...",
+                searchPlaceholder = "یک آدرس IP، دامنه، نشانی وب یا هش فایل وارد کنید...",
+                searchFieldPlaceholder = "آی‌پی، دامنه، نشانی وب یا هش فایل...",
                 clear = "پاک‌سازی",
                 analyzeInstant = "استعلام فوری ⚡",
                 scanPayload = "⚡ اسکن و تریاژ نشانگر",
                 cancelScan = "⏹ لغو اسکن",
                 zeroKeyInstantScanReady = "آماده استعلام فوری بدون نیاز به کلید",
                 streamHashingTitle = "محاسبه هش جریانی (تکه‌های ۶۴ کیلوبایتی)",
-                introGuide = "💡 راهنما / اینترو",
+                introGuide = "💡 راهنمای برنامه",
                 enterIndicatorError = "لطفاً یک آدرس IP، دامنه، URL یا هش فایل وارد کنید.",
-                threatIntelSourcesResults = "نتایج سرویس‌های Threat Intel:",
-                privacyGuardNotice = "🛡️ Privacy Guard فعال شد: نشانگر داخلی/خصوصی شناسایی شد. استعلام مسدود گردید.",
+                threatIntelSourcesResults = "نتایج منابع هوش تهدیدات:",
+                privacyGuardNotice = "🛡️ سپر حریم خصوصی فعال شد: نشانگر داخلی/خصوصی شناسایی شد. استعلام مسدود گردید.",
                 themeLabel = "تم و ظاهر",
                 languageLabel = "زبان برنامه",
                 menuHome = "صفحه اصلی / تریاژ",
                 menuSettings = "تنظیمات برنامه",
-                menuGuide = "راهنما و اینترو",
-                menuProviders = "کلیدهای API",
+                menuGuide = "راهنمای برنامه",
+                menuProviders = "موتورهای تحلیلی",
                 menuPrivacyGuard = "حریم خصوصی",
                 menuAbout = "درباره برنامه",
                 settingsTitle = "تنظیمات",
@@ -505,72 +679,72 @@ object LocalizationProvider {
                 versionLabel = "نسخه ۱.۰.۰ (متن‌باز)",
                 systemDefaultTheme = "پیش‌فرض سیستم",
                 darkTheme = "تم تاریک اختصاصی",
-                apiKeysTitle = "کلیدهای API سرویس‌های تحلیلی",
-                apiKeysSubtitle = "⚡ فیدهای عمومی و رایگان فعال هستند. در صورت تمایل می‌توانید کلیدهای اختصاصی خود را وارد نمایید:",
+                apiKeysTitle = "کلیدهای سفارشی پیشرفته (اختیاری)",
+                apiKeysSubtitle = "⚡ تمامی ۱۰ فید هوش تهدیدات بدون نیاز به کلید فعال هستند. در صورت تمایل می‌توانید کلیدهای اختصاصی را در زیر وارد کنید:",
                 vtApiKeyLabel = "کلید API سرویس VirusTotal (اختیاری)",
                 abuseApiKeyLabel = "کلید API سرویس AbuseIPDB (اختیاری)",
                 alienApiKeyLabel = "کلید API سرویس AlienVault OTX (اختیاری)",
                 pulseApiKeyLabel = "کلید API سرویس Pulsedive (اختیاری)",
                 ipqsApiKeyLabel = "کلید API سرویس IPQualityScore (اختیاری)",
                 autoScanClipboard = "اسکن خودکار کلیپ‌بورد",
-                privacyGuardSetting = "محافظت از نشانگرهای داخلی",
+                privacyGuardSetting = "محافظت از نشانگرهای داخلی (RFC 1918)",
                 saveKeys = "ذخیره تنظیمات 💾",
                 savedSuccessfully = "تنظیمات با موفقیت ذخیره شد!",
                 scanHistoryTitle = "تاریخچه اسکن",
                 clearHistory = "پاک‌سازی تاریخچه",
-                noHistory = "هنوز هیچ تاریخچه اسکنی ثبت نشده است. یک نشانگر را اسکن کنید یا فایلی را به اشتراک بگذارید.",
+                noHistory = "هنوز هیچ سابقه اسکنی ثبت نشده است. یک نشانگر را اسکن کنید یا فایلی را برای هش انتخاب نمایید.",
                 threatConfidenceScore = "شاخص اطمینان تهدید",
                 indicatorTypeLabel = "نوع نشانگر",
-                threatIntelProvidersTitle = "🌐 سرویس‌های تحلیلی (Threat Intel)",
+                threatIntelProvidersTitle = "🌐 موتورهای تحلیل هوش تهدیدات",
                 enginesCount = "۱۰ موتور تحلیلی",
                 freeBadge = "● رایگان",
                 statusReady = "آماده",
                 statusReadyZeroKey = "آماده (بدون نیاز به کلید)",
                 statusKeyRequired = "نیازمند کلید API",
                 statusScanning = "در حال اسکن...",
-                statusRateLimited = "محدودیت نرخ (Rate Limited)",
+                statusRateLimited = "محدودیت نرخ درخواست",
                 statusTimedOut = "پایان مهلت زمانی",
                 statusNotApplicable = "نامرتبط با این نوع",
                 closeButton = "بستن",
                 streamHashingFailed = "محاسبه هش جریانی با خطا مواجه شد",
-                errorRateLimit = "محدودیت تعداد درخواست در سرویس‌های خارجی. لطفاً دقایقی دیگر تلاش کنید.",
+                errorRateLimit = "محدودیت تعداد درخواست در سرویس‌های خارجی؛ لطفاً دقایقی دیگر تلاش کنید.",
                 errorTimeout = "مهلت اتصال به فیدهای تحلیلی به پایان رسید. اتصال اینترنت خود را بررسی کنید.",
                 errorNetwork = "خطا در تحلیل نشانگر. اتصال اینترنت را بررسی کنید.",
-                errorPrivacyGuard = "نشانگر داخلی/خصوصی توسط محافظ حریم خصوصی مسدود شد.",
+                errorPrivacyGuard = "نشانگر داخلی/خصوصی توسط سپر حریم خصوصی مسدود شد.",
                 tabScanner = "پویشگر",
                 tabEngines = "موتورها",
                 tabHistory = "تاریخچه",
                 tabSettings = "تنظیمات",
-                liveScanInProgress = "در حال اسکن زنده موتورها...",
+                liveScanInProgress = "در حال استعلام هم‌زمان موتورها...",
                 enginesCompleted = "موتور تکمیل شد",
-                sampleIocsTitle = "نمونه‌های آزمایشی:",
+                sampleIocsTitle = "نمونه‌های سریع:",
                 sampleGoogleDns = "۸.۸.۸.۸ (دی‌ان‌اس گوگل)",
                 sampleMalwareUrl = "malware-test.com (آدرس آلوده)",
-                sampleHash = "هش وانا‌کرای (WannaCry)",
-                pasteFromClipboard = "📋 چسباندن (Ctrl+V)",
-                dropFileHint = "📁 رهاسازی فایل در پنجره برای محاسبه هش",
+                sampleHash = "هش واناکرای (WannaCry)",
+                pasteFromClipboard = "📋 چسباندن",
+                dropFileHint = "📁 انتخاب فایل برای هش",
                 recentTriageFeed = "سوابق و پویش‌های اخیر",
                 deleteItem = "حذف",
                 reAnalyze = "پویش مجدد",
                 categoryNetwork = "زیرساخت شبکه و دی‌ان‌اس",
                 categoryMalware = "مخازن بدافزار و فایل‌ها",
                 categoryThreats = "فیدهای تهدید و کنترل بات‌نت",
-                serverlessStatus = "ارتباط مستقیم کلاینت سرورلس · بدون پایگاه داده واسط · محافظت حریم خصوصی فعال (RFC 1918)",
+                serverlessStatus = "ارتباط مستقیم کلاینت سرورلس · بدون پایگاه داده واسط · سپر حریم خصوصی محلی (RFC 1918)",
                 systemReadyEngines = "۱۰ موتور آماده",
-                freeFeedsBadge = "۴ فید رایگان",
+                freeFeedsBadge = "۱۰ فید بدون کلید",
                 privacyGuardActiveBadge = "حریم خصوصی محلی",
-                settingsTabApiKeys = "کلیدهای API سرویس‌ها",
+                settingsTabApiKeys = "کلیدهای سفارشی (اختیاری)",
                 settingsTabGeneralPrivacy = "عمومی و حریم خصوصی",
                 settingsTabAbout = "درباره برنامه",
-                apiKeysZeroKeyBanner = "⚡ فیدهای رایگان (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) به صورت فوری و بدون نیاز به کلید فعال هستند.",
+                apiKeysZeroKeyBanner = "⚡ معماری ۱۰۰٪ بدون کلید: تمامی ۱۰ موتور هوش تهدیدات به صورت پیش‌فرض و بدون نیاز به کلید API فعال هستند.",
                 vtSubtitle = "بیش از ۷۰ موتور آنتی‌ویروس و سندباکس تحلیلی",
                 abuseSubtitle = "پایگاه داده بررسی شهرت و سوءاستفاده از آی‌پی",
                 alienSubtitle = "پالس‌های جهانی شاخص‌ها و شبکه‌های آلودگی",
                 pulseSubtitle = "امتیازدهی به ریسک نشانگرها و فیدهای امنیتی",
-                ipqsSubtitle = "تشخیص تقلب، پروکسی، بات‌ نت و اعتبار آی‌پی",
+                ipqsSubtitle = "تشخیص تقلب، پروکسی، بات‌نت و اعتبار آی‌پی",
                 keyConfiguredBadge = "● تنظیم‌شده",
                 keyOptionalBadge = "○ اختیاری",
-                keyInputPlaceholder = "کلید اختصاصی API را اینجا جای‌ گذاری کنید...",
+                keyInputPlaceholder = "کلید اختصاصی API را اینجا جای‌گذاری کنید...",
                 privacyGuardActiveDesc = "حفاظت سمت کلاینت فعال است: استعلام آدرس‌های خصوصی و لوپ‌بک (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1) به صورت محلی مسدود شده و ترافیکی به اینترنت ارسال نمی‌شود.",
                 privacyGuardInactiveDesc = "حفاظت از آی‌پی‌های خصوصی غیرفعال است: آدرس‌های لوپ‌بک و شبکه محلی فیلتر نخواهند شد.",
                 badgeClientDirect = "⚡ ارتباط ۱۰۰٪ مستقیم کلاینت",
@@ -578,16 +752,25 @@ object LocalizationProvider {
                 settingsSecurityConsoleBadge = "کنسول امنیت // تنظیمات",
                 cardPrivacyGuardTitle = "سپر حریم خصوصی (RFC 1918)",
                 cardThreatIntelTitle = "۱۰ موتور تحلیل تهدید",
-                aboutZeroCloudDesc = "هیچ پایگاه داده ابری یا سرور میانی وجود ندارد؛ توکن‌ها و سوابق تنها در حافظه رمزنگاری‌شده محلی ذخیره می‌شوند.",
-                aboutClientDirectDesc = "استعلام‌های تهدید مستقیماً از سیستم شما به APIهای رسمی ارسال می‌شوند بدون واسطه (۱۰۰٪ کلاینت-ساید).",
-                aboutPrivacyGuardDesc = "تشخیص و مسدودسازی بلادرنگ آی‌پی‌های محلی و خصوصی (10.0.0.0/8، 172.16.0.0/12 و 192.168.0.0/16) جهت جلوگیری از نشت ترافیک.",
-                aboutThreatIntelDesc = "تلفیق بلادرنگ ۱۰ فید هوش تهدید بدون نیاز به کلید و موتورهای تخصصی برای تریاژ فیشینگ، بدافزار و شهرت آی‌پی.",
+                aboutZeroCloudDesc = "هیچ پایگاه داده ابری یا سرور میانی وجود ندارد؛ گزارش‌ها و سوابق تنها در حافظه رمزنگاری‌شده محلی ذخیره می‌شوند.",
+                aboutClientDirectDesc = "استعلام‌های تهدید مستقیماً از دستگاه شما به APIهای رسمی ارسال می‌شوند بدون هیچ سرور واسطه‌ای (۱۰۰٪ کلاینت-ساید).",
+                aboutPrivacyGuardDesc = "تشخیص و مسدودسازی بلادرنگ محدوده‌های آی‌پی محلی و خصوصی (10.0.0.0/8، 172.16.0.0/12 و 192.168.0.0/16) جهت جلوگیری از نشت اطلاعات.",
+                aboutThreatIntelDesc = "تلفیق بلادرنگ ۱۰ فید هوش تهدیدات بدون نیاز به کلید و موتورهای تخصصی برای تریاژ فیشینگ، بدافزار و شهرت آی‌پی.",
                 replayInteractiveTour = "مرور راهنمای تعاملی و آموزش برنامه",
                 specStandalonePortable = "پرتابل و مستقل",
                 specZeroTelemetry = "بدون تله‌متری",
-                specOpenSource = "متن‌باز آپاچی ۲.۰",
+                specOpenSource = "متن‌باز با مجوز MIT",
                 specMultiplatformEngine = "موتور چندسکویی",
-                statusKeyRequiredShort = "نیاز به کلید"
+                statusKeyRequiredShort = "نیاز به کلید",
+                badgeThemeCyberDark = "تم تاریک سایبری",
+                badgeThemeAutoSystem = "پیش‌فرض سیستم",
+                badgeGuardActive = "سپر فعال (RFC 1918)",
+                badgeGuardDisabled = "سپر غیرفعال",
+                badgeOpenSourceVersion = "متن‌باز نسخه ۱.۰",
+                searchHistoryPlaceholder = "فیلتر تاریخچه بر اساس نشانگر...",
+                filterAll = "همه",
+                noFilterResults = "هیچ موردی با فیلتر فعلی یافت نشد",
+                enginesZeroKeySubtitle = "۱۰ فید مستقیم و بدون کلید • ۱۰۰٪ رایگان و آنی"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -599,7 +782,7 @@ object LocalizationProvider {
                 done = "ГОТОВО",
                 changeLanguage = "🌐 Язык",
                 searchPlaceholder = "Введите IP, домен, URL или хеш файла...",
-                searchFieldPlaceholder = "Введите IP, URL, хеш, домен или перетащите файл...",
+                searchFieldPlaceholder = "Введите IP, домен, URL или хеш...",
                 clear = "Очистить",
                 analyzeInstant = "Проверить ⚡",
                 scanPayload = "⚡ СКАНИРОВАТЬ ИНДИКАТОР",
@@ -615,28 +798,28 @@ object LocalizationProvider {
                 menuHome = "Главная / Триаж",
                 menuSettings = "Настройки",
                 menuGuide = "Руководство",
-                menuProviders = "API-ключи",
-                menuPrivacyGuard = "Защита данных",
+                menuProviders = "Движки аналитики",
+                menuPrivacyGuard = "Защита данных (RFC 1918)",
                 menuAbout = "О программе",
                 settingsTitle = "Настройки",
                 appVersion = "Версия",
                 versionLabel = "Версия 1.0.0 (Open Source)",
                 systemDefaultTheme = "Системная",
                 darkTheme = "Тёмная тема",
-                apiKeysTitle = "API-ключи Threat Intel",
-                apiKeysSubtitle = "⚡ Общедоступные каналы разведки активны. Дополнительно можно указать персональные ключи:",
+                apiKeysTitle = "Дополнительные API-ключи (Опционально)",
+                apiKeysSubtitle = "⚡ Все 10 каналов разведки угроз активны без ключей. При желании вы можете указать собственные API-ключи ниже:",
                 vtApiKeyLabel = "API-ключ VirusTotal (необязательно)",
                 abuseApiKeyLabel = "API-ключ AbuseIPDB (необязательно)",
                 alienApiKeyLabel = "API-ключ AlienVault OTX (необязательно)",
                 pulseApiKeyLabel = "API-ключ Pulsedive (необязательно)",
                 ipqsApiKeyLabel = "API-ключ IPQualityScore (необязательно)",
                 autoScanClipboard = "Автосканирование буфера",
-                privacyGuardSetting = "Защита внутренних адресов",
+                privacyGuardSetting = "Защита внутренних адресов (RFC 1918)",
                 saveKeys = "Сохранить 💾",
                 savedSuccessfully = "Настройки успешно сохранены!",
                 scanHistoryTitle = "История проверок",
                 clearHistory = "Очистить историю",
-                noHistory = "История проверок пуста. Проверьте индикатор или передайте файл.",
+                noHistory = "История проверок пуста. Проверьте индикатор или выберите файл для хеширования.",
                 threatConfidenceScore = "Индекс достоверности угрозы",
                 indicatorTypeLabel = "Тип индикатора",
                 threatIntelProvidersTitle = "🌐 ИСТОЧНИКИ THREAT INTEL",
@@ -665,8 +848,8 @@ object LocalizationProvider {
                 sampleGoogleDns = "8.8.8.8 (Google DNS)",
                 sampleMalwareUrl = "malware-test.com (Угроза)",
                 sampleHash = "Хеш WannaCry",
-                pasteFromClipboard = "📋 Вставить (Ctrl+V)",
-                dropFileHint = "📁 Перетащите файл для хеширования",
+                pasteFromClipboard = "📋 Вставить",
+                dropFileHint = "📁 Выбрать файл для хеша",
                 recentTriageFeed = "Недавние сканирования",
                 deleteItem = "Удалить",
                 reAnalyze = "Повторить",
@@ -675,12 +858,12 @@ object LocalizationProvider {
                 categoryThreats = "Каналы угроз и C2 ботнетов",
                 serverlessStatus = "Прямой бессерверный клиент · Без промежуточных БД · Защита данных активна (RFC 1918)",
                 systemReadyEngines = "10 движков готовы",
-                freeFeedsBadge = "4 бесплатных фида",
+                freeFeedsBadge = "10 бесплатных фидов",
                 privacyGuardActiveBadge = "Защита активна",
-                settingsTabApiKeys = "Ключи API",
+                settingsTabApiKeys = "Доп. ключи (Опционально)",
                 settingsTabGeneralPrivacy = "Общие и приватность",
                 settingsTabAbout = "О программе",
-                apiKeysZeroKeyBanner = "⚡ Бесплатные фиды (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH) активны мгновенно без ключей.",
+                apiKeysZeroKeyBanner = "⚡ Архитектура без ключей: Все 10 источников Threat Intel работают прямо из коробки без ключей API.",
                 vtSubtitle = "Более 70 антивирусных и песочных движков (v3 API)",
                 abuseSubtitle = "База данных репутации и злоупотреблений IP (v2 API)",
                 alienSubtitle = "Глобальные импульсы угроз и индикаторы (v1 API)",
@@ -703,9 +886,18 @@ object LocalizationProvider {
                 replayInteractiveTour = "Повторить интерактивный тур и руководство",
                 specStandalonePortable = "Портативная сборка",
                 specZeroTelemetry = "Без телеметрии",
-                specOpenSource = "Apache 2.0 Open Source",
+                specOpenSource = "Лицензия MIT (Open Source)",
                 specMultiplatformEngine = "Кроссплатформенный движок",
-                statusKeyRequiredShort = "Нужен ключ"
+                statusKeyRequiredShort = "Нужен ключ",
+                badgeThemeCyberDark = "ТЁМНАЯ ТЕМА",
+                badgeThemeAutoSystem = "СИСТЕМНАЯ",
+                badgeGuardActive = "RFC 1918 АКТИВЕН",
+                badgeGuardDisabled = "ЗАЩИТА ОТКЛЮЧЕНА",
+                badgeOpenSourceVersion = "OPEN SOURCE v1.0",
+                searchHistoryPlaceholder = "Фильтр истории по IOC...",
+                filterAll = "Все",
+                noFilterResults = "Нет записей, соответствующих фильтру",
+                enginesZeroKeySubtitle = "10 прямых фидов без ключей • 100% бесплатно и без токенов"
             )
         }
     }

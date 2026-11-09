@@ -137,13 +137,36 @@ class EnglishLocaleSanityTest {
             "specZeroTelemetry" to strings.specZeroTelemetry,
             "specOpenSource" to strings.specOpenSource,
             "specMultiplatformEngine" to strings.specMultiplatformEngine,
-            "statusKeyRequiredShort" to strings.statusKeyRequiredShort
+            "statusKeyRequiredShort" to strings.statusKeyRequiredShort,
+            "badgeThemeCyberDark" to strings.badgeThemeCyberDark,
+            "badgeThemeAutoSystem" to strings.badgeThemeAutoSystem,
+            "badgeGuardActive" to strings.badgeGuardActive,
+            "badgeGuardDisabled" to strings.badgeGuardDisabled,
+            "badgeOpenSourceVersion" to strings.badgeOpenSourceVersion,
+            "searchHistoryPlaceholder" to strings.searchHistoryPlaceholder,
+            "filterAll" to strings.filterAll,
+            "noFilterResults" to strings.noFilterResults,
+            "enginesZeroKeySubtitle" to strings.enginesZeroKeySubtitle
         )
 
         for ((propName, propValue) in properties) {
             assertFalse(
                 persianRegex.containsMatchIn(propValue),
                 "English string '$propName' contains Persian characters: '$propValue'"
+            )
+        }
+
+        val providers = listOf(
+            "URLhaus (abuse.ch)", "MalwareBazaar (abuse.ch)", "ThreatFox (abuse.ch)",
+            "RDAP / Registry", "Cloudflare DoH", "Shodan InternetDB", "AlienVault OTX",
+            "RIPE Stat", "crt.sh", "ipwho.is", "VirusTotal", "AbuseIPDB",
+            "Pulsedive", "IPQualityScore"
+        )
+        for (provider in providers) {
+            val desc = LocalizationProvider.getProviderDescription(provider, AppLanguage.ENGLISH)
+            assertFalse(
+                persianRegex.containsMatchIn(desc),
+                "Provider '$provider' English description contains Persian characters: '$desc'"
             )
         }
     }
@@ -265,6 +288,63 @@ class EnglishLocaleSanityTest {
         assertEquals("مرور راهنمای تعاملی و آموزش برنامه", strings.replayInteractiveTour)
         assertTrue(strings.aboutZeroCloudDesc.contains("هیچ پایگاه داده ابری"))
         assertTrue(strings.aboutClientDirectDesc.contains("۱۰۰٪ کلاینت-ساید"))
+    }
+
+    @Test
+    fun testBadgeAndLicenseLocalizationAcrossLocales() {
+        val en = LocalizationProvider.getStrings(AppLanguage.ENGLISH)
+        val fa = LocalizationProvider.getStrings(AppLanguage.PERSIAN)
+        val ru = LocalizationProvider.getStrings(AppLanguage.RUSSIAN)
+
+        assertEquals("MIT License Open Source", en.specOpenSource)
+        assertEquals("متن‌باز با مجوز MIT", fa.specOpenSource)
+        assertEquals("Лицензия MIT (Open Source)", ru.specOpenSource)
+
+        assertEquals("CYBER DARK", en.badgeThemeCyberDark)
+        assertEquals("AUTO SYSTEM", en.badgeThemeAutoSystem)
+        assertEquals("RFC 1918 ACTIVE", en.badgeGuardActive)
+        assertEquals("GUARD DISABLED", en.badgeGuardDisabled)
+        assertEquals("OPEN SOURCE v1.0", en.badgeOpenSourceVersion)
+
+        assertEquals("تم تاریک سایبری", fa.badgeThemeCyberDark)
+        assertEquals("پیش‌فرض سیستم", fa.badgeThemeAutoSystem)
+        assertEquals("سپر فعال (RFC 1918)", fa.badgeGuardActive)
+        assertEquals("سپر غیرفعال", fa.badgeGuardDisabled)
+        assertEquals("متن‌باز نسخه ۱.۰", fa.badgeOpenSourceVersion)
+
+        assertEquals("ТЁМНАЯ ТЕМА", ru.badgeThemeCyberDark)
+        assertEquals("СИСТЕМНАЯ", ru.badgeThemeAutoSystem)
+        assertEquals("RFC 1918 АКТИВЕН", ru.badgeGuardActive)
+        assertEquals("ЗАЩИТА ОТКЛЮЧЕНА", ru.badgeGuardDisabled)
+        assertEquals("OPEN SOURCE v1.0", ru.badgeOpenSourceVersion)
+    }
+
+    @Test
+    fun testMobileFirstCopyAndNoDesktopShortcutsAcrossLocales() {
+        val en = LocalizationProvider.getStrings(AppLanguage.ENGLISH)
+        val fa = LocalizationProvider.getStrings(AppLanguage.PERSIAN)
+        val ru = LocalizationProvider.getStrings(AppLanguage.RUSSIAN)
+
+        // Verify (Ctrl+V) desktop shortcut is removed across all locales
+        assertEquals("📋 Paste", en.pasteFromClipboard)
+        assertEquals("📋 چسباندن", fa.pasteFromClipboard)
+        assertEquals("📋 Вставить", ru.pasteFromClipboard)
+        assertFalse(en.pasteFromClipboard.contains("Ctrl+V"))
+        assertFalse(fa.pasteFromClipboard.contains("Ctrl+V"))
+        assertFalse(ru.pasteFromClipboard.contains("Ctrl+V"))
+
+        // Verify mobile file picker copy replaces desktop drop copy
+        assertEquals("📁 Select File to Hash", en.dropFileHint)
+        assertEquals("📁 انتخاب فایل برای هش", fa.dropFileHint)
+        assertEquals("📁 Выбрать файл для хеша", ru.dropFileHint)
+        assertFalse(en.dropFileHint.contains("Drop any file"))
+        assertFalse(fa.dropFileHint.contains("رهاسازی فایل"))
+        assertFalse(ru.dropFileHint.contains("Перетащите файл"))
+
+        // Verify shortened, non-clipping placeholder
+        assertEquals("Enter IP, Domain, URL, or Hash...", en.searchFieldPlaceholder)
+        assertEquals("آی‌پی، دامنه، نشانی وب یا هش فایل...", fa.searchFieldPlaceholder)
+        assertEquals("Введите IP, домен, URL или хеш...", ru.searchFieldPlaceholder)
     }
 }
 

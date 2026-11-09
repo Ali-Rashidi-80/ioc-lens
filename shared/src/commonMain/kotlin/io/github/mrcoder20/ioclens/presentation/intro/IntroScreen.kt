@@ -110,7 +110,6 @@ fun IntroScreen(
             transitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
             doneText = currentStrings.done,
             nextText = currentStrings.next,
-            previousText = currentStrings.previous,
             skipText = currentStrings.skip,
             onSkipClicked = {
                 viewModel.onEvent(IntroEvent.SkipClicked)

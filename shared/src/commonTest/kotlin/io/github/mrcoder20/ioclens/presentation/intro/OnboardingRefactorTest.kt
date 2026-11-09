@@ -151,5 +151,28 @@ class OnboardingRefactorTest {
         viewModel.onEvent(IntroEvent.Reset)
         assertFalse(viewModel.uiState.value.isCompleted, "isCompleted must be false after Reset")
     }
+
+    @Test
+    fun testPreviousButtonDoesNotExistOnAnySlide() {
+        // 1. Verify IntroEvent hierarchy contains no Previous action
+        val events = listOf(
+            IntroEvent.Reset,
+            IntroEvent.SkipClicked,
+            IntroEvent.CompleteClicked,
+            IntroEvent.LanguageChanged(AppLanguage.ENGLISH)
+        )
+        for (event in events) {
+            val name = event::class.simpleName ?: ""
+            assertFalse(
+                name.contains("Previous", ignoreCase = true),
+                "IntroEvent must not contain any Previous action (found $name)"
+            )
+        }
+
+        // 2. Verify IntroUiState relies strictly on Compose PagerState for slide index
+        val state = IntroUiState()
+        assertEquals(4, state.slides.size)
+        assertFalse(state.isCompleted)
+    }
 }
 

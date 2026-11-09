@@ -3,6 +3,7 @@ package io.github.mrcoder20.ioclens.data
 import io.github.mrcoder20.ioclens.data.remote.AbuseIpDbProvider
 import io.github.mrcoder20.ioclens.data.remote.AlienVaultOtxProvider
 import io.github.mrcoder20.ioclens.data.remote.CloudflareDnsProvider
+import io.github.mrcoder20.ioclens.data.remote.FeodoTrackerProvider
 import io.github.mrcoder20.ioclens.data.remote.IpQualityScoreProvider
 import io.github.mrcoder20.ioclens.data.remote.MalwareBazaarProvider
 import io.github.mrcoder20.ioclens.data.remote.PulsediveProvider
@@ -614,14 +615,25 @@ class ThreatIntelProvidersAtomicTest {
     // 8. AlienVault OTX (v1 API)
     // ==========================================
     @Test
-    fun testAlienVaultOtxMissingKey() = runTest {
+    fun testAlienVaultOtxZeroKeySupport() = runTest {
+        var otxKeyHeader: String? = null
+        val mockEngine = MockEngine { request ->
+            otxKeyHeader = request.headers["X-OTX-API-KEY"]
+            respond(
+                content = """{"pulse_info": {"count": 0}}""",
+                status = HttpStatusCode.OK,
+                headers = jsonHeaders
+            )
+        }
         val provider = AlienVaultOtxProvider()
-        val client = HttpClient(MockEngine { error("Should not be called") })
+        val client = HttpClient(mockEngine)
         val indicator = Indicator("example.com", "example.com", IndicatorType.DOMAIN)
         val result = provider.query(client, indicator, AppSettings(alienVaultApiKey = ""))
 
-        assertEquals(VerdictLevel.NO_DATA, result.verdict)
-        assertTrue(result.summary.contains("API Key required"))
+        assertTrue(provider.isZeroKey)
+        assertEquals(null, otxKeyHeader)
+        assertEquals(VerdictLevel.CLEAN, result.verdict)
+        assertEquals(0, result.detectionsCount)
     }
 
     @Test
@@ -969,5 +981,121 @@ class ThreatIntelProvidersAtomicTest {
 
         assertEquals(VerdictLevel.NO_DATA, result.verdict)
         assertTrue(result.summary.contains("Invalid or corrupted ThreatFox response payload"))
+    }
+
+    // ==========================================
+    // 10. FeodoTrackerProvider (abuse.ch) Atomic Tests
+    // ==========================================
+    @Test
+    fun testFeodoTrackerQueryMaliciousBotnetC2() = runTest {
+        val mockPayload = """
+            [
+              {
+                "ip_address": "198.51.100.22",
+                "port": 443,
+                "status": "online",
+                "malware": "QakBot",
+                "as_number": 12345,
+                "as_name": "MALICIOUS-AS",
+                "country": "US",
+                "first_seen": "2026-01-01",
+                "last_online": "2026-11-09"
+              },
+              {
+                "ip_address": "203.0.113.5",
+                "port": 8080,
+                "status": "offline",
+                "malware": "Emotet"
+              }
+            ]
+        """.trimIndent()
+
+        val mockEngine = MockEngine { request ->
+            assertTrue(request.url.toString().contains("feodotracker.abuse.ch"))
+            respond(mockPayload, HttpStatusCode.OK, jsonHeaders)
+        }
+
+        val provider = FeodoTrackerProvider()
+        val client = HttpClient(mockEngine)
+        val indicator = Indicator("198.51.100.22", "198.51.100.22", IndicatorType.IP_ADDRESS)
+        val result = provider.query(client, indicator, AppSettings())
+
+        assertEquals(VerdictLevel.MALICIOUS, result.verdict)
+        assertEquals(1, result.detectionsCount)
+        assertEquals(1, result.totalEngineCount)
+        assertFalse(result.isRateLimited)
+        assertTrue(result.summary.contains("QakBot"))
+        assertTrue(result.summary.contains("online:443"))
+    }
+
+    @Test
+    fun testFeodoTrackerQueryCleanWhenIpNotFound() = runTest {
+        val mockPayload = """
+            [
+              {
+                "ip_address": "203.0.113.5",
+                "port": 8080,
+                "status": "offline",
+                "malware": "Emotet"
+              }
+            ]
+        """.trimIndent()
+
+        val mockEngine = MockEngine { respond(mockPayload, HttpStatusCode.OK, jsonHeaders) }
+        val provider = FeodoTrackerProvider()
+        val client = HttpClient(mockEngine)
+        val indicator = Indicator("198.51.100.99", "198.51.100.99", IndicatorType.IP_ADDRESS)
+        val result = provider.query(client, indicator, AppSettings())
+
+        assertEquals(VerdictLevel.CLEAN, result.verdict)
+        assertEquals(0, result.detectionsCount)
+        assertEquals(1, result.totalEngineCount)
+        assertTrue(result.summary.contains("No active C2 botnet activity identified"))
+    }
+
+    @Test
+    fun testFeodoTrackerQueryEmptyBlocklist() = runTest {
+        val mockEngine = MockEngine { respond("[]", HttpStatusCode.OK, jsonHeaders) }
+        val provider = FeodoTrackerProvider()
+        val client = HttpClient(mockEngine)
+        val indicator = Indicator("198.51.100.99", "198.51.100.99", IndicatorType.IP_ADDRESS)
+        val result = provider.query(client, indicator, AppSettings())
+
+        assertEquals(VerdictLevel.CLEAN, result.verdict)
+        assertEquals(0, result.detectionsCount)
+        assertTrue(result.summary.contains("No active C2 botnets recorded"))
+    }
+
+    @Test
+    fun testFeodoTrackerApplicability() {
+        val provider = FeodoTrackerProvider()
+        assertTrue(provider.isApplicable(Indicator("1.1.1.1", "1.1.1.1", IndicatorType.IP_ADDRESS)))
+        assertFalse(provider.isApplicable(Indicator("google.com", "google.com", IndicatorType.DOMAIN)))
+        assertFalse(provider.isApplicable(Indicator("https://evil.com", "https://evil.com", IndicatorType.URL)))
+        assertFalse(provider.isApplicable(Indicator("hash", "hash", IndicatorType.FILE_HASH)))
+        assertFalse(provider.isApplicable(Indicator("unknown", "unknown", IndicatorType.UNKNOWN)))
+    }
+
+    @Test
+    fun testFeodoTrackerHttpErrorHandling() = runTest {
+        val provider = FeodoTrackerProvider()
+
+        // 500 error
+        val client500 = HttpClient(MockEngine { respond("Server Error", HttpStatusCode.InternalServerError) })
+        val res500 = provider.query(client500, Indicator("1.1.1.1", "1.1.1.1", IndicatorType.IP_ADDRESS), AppSettings())
+        assertEquals(VerdictLevel.NO_DATA, res500.verdict)
+        assertTrue(res500.summary.contains("Server error"))
+
+        // 429 rate limit
+        val client429 = HttpClient(MockEngine { respond("Too Many Requests", HttpStatusCode.TooManyRequests) })
+        val res429 = provider.query(client429, Indicator("1.1.1.1", "1.1.1.1", IndicatorType.IP_ADDRESS), AppSettings())
+        assertEquals(VerdictLevel.NO_DATA, res429.verdict)
+        assertTrue(res429.isRateLimited)
+
+        // Corrupted JSON payload
+        val clientCorrupted = HttpClient(MockEngine { respond("not-json", HttpStatusCode.OK) })
+        val resCorrupted = provider.query(clientCorrupted, Indicator("1.1.1.1", "1.1.1.1", IndicatorType.IP_ADDRESS), AppSettings())
+        assertEquals(VerdictLevel.NO_DATA, resCorrupted.verdict)
+        assertTrue(resCorrupted.summary.contains("Invalid or corrupted Feodo Tracker response payload"))
     }
 }

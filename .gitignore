@@ -122,3 +122,15 @@ coverage/
 node_modules/
 .cache/
 graphify-out/
+
+# ---------- Agent & AI tooling scratch (Never commit) ----------
+.agents/
+.gemini/
+.claude/
+.system_generated/
+.forensic_sessions/
+.mcpdom_projects/
+.mcpdom_recordings/
+PROJECT.md
+TEST_INFRA.md
+TEST_READY.md
