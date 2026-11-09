@@ -129,7 +129,11 @@ data class AppStrings(
     val searchHistoryPlaceholder: String,
     val filterAll: String,
     val noFilterResults: String,
-    val enginesZeroKeySubtitle: String
+    val enginesZeroKeySubtitle: String,
+    val visitWebsite: String,
+    val copyWebsiteUrl: String,
+    val websiteUrlCopied: String,
+    val filterByIocType: String
 )
 
 object LocalizationProvider {
@@ -305,6 +309,48 @@ object LocalizationProvider {
             "Pulsedive" -> listOf(IndicatorType.IP_ADDRESS, IndicatorType.DOMAIN, IndicatorType.URL, IndicatorType.FILE_HASH)
             "IPQualityScore" -> listOf(IndicatorType.IP_ADDRESS)
             else -> listOf(IndicatorType.UNKNOWN)
+        }
+    }
+
+    fun getProviderWebsiteUrl(name: String): String {
+        return when (name) {
+            "URLhaus (abuse.ch)" -> "https://urlhaus.abuse.ch"
+            "MalwareBazaar (abuse.ch)" -> "https://bazaar.abuse.ch"
+            "ThreatFox (abuse.ch)" -> "https://threatfox.abuse.ch"
+            "RDAP / Registry" -> "https://about.rdap.org"
+            "Cloudflare DoH" -> "https://cloudflare-dns.com"
+            "Shodan InternetDB" -> "https://internetdb.shodan.io"
+            "AlienVault OTX" -> "https://otx.alienvault.com"
+            "RIPE Stat" -> "https://stat.ripe.net"
+            "crt.sh" -> "https://crt.sh"
+            "Feodo Tracker (abuse.ch)" -> "https://feodotracker.abuse.ch"
+            "ipwho.is" -> "https://ipwho.is"
+            "VirusTotal" -> "https://www.virustotal.com"
+            "AbuseIPDB" -> "https://www.abuseipdb.com"
+            "Pulsedive" -> "https://pulsedive.com"
+            "IPQualityScore" -> "https://www.ipqualityscore.com"
+            else -> "https://abuse.ch"
+        }
+    }
+
+    fun getProviderDomain(name: String): String {
+        return when (name) {
+            "URLhaus (abuse.ch)" -> "urlhaus.abuse.ch"
+            "MalwareBazaar (abuse.ch)" -> "bazaar.abuse.ch"
+            "ThreatFox (abuse.ch)" -> "threatfox.abuse.ch"
+            "RDAP / Registry" -> "about.rdap.org"
+            "Cloudflare DoH" -> "cloudflare-dns.com"
+            "Shodan InternetDB" -> "internetdb.shodan.io"
+            "AlienVault OTX" -> "otx.alienvault.com"
+            "RIPE Stat" -> "stat.ripe.net"
+            "crt.sh" -> "crt.sh"
+            "Feodo Tracker (abuse.ch)" -> "feodotracker.abuse.ch"
+            "ipwho.is" -> "ipwho.is"
+            "VirusTotal" -> "virustotal.com"
+            "AbuseIPDB" -> "abuseipdb.com"
+            "Pulsedive" -> "pulsedive.com"
+            "IPQualityScore" -> "ipqualityscore.com"
+            else -> "abuse.ch"
         }
     }
 
@@ -643,7 +689,11 @@ object LocalizationProvider {
                 searchHistoryPlaceholder = "Filter history by IOC...",
                 filterAll = "ALL",
                 noFilterResults = "No matching records found for filter",
-                enginesZeroKeySubtitle = "10 Direct Zero-Key Threat Feeds • 100% Free & Tokenless"
+                enginesZeroKeySubtitle = "10 Direct Zero-Key Threat Feeds • 100% Free & Tokenless",
+                visitWebsite = "Visit Website",
+                copyWebsiteUrl = "Copy Link",
+                websiteUrlCopied = "Link copied to clipboard",
+                filterByIocType = "Filter by Indicator Type"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -770,7 +820,11 @@ object LocalizationProvider {
                 searchHistoryPlaceholder = "فیلتر تاریخچه بر اساس نشانگر...",
                 filterAll = "همه",
                 noFilterResults = "هیچ موردی با فیلتر فعلی یافت نشد",
-                enginesZeroKeySubtitle = "۱۰ فید مستقیم و بدون کلید • ۱۰۰٪ رایگان و آنی"
+                enginesZeroKeySubtitle = "۱۰ فید مستقیم و بدون کلید • ۱۰۰٪ رایگان و آنی",
+                visitWebsite = "مشاهده تارنما",
+                copyWebsiteUrl = "کپی پیوند",
+                websiteUrlCopied = "پیوند در حافظه کپی شد",
+                filterByIocType = "فیلتر بر اساس نوع نشانگر"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -897,7 +951,11 @@ object LocalizationProvider {
                 searchHistoryPlaceholder = "Фильтр истории по IOC...",
                 filterAll = "Все",
                 noFilterResults = "Нет записей, соответствующих фильтру",
-                enginesZeroKeySubtitle = "10 прямых фидов без ключей • 100% бесплатно и без токенов"
+                enginesZeroKeySubtitle = "10 прямых фидов без ключей • 100% бесплатно и без токенов",
+                visitWebsite = "Открыть сайт",
+                copyWebsiteUrl = "Копировать ссылку",
+                websiteUrlCopied = "Ссылка скопирована",
+                filterByIocType = "Фильтр по типу индикатора"
             )
         }
     }

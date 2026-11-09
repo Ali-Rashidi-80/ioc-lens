@@ -203,6 +203,33 @@ class LocalizationAndResponsiveTest {
             assertFalse(strings.noHistory.isBlank())
             assertFalse(strings.clearHistory.isBlank())
             assertFalse(strings.threatConfidenceScore.isBlank())
+            assertFalse(strings.visitWebsite.isBlank())
+            assertFalse(strings.copyWebsiteUrl.isBlank())
+            assertFalse(strings.websiteUrlCopied.isBlank())
+            assertFalse(strings.filterByIocType.isBlank())
+        }
+    }
+
+    @Test
+    fun testProviderWebsitesAndDomains() {
+        val providers = listOf(
+            "URLhaus (abuse.ch)",
+            "MalwareBazaar (abuse.ch)",
+            "ThreatFox (abuse.ch)",
+            "RDAP / Registry",
+            "Cloudflare DoH",
+            "Shodan InternetDB",
+            "AlienVault OTX",
+            "RIPE Stat",
+            "crt.sh",
+            "Feodo Tracker (abuse.ch)"
+        )
+        for (provider in providers) {
+            val url = LocalizationProvider.getProviderWebsiteUrl(provider)
+            val domain = LocalizationProvider.getProviderDomain(provider)
+            assertTrue(url.startsWith("https://"), "Provider $provider website should start with https://, got: $url")
+            assertFalse(domain.isBlank(), "Provider $provider domain should not be blank")
+            assertTrue(url.contains(domain), "Provider $provider url ($url) should contain domain ($domain)")
         }
     }
 }

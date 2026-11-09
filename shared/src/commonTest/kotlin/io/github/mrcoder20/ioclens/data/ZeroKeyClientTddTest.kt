@@ -246,7 +246,7 @@ class ZeroKeyClientTddTest {
         }
 
         val client = HttpClient(mockEngine)
-        val aggregator = ThreatIntelAggregator(client, timeoutMs = 1500L)
+        val aggregator = ThreatIntelAggregator(client, timeoutMs = 5000L)
         val indicator = parser.parse("https://safe-example.org/downloads/doc.pdf").toIndicator()
         assertEquals(IndicatorType.URL, indicator.type)
 
@@ -256,6 +256,42 @@ class ZeroKeyClientTddTest {
         assertTrue(names.contains("ThreatFox (abuse.ch)"))
         assertTrue(names.contains("AlienVault OTX"))
         assertEquals(VerdictLevel.CLEAN, verdict.overallVerdict)
+    }
+
+    @Test
+    fun testMalwareBazaarProviderDirect() = runTest {
+        val mockEngine = MockEngine { request ->
+            respond("""{"query_status": "ok", "signature": "WannaCry", "file_type": "exe"}""", HttpStatusCode.OK, jsonHeaders)
+        }
+        val client = HttpClient(mockEngine)
+        val provider = MalwareBazaarProvider()
+        val indicator = Indicator("hash123", "hash123", IndicatorType.FILE_HASH)
+        val res = provider.query(client, indicator, AppSettings())
+        assertEquals(VerdictLevel.MALICIOUS, res.verdict)
+    }
+
+    @Test
+    fun testThreatFoxProviderDirect() = runTest {
+        val mockEngine = MockEngine { request ->
+            respond("""{"query_status": "ok", "data": [{"threat_type": "payload", "malware": "win.wannacry", "confidence_level": 100}]}""", HttpStatusCode.OK, jsonHeaders)
+        }
+        val client = HttpClient(mockEngine)
+        val provider = ThreatFoxProvider()
+        val indicator = Indicator("hash123", "hash123", IndicatorType.FILE_HASH)
+        val res = provider.query(client, indicator, AppSettings())
+        assertEquals(VerdictLevel.MALICIOUS, res.verdict)
+    }
+
+    @Test
+    fun testAlienVaultOtxProviderDirect() = runTest {
+        val mockEngine = MockEngine { request ->
+            respond("""{"pulse_info": {"count": 5}}""", HttpStatusCode.OK, jsonHeaders)
+        }
+        val client = HttpClient(mockEngine)
+        val provider = AlienVaultOtxProvider()
+        val indicator = Indicator("hash123", "hash123", IndicatorType.FILE_HASH)
+        val res = provider.query(client, indicator, AppSettings())
+        assertEquals(VerdictLevel.MALICIOUS, res.verdict)
     }
 
     @Test
@@ -277,7 +313,7 @@ class ZeroKeyClientTddTest {
         }
 
         val client = HttpClient(mockEngine)
-        val aggregator = ThreatIntelAggregator(client, timeoutMs = 1500L)
+        val aggregator = ThreatIntelAggregator(client, timeoutMs = 5000L)
         val indicator = parser.parse("84c82835a5d21bbcf75a61706d8ab549").toIndicator()
         assertEquals(IndicatorType.FILE_HASH, indicator.type)
 

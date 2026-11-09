@@ -146,7 +146,11 @@ class EnglishLocaleSanityTest {
             "searchHistoryPlaceholder" to strings.searchHistoryPlaceholder,
             "filterAll" to strings.filterAll,
             "noFilterResults" to strings.noFilterResults,
-            "enginesZeroKeySubtitle" to strings.enginesZeroKeySubtitle
+            "enginesZeroKeySubtitle" to strings.enginesZeroKeySubtitle,
+            "visitWebsite" to strings.visitWebsite,
+            "copyWebsiteUrl" to strings.copyWebsiteUrl,
+            "websiteUrlCopied" to strings.websiteUrlCopied,
+            "filterByIocType" to strings.filterByIocType
         )
 
         for ((propName, propValue) in properties) {

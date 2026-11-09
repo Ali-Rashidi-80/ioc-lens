@@ -71,6 +71,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +92,8 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -125,6 +128,7 @@ import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
 import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
 import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -1930,18 +1934,41 @@ private fun EnginesDashboardView(
 ) {
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
 
-    val allProviders = listOf(
-        "URLhaus (abuse.ch)" to true,
-        "MalwareBazaar (abuse.ch)" to true,
-        "ThreatFox (abuse.ch)" to true,
-        "RDAP / Registry" to true,
-        "Cloudflare DoH" to true,
-        "Shodan InternetDB" to true,
-        "AlienVault OTX" to true,
-        "RIPE Stat" to true,
-        "crt.sh" to true,
-        "Feodo Tracker (abuse.ch)" to true
-    )
+    val allProviders = remember {
+        listOf(
+            "URLhaus (abuse.ch)" to true,
+            "MalwareBazaar (abuse.ch)" to true,
+            "ThreatFox (abuse.ch)" to true,
+            "RDAP / Registry" to true,
+            "Cloudflare DoH" to true,
+            "Shodan InternetDB" to true,
+            "AlienVault OTX" to true,
+            "RIPE Stat" to true,
+            "crt.sh" to true,
+            "Feodo Tracker (abuse.ch)" to true
+        )
+    }
+
+    var selectedTypeFilter by remember { mutableStateOf<IndicatorType?>(null) }
+    var copiedFeedbackProvider by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(copiedFeedbackProvider) {
+        if (copiedFeedbackProvider != null) {
+            delay(2000)
+            copiedFeedbackProvider = null
+        }
+    }
+
+    val filteredProviders = remember(selectedTypeFilter) {
+        if (selectedTypeFilter == null) {
+            allProviders
+        } else {
+            allProviders.filter { (name, _) ->
+                val types = LocalizationProvider.getProviderSupportedTypes(name)
+                selectedTypeFilter in types
+            }
+        }
+    }
 
     val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
     val activeMap = activeSources.associateBy { it.providerName }
@@ -1951,7 +1978,7 @@ private fun EnginesDashboardView(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Dashboard Header Card
         Card(
@@ -1960,47 +1987,135 @@ private fun EnginesDashboardView(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
             border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(
-                        text = "${strings.threatIntelProvidersTitle} (${LocalizationProvider.formatNumber(10, uiState.appLanguage)})",
-                        style = if (!isTwoColumn) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = strings.enginesZeroKeySubtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            text = "${strings.threatIntelProvidersTitle} (${LocalizationProvider.formatNumber(filteredProviders.size, uiState.appLanguage)} / ${LocalizationProvider.formatNumber(allProviders.size, uiState.appLanguage)})",
+                            style = if (!isTwoColumn) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                            color = PrimaryCyan,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = strings.enginesZeroKeySubtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    Surface(
+                        color = VerdictClean.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(VerdictClean))
+                            Text(
+                                text = strings.systemReadyEngines,
+                                fontSize = 11.sp,
+                                color = VerdictClean,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
                 }
 
-                Surface(
-                    color = VerdictClean.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.4f))
-                ) {
+                // Interactive IOC Type Filter Row
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = strings.filterByIocType + ":",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                        Text(
-                            text = strings.systemReadyEngines,
-                            fontSize = 10.5.sp,
-                            color = VerdictClean,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        // "ALL" Filter Chip
+                        val isAllSelected = selectedTypeFilter == null
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedTypeFilter = null }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = if (isAllSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF131F33),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isAllSelected) PrimaryCyan else Color(0xFF1E293B)
+                            )
+                        ) {
+                            Text(
+                                text = "${strings.filterAll} (${LocalizationProvider.formatNumber(allProviders.size, uiState.appLanguage)})",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                color = if (isAllSelected) PrimaryCyan else Color(0xFF94A3B8),
+                                fontSize = 11.sp,
+                                fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        // Specific IOC Type Filter Chips
+                        listOf(
+                            IndicatorType.IP_ADDRESS to "IP",
+                            IndicatorType.DOMAIN to "DOMAIN",
+                            IndicatorType.URL to "URL",
+                            IndicatorType.FILE_HASH to "HASH"
+                        ).forEach { (type, label) ->
+                            val isSelected = selectedTypeFilter == type
+                            val count = allProviders.count { (name, _) ->
+                                type in LocalizationProvider.getProviderSupportedTypes(name)
+                            }
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { selectedTypeFilter = if (isSelected) null else type }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = if (isSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF131F33),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+                                )
+                            ) {
+                                Text(
+                                    text = "$label (${LocalizationProvider.formatNumber(count, uiState.appLanguage)})",
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                    color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2010,12 +2125,12 @@ private fun EnginesDashboardView(
         if (isTwoColumn) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                allProviders.chunked(2).forEach { pair ->
+                filteredProviders.chunked(2).forEach { pair ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         pair.forEach { (name, isZeroKey) ->
                             Box(modifier = Modifier.weight(1f)) {
@@ -2027,7 +2142,9 @@ private fun EnginesDashboardView(
                                     indicatorType = currentIndicatorType,
                                     hasActiveVerdict = uiState.activeVerdict != null,
                                     appLanguage = uiState.appLanguage,
-                                    strings = strings
+                                    strings = strings,
+                                    isCopiedFeedback = copiedFeedbackProvider == name,
+                                    onCopyUrl = { copiedFeedbackProvider = name }
                                 )
                             }
                         }
@@ -2040,9 +2157,9 @@ private fun EnginesDashboardView(
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                allProviders.forEach { (name, isZeroKey) ->
+                filteredProviders.forEach { (name, isZeroKey) ->
                     EngineDetailCard(
                         name = name,
                         isZeroKey = isZeroKey,
@@ -2051,7 +2168,9 @@ private fun EnginesDashboardView(
                         indicatorType = currentIndicatorType,
                         hasActiveVerdict = uiState.activeVerdict != null,
                         appLanguage = uiState.appLanguage,
-                        strings = strings
+                        strings = strings,
+                        isCopiedFeedback = copiedFeedbackProvider == name,
+                        onCopyUrl = { copiedFeedbackProvider = name }
                     )
                 }
             }
@@ -2068,7 +2187,9 @@ private fun EngineDetailCard(
     indicatorType: IndicatorType?,
     hasActiveVerdict: Boolean,
     appLanguage: AppLanguage,
-    strings: AppStrings
+    strings: AppStrings,
+    isCopiedFeedback: Boolean = false,
+    onCopyUrl: ((String) -> Unit)? = null
 ) {
     val isApplicable = isProviderApplicable(name, indicatorType)
     val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
@@ -2104,65 +2225,158 @@ private fun EngineDetailCard(
 
     val supportedTypes = LocalizationProvider.getProviderSupportedTypes(name)
     val description = LocalizationProvider.getProviderDescription(name, appLanguage)
+    val websiteUrl = LocalizationProvider.getProviderWebsiteUrl(name)
+    val domain = LocalizationProvider.getProviderDomain(name)
+    val uriHandler = LocalUriHandler.current
+    val clipboardManager = LocalClipboardManager.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = if (result != null) statusColor.copy(alpha = 0.6f) else PrimaryCyan.copy(alpha = 0.25f)
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header Row: Provider Name + Free Badge + Live Status Badge
+            // Header Row: Provider Display Name (Ellipsized, single-line) + Live Status Badge (never wrapped)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Text(
+                    text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    color = statusColor.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, statusColor.copy(alpha = 0.45f))
                 ) {
-                    Text(
-                        text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp
-                    )
-                    if (isZeroKey) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = VerdictClean.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = strings.freeBadge,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = VerdictClean,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(statusColor)
+                        )
+                        Text(
+                            text = statusText,
+                            color = statusColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.5.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+
+            // Interactive Website & Portal Link Row (Direct utility!)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Clickable Domain Pill (opens official portal in user's browser)
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            try {
+                                uriHandler.openUri(websiteUrl)
+                            } catch (_: Exception) {
+                                clipboardManager.setText(AnnotatedString(websiteUrl))
+                            }
                         }
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    color = Color(0xFF0F172A),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "🌐",
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = domain,
+                            color = PrimaryCyan,
+                            fontSize = 11.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = "↗",
+                            color = PrimaryCyan.copy(alpha = 0.85f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
+                // Quick Copy Link Pill
                 Surface(
-                    color = statusColor.copy(alpha = 0.18f),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            clipboardManager.setText(AnnotatedString(websiteUrl))
+                            onCopyUrl?.invoke(websiteUrl)
+                        }
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    color = if (isCopiedFeedback) VerdictClean.copy(alpha = 0.2f) else Color(0xFF1E293B).copy(alpha = 0.5f),
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, statusColor.copy(alpha = 0.4f))
-                ) {
-                    Text(
-                        text = statusText,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.5.sp
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.6.dp,
+                        if (isCopiedFeedback) VerdictClean else Color(0xFF334155)
                     )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (isCopiedFeedback) "✓" else "📋",
+                            fontSize = 10.5.sp,
+                            color = if (isCopiedFeedback) VerdictClean else Color(0xFF94A3B8)
+                        )
+                        Text(
+                            text = if (isCopiedFeedback) strings.websiteUrlCopied else strings.copyWebsiteUrl,
+                            color = if (isCopiedFeedback) VerdictClean else Color(0xFF94A3B8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
 
@@ -2171,8 +2385,8 @@ private fun EngineDetailCard(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF94A3B8),
-                fontSize = 11.5.sp,
-                lineHeight = 16.sp
+                fontSize = 12.sp,
+                lineHeight = 17.5.sp
             )
 
             // Supported Indicators Chips Row
@@ -2185,7 +2399,9 @@ private fun EngineDetailCard(
                     text = strings.indicatorTypeLabel + ":",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
-                    fontSize = 10.sp
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 supportedTypes.forEach { type ->
                     val typeLabel = when (type) {
@@ -2198,14 +2414,16 @@ private fun EngineDetailCard(
                     Surface(
                         color = Color(0xFF131F33),
                         shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, PrimaryCyan.copy(alpha = 0.3f))
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, PrimaryCyan.copy(alpha = 0.35f))
                     ) {
                         Text(
                             text = typeLabel,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             color = PrimaryCyan.copy(alpha = 0.9f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -2213,12 +2431,12 @@ private fun EngineDetailCard(
 
             // If active scan result exists for this provider, show summary
             if (result != null) {
-                HorizontalDivider(color = Color(0xFF1E293B).copy(alpha = 0.5f))
+                HorizontalDivider(color = Color(0xFF1E293B).copy(alpha = 0.6f))
                 ControlledMarqueeText(
                     text = LocalizationProvider.getLocalizedSourceSummary(result.summary, appLanguage),
                     style = MaterialTheme.typography.labelSmall,
                     color = statusColor,
-                    fontSize = 10.5.sp,
+                    fontSize = 11.sp,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
