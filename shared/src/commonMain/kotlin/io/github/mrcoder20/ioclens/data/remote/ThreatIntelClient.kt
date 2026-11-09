@@ -171,9 +171,9 @@ class MalwareBazaarProvider : ThreatIntelProvider {
 
         return when {
             queryStatus == "ok" -> {
-                val dataObj = body["data"]?.jsonArray?.firstOrNull()?.jsonObject
-                val signature = dataObj?.get("signature")?.jsonPrimitive?.contentOrNull ?: "Known Malware"
-                val fileType = dataObj?.get("file_type")?.jsonPrimitive?.contentOrNull ?: "sample"
+                val dataObj = body["data"]?.jsonArray?.firstOrNull()?.jsonObject ?: body
+                val signature = dataObj["signature"]?.jsonPrimitive?.contentOrNull ?: "Known Malware"
+                val fileType = dataObj["file_type"]?.jsonPrimitive?.contentOrNull ?: "sample"
                 SourceResult(
                     name,
                     VerdictLevel.MALICIOUS,
@@ -388,7 +388,6 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
                 header("X-OTX-API-KEY", apiKey)
             }
         }
-
         if (response.status == HttpStatusCode.NotFound) {
             return SourceResult(name, VerdictLevel.CLEAN, 0, 0, "0 threat pulses found in AlienVault OTX")
         }

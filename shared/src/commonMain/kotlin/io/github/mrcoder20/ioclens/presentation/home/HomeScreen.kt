@@ -765,14 +765,6 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Cyber Telemetry & Privacy Status Footer
-                CyberTelemetryFooter(
-                    strings = strings,
-                    isMobileOrTablet = isMobileOrTablet
-                )
-
                 Spacer(modifier = Modifier.height(if (isMobileOrTablet) 84.dp else 40.dp))
             }
         }
@@ -2265,53 +2257,22 @@ private fun HistoryFullScreenView(
             .padding(top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Header Row (NO close button)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isRtl) {
-                if (history.isNotEmpty()) {
-                    TextButton(
-                        onClick = onClear,
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                    ) {
-                        Text(
-                            text = strings.clearHistory,
-                            color = VerdictMalicious,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
-                }
-                Text(
-                    text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = PrimaryCyan,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Text(
-                    text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = PrimaryCyan,
-                    fontWeight = FontWeight.Bold
-                )
-                if (history.isNotEmpty()) {
-                    TextButton(
-                        onClick = onClear,
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                    ) {
-                        Text(
-                            text = strings.clearHistory,
-                            color = VerdictMalicious,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+        if (history.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (isRtl) Arrangement.Start else Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onClear,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                ) {
+                    Text(
+                        text = strings.clearHistory,
+                        color = VerdictMalicious,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

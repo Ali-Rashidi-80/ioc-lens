@@ -258,7 +258,10 @@ fun SettingsScreen(
 }
 
 /**
- * Top Header ensuring physical right-alignment for Dismiss button (✕) and Settings title in Persian RTL.
+ * Top Header ensuring standard navigation bar alignment:
+ * In RTL (Persian): Back button on the physical right, followed by Title & Subtitle.
+ * In LTR (English / Russian): Back button on the physical left, followed by Title & Subtitle.
+ * The extra "Security Console" badge is completely eliminated.
  */
 @Composable
 private fun SettingsHeader(
@@ -268,107 +271,44 @@ private fun SettingsHeader(
 ) {
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Back Button with directional arrow (→ for RTL, ← for LTR)
+        Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClose)
+                .pointerHoverIcon(PointerIcon.Hand),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
         ) {
-            if (isRtl) {
-                // Persian RTL: Anchored on the physical right edge
-                Surface(
-                    color = PrimaryCyan.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = strings.settingsSecurityConsoleBadge,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = PrimaryCyan.copy(alpha = 0.8f),
-                        fontSize = 10.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                HeaderTitle(strings = strings, isRtl = true)
-
-                if (!isFullScreen) {
-                    Spacer(modifier = Modifier.width(16.dp))
-                    DismissButton(onClose = onClose)
-                }
-            } else {
-                // LTR (English / Russian): Title at left, Dismiss button at right
-                HeaderTitle(strings = strings, isRtl = false)
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Surface(
-                    color = PrimaryCyan.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = strings.settingsSecurityConsoleBadge,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = PrimaryCyan.copy(alpha = 0.8f),
-                        fontSize = 10.sp
-                    )
-                }
-
-                if (!isFullScreen) {
-                    Spacer(modifier = Modifier.width(16.dp))
-                    DismissButton(onClose = onClose)
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (isRtl) "→" else "←",
+                    fontSize = 20.sp,
+                    color = PrimaryCyan,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
-    }
-}
 
-@Composable
-private fun HeaderTitle(strings: AppStrings, isRtl: Boolean) {
-    Column(horizontalAlignment = if (isRtl) Alignment.End else Alignment.Start) {
+        Spacer(modifier = Modifier.width(14.dp))
+
+        // Title ONLY (no gear icon, no subtitle)
         Text(
-            text = "⚙️ ${strings.settingsTitle}",
+            text = strings.settingsTitle,
             style = MaterialTheme.typography.headlineMedium,
             color = PrimaryCyan,
-            fontWeight = FontWeight.Bold,
-            textAlign = if (isRtl) TextAlign.End else TextAlign.Start
+            fontWeight = FontWeight.Bold
         )
-        Text(
-            text = strings.menuSettings,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = if (isRtl) TextAlign.End else TextAlign.Start
-        )
-    }
-}
 
-@Composable
-private fun DismissButton(onClose: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .size(42.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClose)
-            .pointerHoverIcon(PointerIcon.Hand),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = "✕",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
@@ -990,11 +930,18 @@ private fun AboutCard(
     isCompact: Boolean = false,
     onReplayGuide: (() -> Unit)?
 ) {
-    SettingsCard(
-        title = "ℹ️ ${strings.menuAbout}",
-        badge = strings.badgeOpenSourceVersion
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             // Hero Presentation Hub
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -1019,32 +966,13 @@ private fun AboutCard(
                     }
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "IOC LENS",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                letterSpacing = 1.sp
-                            )
-                            Surface(
-                                color = PrimaryCyan.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(6.dp),
-                                border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan)
-                            ) {
-                                Text(
-                                    text = strings.versionLabel,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryCyan
-                                )
-                            }
-                        }
+                        Text(
+                            text = "IOC LENS",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            letterSpacing = 1.sp
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = strings.appTagline,
