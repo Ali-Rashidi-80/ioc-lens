@@ -23,6 +23,10 @@ compose.desktop {
     application {
         mainClass = "io.github.mrcoder20.ioclens.MainKt"
 
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("proguard-rules.pro"))
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
             packageName = "io.github.mrcoder20.ioclens"
