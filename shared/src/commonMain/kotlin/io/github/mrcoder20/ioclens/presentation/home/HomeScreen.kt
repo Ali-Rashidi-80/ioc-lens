@@ -576,6 +576,19 @@ fun HomeScreen(
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
                         }
+                        3 -> {
+                            // TAB 4: SETTINGS VIEW (Dedicated full-screen view without modal backdrop)
+                            SettingsScreen(
+                                settingsRepository = settingsRepository,
+                                isMobileOrTablet = false,
+                                isFullScreen = true,
+                                onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
+                                onReplayGuide = {
+                                    viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
+                                    introViewModel?.onEvent(IntroEvent.Reset)
+                                }
+                            )
+                        }
                         else -> {
                             // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
                             Row(
@@ -734,6 +747,19 @@ fun HomeScreen(
                                     viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
                                 },
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
+                            )
+                        }
+                        3 -> {
+                            // TAB 4: SETTINGS VIEW (Dedicated full-screen view without modal backdrop or close button)
+                            SettingsScreen(
+                                settingsRepository = settingsRepository,
+                                isMobileOrTablet = true,
+                                isFullScreen = true,
+                                onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
+                                onReplayGuide = {
+                                    viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
+                                    introViewModel?.onEvent(IntroEvent.Reset)
+                                }
                             )
                         }
                     }
