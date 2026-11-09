@@ -107,7 +107,20 @@ data class AppStrings(
     val privacyGuardActiveDesc: String,
     val privacyGuardInactiveDesc: String,
     val badgeClientDirect: String,
-    val badgeZeroCloudDb: String
+    val badgeZeroCloudDb: String,
+    val settingsSecurityConsoleBadge: String,
+    val cardPrivacyGuardTitle: String,
+    val cardThreatIntelTitle: String,
+    val aboutZeroCloudDesc: String,
+    val aboutClientDirectDesc: String,
+    val aboutPrivacyGuardDesc: String,
+    val aboutThreatIntelDesc: String,
+    val replayInteractiveTour: String,
+    val specStandalonePortable: String,
+    val specZeroTelemetry: String,
+    val specOpenSource: String,
+    val specMultiplatformEngine: String,
+    val statusKeyRequiredShort: String
 )
 
 object LocalizationProvider {
@@ -443,7 +456,20 @@ object LocalizationProvider {
                 privacyGuardActiveDesc = "Client-Side Zero-Leak: Queries for RFC 1918 private intranet (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) and 127.0.0.1 are intercepted locally without outbound traffic.",
                 privacyGuardInactiveDesc = "Private IP Guard inactive: Local intranet and loopback addresses will not be filtered automatically.",
                 badgeClientDirect = "⚡ 100% Client-Direct",
-                badgeZeroCloudDb = "🛡️ Zero Cloud Database"
+                badgeZeroCloudDb = "🛡️ Zero Cloud Database",
+                settingsSecurityConsoleBadge = "SECURITY CONSOLE // SETTINGS",
+                cardPrivacyGuardTitle = "Privacy Guard (RFC 1918)",
+                cardThreatIntelTitle = "10 Threat Intel Engines",
+                aboutZeroCloudDesc = "No intermediate server database exists. Reports and scan history are stored exclusively in encrypted local storage.",
+                aboutClientDirectDesc = "Threat queries are dispatched directly from your device via official HTTPS APIs without middleman proxies (100% client-side).",
+                aboutPrivacyGuardDesc = "Real-time detection and blocking of local and private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) to prevent data leakage.",
+                aboutThreatIntelDesc = "Real-time aggregation of 10 zero-key intelligence feeds and specialized engines for phishing, malware, and IP reputation triage.",
+                replayInteractiveTour = "Replay Interactive Tour & App Guide",
+                specStandalonePortable = "Standalone Portable",
+                specZeroTelemetry = "Zero Telemetry",
+                specOpenSource = "Apache 2.0 Open Source",
+                specMultiplatformEngine = "Multiplatform Engine",
+                statusKeyRequiredShort = "Key Required"
             )
             AppLanguage.PERSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -548,7 +574,20 @@ object LocalizationProvider {
                 privacyGuardActiveDesc = "حفاظت سمت کلاینت فعال است: استعلام آدرس‌های خصوصی و لوپ‌بک (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1) به صورت محلی مسدود شده و ترافیکی به اینترنت ارسال نمی‌شود.",
                 privacyGuardInactiveDesc = "حفاظت از آی‌پی‌های خصوصی غیرفعال است: آدرس‌های لوپ‌بک و شبکه محلی فیلتر نخواهند شد.",
                 badgeClientDirect = "⚡ ارتباط ۱۰۰٪ مستقیم کلاینت",
-                badgeZeroCloudDb = "🛡️ بدون پایگاه داده ابری"
+                badgeZeroCloudDb = "🛡️ بدون پایگاه داده ابری",
+                settingsSecurityConsoleBadge = "کنسول امنیت // تنظیمات",
+                cardPrivacyGuardTitle = "سپر حریم خصوصی (RFC 1918)",
+                cardThreatIntelTitle = "۱۰ موتور تحلیل تهدید",
+                aboutZeroCloudDesc = "هیچ پایگاه داده ابری یا سرور میانی وجود ندارد؛ توکن‌ها و سوابق تنها در حافظه رمزنگاری‌شده محلی ذخیره می‌شوند.",
+                aboutClientDirectDesc = "استعلام‌های تهدید مستقیماً از سیستم شما به APIهای رسمی ارسال می‌شوند بدون واسطه (۱۰۰٪ کلاینت-ساید).",
+                aboutPrivacyGuardDesc = "تشخیص و مسدودسازی بلادرنگ آی‌پی‌های محلی و خصوصی (10.0.0.0/8، 172.16.0.0/12 و 192.168.0.0/16) جهت جلوگیری از نشت ترافیک.",
+                aboutThreatIntelDesc = "تلفیق بلادرنگ ۱۰ فید هوش تهدید بدون نیاز به کلید و موتورهای تخصصی برای تریاژ فیشینگ، بدافزار و شهرت آی‌پی.",
+                replayInteractiveTour = "مرور راهنمای تعاملی و آموزش برنامه",
+                specStandalonePortable = "پرتابل و مستقل",
+                specZeroTelemetry = "بدون تله‌متری",
+                specOpenSource = "متن‌باز آپاچی ۲.۰",
+                specMultiplatformEngine = "موتور چندسکویی",
+                statusKeyRequiredShort = "نیاز به کلید"
             )
             AppLanguage.RUSSIAN -> AppStrings(
                 appTitle = "IOC Lens",
@@ -653,7 +692,20 @@ object LocalizationProvider {
                 privacyGuardActiveDesc = "Защита активна: запросы к приватным сетям RFC 1918 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1) перехватываются без отправки в интернет.",
                 privacyGuardInactiveDesc = "Защита частных IP отключена: локальные адреса не будут фильтроваться.",
                 badgeClientDirect = "⚡ 100% Прямое подключение",
-                badgeZeroCloudDb = "🛡️ Без облачных баз"
+                badgeZeroCloudDb = "🛡️ Без облачных баз",
+                settingsSecurityConsoleBadge = "КОНСОЛЬ БЕЗОПАСНОСТИ // НАСТРОЙКИ",
+                cardPrivacyGuardTitle = "Защита приватных IP (RFC 1918)",
+                cardThreatIntelTitle = "10 движков Threat Intel",
+                aboutZeroCloudDesc = "Промежуточная база данных на сервере отсутствует. Отчеты и история проверок хранятся исключительно в зашифрованном локальном хранилище.",
+                aboutClientDirectDesc = "Запросы отправляются напрямую с устройства через официальные HTTPS API без сторонних прокси-серверов (100% на стороне клиента).",
+                aboutPrivacyGuardDesc = "Обнаружение и блокировка запросов к локальным и приватным IP-диапазонам (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) в реальном времени для защиты от утечек данных.",
+                aboutThreatIntelDesc = "Агрегация в реальном времени 10 бесплатных фидов угроз и специализированных движков для анализа фишинга, вредоносного ПО и репутации IP.",
+                replayInteractiveTour = "Повторить интерактивный тур и руководство",
+                specStandalonePortable = "Портативная сборка",
+                specZeroTelemetry = "Без телеметрии",
+                specOpenSource = "Apache 2.0 Open Source",
+                specMultiplatformEngine = "Кроссплатформенный движок",
+                statusKeyRequiredShort = "Нужен ключ"
             )
         }
     }

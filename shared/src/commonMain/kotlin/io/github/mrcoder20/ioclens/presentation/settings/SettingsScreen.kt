@@ -139,14 +139,20 @@ fun SettingsScreen(
         }
     }
 
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
-            .statusBarsPadding()
-            .navigationBarsPadding(),
-        contentAlignment = Alignment.TopCenter
+    val isRtl = settingsState.appLanguage.isRtl
+    val layoutDirection = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+
+    CompositionLocalProvider(
+        LocalLayoutDirection provides layoutDirection
     ) {
+        BoxWithConstraints(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.TopCenter
+        ) {
         val isCompactLayout = maxWidth < 680.dp || isMobileOrTablet
 
         Column(
@@ -280,6 +286,7 @@ fun SettingsScreen(
         }
     }
 }
+}
 
 /**
  * Top Header ensuring physical right-alignment for Dismiss button (✕) and Settings title in Persian RTL.
@@ -306,7 +313,7 @@ private fun SettingsHeader(
                     border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f))
                 ) {
                     Text(
-                        text = "SECURITY CONSOLE // SETTINGS",
+                        text = strings.settingsSecurityConsoleBadge,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
@@ -327,6 +334,23 @@ private fun SettingsHeader(
                 HeaderTitle(strings = strings, isRtl = false)
 
                 Spacer(modifier = Modifier.weight(1f))
+
+                Surface(
+                    color = PrimaryCyan.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = strings.settingsSecurityConsoleBadge,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = PrimaryCyan.copy(alpha = 0.8f),
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
 
                 DismissButton(onClose = onClose)
             }
@@ -389,11 +413,7 @@ private fun LanguageCard(
         title = "🌐 ${strings.languageLabel}",
         badge = settingsState.appLanguage.badgeCode
     ) {
-        val languages = listOf(
-            Pair(AppLanguage.ENGLISH, "English"),
-            Pair(AppLanguage.PERSIAN, "فارسی"),
-            Pair(AppLanguage.RUSSIAN, "Русский")
-        )
+        val languages = AppLanguage.entries.map { it to it.displayName }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1036,14 +1056,14 @@ private fun AboutCard(
                         ArchitecturePillarCard(
                             icon = "🔒",
                             title = strings.badgeZeroCloudDb,
-                            description = "هیچ پایگاه داده ابری یا سرور میانی وجود ندارد؛ توکن‌ها و سوابق تنها در حافظه رمزنگاری‌شده محلی ذخیره می‌شوند."
+                            description = strings.aboutZeroCloudDesc
                         )
                     }
                     Box(modifier = Modifier.weight(1f)) {
                         ArchitecturePillarCard(
                             icon = "⚡",
                             title = strings.badgeClientDirect,
-                            description = "استعلام‌های تهدید مستقیماً از سیستم شما به APIهای رسمی ارسال می‌شوند بدون واسطه (۱۰۰٪ کلاینت-ساید)."
+                            description = strings.aboutClientDirectDesc
                         )
                     }
                 }
@@ -1056,15 +1076,15 @@ private fun AboutCard(
                     Box(modifier = Modifier.weight(1f)) {
                         ArchitecturePillarCard(
                             icon = "🛡️",
-                            title = "سپر حریم خصوصی RFC 1918",
-                            description = "تشخیص و مسدودسازی بلادرنگ آی‌پی‌های محلی و خصوصی (10.0.0.0/8 و 192.168.0.0/16) جهت جلوگیری از نشت ترافیک."
+                            title = strings.cardPrivacyGuardTitle,
+                            description = strings.aboutPrivacyGuardDesc
                         )
                     }
                     Box(modifier = Modifier.weight(1f)) {
                         ArchitecturePillarCard(
                             icon = "🌐",
-                            title = strings.threatIntelProvidersTitle,
-                            description = "تلفیق بلادرنگ ۵ فید باز رایگان و ۵ موتور تخصصی برای تحلیل بدافزار، فیشینگ، دی‌ان‌اس و شهرت آی‌پی."
+                            title = strings.cardThreatIntelTitle,
+                            description = strings.aboutThreatIntelDesc
                         )
                     }
                 }
@@ -1076,10 +1096,10 @@ private fun AboutCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
-                    "Standalone Portable",
-                    "Zero Telemetry",
-                    "Apache 2.0 Open Source",
-                    "Multiplatform Engine"
+                    strings.specStandalonePortable,
+                    strings.specZeroTelemetry,
+                    strings.specOpenSource,
+                    strings.specMultiplatformEngine
                 ).forEach { spec ->
                     Surface(
                         modifier = Modifier.weight(1f),
@@ -1119,7 +1139,7 @@ private fun AboutCard(
                     ) {
                         Text(text = "✨", fontSize = 16.sp)
                         Text(
-                            text = "مرور راهنمای تعاملی و آموزش برنامه (Replay Interactive Tour)",
+                            text = strings.replayInteractiveTour,
                             color = PrimaryCyan,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp

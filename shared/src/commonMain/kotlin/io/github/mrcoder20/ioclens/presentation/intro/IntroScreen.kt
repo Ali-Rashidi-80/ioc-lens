@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -83,9 +84,14 @@ fun IntroScreen(
         }
     }
 
-    Box(
-        modifier = modifier.fillMaxSize()
+    val layoutDirection = if (uiState.currentLanguage.isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+
+    CompositionLocalProvider(
+        LocalLayoutDirection provides layoutDirection
     ) {
+        Box(
+            modifier = modifier.fillMaxSize()
+        ) {
         // 1. Liquidmorphism Animated Background Blobs
         LiquidmorphicBackground(
             modifier = Modifier.fillMaxSize()
@@ -286,6 +292,7 @@ fun IntroScreen(
             )
         }
     }
+}
 }
 
 @Composable

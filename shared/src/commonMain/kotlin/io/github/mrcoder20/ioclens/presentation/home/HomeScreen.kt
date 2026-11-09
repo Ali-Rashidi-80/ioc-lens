@@ -1748,9 +1748,9 @@ private fun ProviderRow(
         isTimedOut -> strings.statusTimedOut
         result != null -> LocalizationProvider.getVerdictName(result.verdict, appLanguage)
         hasActiveVerdict && !isApplicable -> strings.statusNotApplicable
-        hasActiveVerdict -> if (isTwoColumn) (if (appLanguage == AppLanguage.PERSIAN) "نیاز به کلید" else strings.statusKeyRequired) else strings.statusKeyRequired
+        hasActiveVerdict -> if (isTwoColumn) strings.statusKeyRequiredShort else strings.statusKeyRequired
         isZeroKey -> if (isTwoColumn) strings.statusReady else strings.statusReadyZeroKey
-        else -> if (isTwoColumn) (if (appLanguage == AppLanguage.PERSIAN) "نیاز به کلید" else strings.statusKeyRequired) else strings.statusKeyRequired
+        else -> if (isTwoColumn) strings.statusKeyRequiredShort else strings.statusKeyRequired
     }
 
     Row(
