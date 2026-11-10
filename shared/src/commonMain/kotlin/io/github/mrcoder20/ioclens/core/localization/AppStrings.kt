@@ -226,17 +226,17 @@ object LocalizationProvider {
 
         if (indicator.isInternalOrPrivate) {
             return when (lang) {
-                AppLanguage.PERSIAN -> "🛡️ محافظ حریم خصوصی فعال شد: نشانگر داخلی یا خصوصی شناسایی شد. استعلام خارجی جهت محافظت از شبکه مسدود گردید."
-                AppLanguage.RUSSIAN -> "🛡️ Privacy Guard активен: обнаружен внутренний индикатор. Запросы заблокированы."
-                AppLanguage.ENGLISH -> "🛡️ Privacy Guard Activated: Private/Internal indicator detected. Remote lookups blocked to protect internal infrastructure."
+                AppLanguage.PERSIAN -> "🔒 محافظ حریم خصوصی فعال شد: نشانگر داخلی یا خصوصی شناسایی شد. استعلام خارجی جهت محافظت از شبکه مسدود گردید."
+                AppLanguage.RUSSIAN -> "🔒 Privacy Guard активен: обнаружен внутренний индикатор. Запросы заблокированы."
+                AppLanguage.ENGLISH -> "🔒 Privacy Guard Activated: Private/Internal indicator detected. Remote lookups blocked to protect internal infrastructure."
             }
         }
 
         if (indicator.type == IndicatorType.UNKNOWN) {
             return when (lang) {
-                AppLanguage.PERSIAN -> "⚪ فرمت نشانگر شناسایی نشد. لطفاً یک آدرس IP، دامنه، URL یا هش فایل معتبر وارد نمایید."
-                AppLanguage.RUSSIAN -> "⚪ Нераспознанный формат индикатора. Введите корректный IP, домен, URL или хеш файла."
-                AppLanguage.ENGLISH -> "⚪ Unrecognized indicator format. Please provide a valid IP, Domain, URL, or File Hash."
+                AppLanguage.PERSIAN -> "☣️ فرمت نشانگر شناسایی نشد. لطفاً یک آدرس IP، دامنه، URL یا هش فایل معتبر وارد نمایید."
+                AppLanguage.RUSSIAN -> "☣️ Нераспознанный формат индикатора. Введите корректный IP, домен, URL или хеш файла."
+                AppLanguage.ENGLISH -> "☣️ Unrecognized indicator format. Please provide a valid IP, Domain, URL, or File Hash."
             }
         }
 
@@ -250,18 +250,18 @@ object LocalizationProvider {
 
         return when (lang) {
             AppLanguage.PERSIAN -> when {
-                maliciousSources.isNotEmpty() -> "🚨 پی‌لود آلوده شناسایی شد: تایید شده توسط $malNames."
-                suspiciousSources.isNotEmpty() -> "🟠 فعالیت مشکوک: هشدارهای تهدید توسط $suspNames ثبت گردید."
-                lowRiskSources.isNotEmpty() -> "🟡 ریسک پایین: سیگنال‌های تله‌متری جزئی گزارش شده اما امضای بدافزار فعالی تایید نشد."
-                cleanSources.isNotEmpty() -> "🟢 پاک و بدون تهدید: ${toPersianDigits(cleanSources.size.toString())} موتور تحلیلی هیچ‌گونه فعالیت مخربی مشاهده نکردند."
-                else -> "⚪ هیچ سابقه تهدیدی در موتورهای فعال عمومی یافت نشد."
+                maliciousSources.isNotEmpty() -> "💀 پی‌لود آلوده شناسایی شد: تایید شده توسط $malNames."
+                suspiciousSources.isNotEmpty() -> "☣️ فعالیت مشکوک: هشدارهای تهدید توسط $suspNames ثبت گردید."
+                lowRiskSources.isNotEmpty() -> "⚠️ ریسک پایین: سیگنال‌های تله‌متری جزئی گزارش شده اما امضای بدافزار فعالی تایید نشد."
+                cleanSources.isNotEmpty() -> "🛡️ پاک و بدون تهدید: ${toPersianDigits(cleanSources.size.toString())} موتور تحلیلی هیچ‌گونه فعالیت مخربی مشاهده نکردند."
+                else -> "🗄️ هیچ سابقه تهدیدی در موتورهای فعال عمومی یافت نشد."
             }
             AppLanguage.RUSSIAN -> when {
-                maliciousSources.isNotEmpty() -> "🚨 ОБНАРУЖЕНА ВРЕДОНОСНАЯ АКТИВНОСТЬ: подтверждено $malNames."
-                suspiciousSources.isNotEmpty() -> "🟠 Подозрительная активность: обнаружены сигналы угроз от $suspNames."
-                lowRiskSources.isNotEmpty() -> "🟡 Низкий риск: зафиксированы незначительные аномалии, активных сигнатур угроз нет."
-                cleanSources.isNotEmpty() -> "🟢 Проверено: ${cleanSources.size} сервисов threat intelligence не выявили угроз."
-                else -> "⚪ Записей об угрозах в активных базах данных не обнаружено."
+                maliciousSources.isNotEmpty() -> "💀 ОБНАРУЖЕНА ВРЕДОНОСНАЯ АКТИВНОСТЬ: подтверждено $malNames."
+                suspiciousSources.isNotEmpty() -> "☣️ Подозрительная активность: обнаружены сигналы угроз от $suspNames."
+                lowRiskSources.isNotEmpty() -> "⚠️ Низкий риск: зафиксированы незначительные аномалии, активных сигнатур угроз нет."
+                cleanSources.isNotEmpty() -> "🛡️ Проверено: ${cleanSources.size} сервисов threat intelligence не выявили угроз."
+                else -> "🗄️ Записей об угрозах в активных базах данных не обнаружено."
             }
             AppLanguage.ENGLISH -> verdict.summaryDescription
         }
@@ -701,7 +701,7 @@ object LocalizationProvider {
                 copyWebsiteUrl = "Copy Link",
                 websiteUrlCopied = "Link copied to clipboard",
                 filterByIocType = "Filter by Indicator Type",
-                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                githubRepoUrl = "https://github.com/mr-coder20/ioc-lens",
                 openGithubRepo = "Open GitHub Repository",
                 copyGithubUrl = "Copy GitHub Link",
                 githubUrlCopied = "GitHub link copied",
@@ -839,7 +839,7 @@ object LocalizationProvider {
                 copyWebsiteUrl = "کپی پیوند",
                 websiteUrlCopied = "پیوند در حافظه کپی شد",
                 filterByIocType = "فیلتر بر اساس نوع نشانگر",
-                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                githubRepoUrl = "https://github.com/mr-coder20/ioc-lens",
                 openGithubRepo = "مشاهده مخزن در گیت‌هاب",
                 copyGithubUrl = "کپی پیوند گیت‌هاب",
                 githubUrlCopied = "پیوند گیت‌هاب در حافظه کپی شد",
@@ -977,7 +977,7 @@ object LocalizationProvider {
                 copyWebsiteUrl = "Копировать ссылку",
                 websiteUrlCopied = "Ссылка скопирована",
                 filterByIocType = "Фильтр по типу индикатора",
-                githubRepoUrl = "https://github.com/mrcoder20/ioc-lens",
+                githubRepoUrl = "https://github.com/mr-coder20/ioc-lens",
                 openGithubRepo = "Репозиторий на GitHub",
                 copyGithubUrl = "Скопировать ссылку GitHub",
                 githubUrlCopied = "Ссылка GitHub скопирована",

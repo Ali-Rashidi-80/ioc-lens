@@ -154,30 +154,37 @@ class ThreatIntelAggregator(
         when {
             maliciousCount > 0 -> {
                 overallVerdict = VerdictLevel.MALICIOUS
-                score = (70 + maliciousCount * 15 + suspiciousCount * 5).coerceAtMost(100)
+                val highFidelityCount = maliciousSources.count {
+                    it.providerName.contains("abuse.ch", ignoreCase = true) ||
+                        it.providerName.contains("Feodo", ignoreCase = true) ||
+                        it.providerName.contains("ThreatFox", ignoreCase = true) ||
+                        it.providerName.contains("MalwareBazaar", ignoreCase = true) ||
+                        it.providerName.contains("VirusTotal", ignoreCase = true)
+                }
+                score = (75 + highFidelityCount * 10 + (maliciousCount - highFidelityCount) * 5 + suspiciousCount * 3).coerceAtMost(100)
                 val names = maliciousSources.joinToString(", ") { it.providerName }
-                summary = "🚨 MALICIOUS PAYLOAD DETECTED: Corroborated by $names."
+                summary = "💀 MALICIOUS PAYLOAD DETECTED: Corroborated by $names."
             }
             suspiciousCount > 0 -> {
                 overallVerdict = VerdictLevel.SUSPICIOUS
-                score = (35 + suspiciousCount * 15 + lowRiskSources.size * 5).coerceAtMost(69)
+                score = (38 + suspiciousCount * 12 + lowRiskSources.size * 4).coerceAtMost(69)
                 val names = suspiciousSources.joinToString(", ") { it.providerName }
-                summary = "🟠 Suspicious Activity: Threat signals flagged by $names."
+                summary = "☣️ Suspicious Activity: Threat signals flagged by $names."
             }
             lowRiskSources.isNotEmpty() -> {
                 overallVerdict = VerdictLevel.LOW_RISK
                 score = 20
-                summary = "🟡 Low Risk: Minor telemetry flags observed, but no active malware signature confirmed."
+                summary = "⚠️ Low Risk: Minor telemetry flags observed, but no active malware signature confirmed."
             }
             cleanCount > 0 -> {
                 overallVerdict = VerdictLevel.CLEAN
                 score = 5
-                summary = "🟢 Verified Clean: $cleanCount threat intelligence engines observed no malicious activity."
+                summary = "🛡️ Verified Clean: $cleanCount threat intelligence engines observed no malicious activity."
             }
             else -> {
                 overallVerdict = VerdictLevel.NO_DATA
                 score = 0
-                summary = "⚪ No threat records found across active community intelligence engines."
+                summary = "🗄️ No threat records found across active community intelligence engines."
             }
         }
 

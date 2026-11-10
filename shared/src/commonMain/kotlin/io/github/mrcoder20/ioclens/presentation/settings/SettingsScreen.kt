@@ -66,8 +66,7 @@ fun SettingsScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     isMobileOrTablet: Boolean = false,
-    isFullScreen: Boolean = false,
-    onReplayGuide: (() -> Unit)? = null
+    isFullScreen: Boolean = false
 ) {
     val settingsState by settingsRepository.settingsState.collectAsState()
     val strings = LocalizationProvider.getStrings(settingsState.appLanguage)
@@ -82,7 +81,7 @@ fun SettingsScreen(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
+                .background(Color.Transparent)
                 .statusBarsPadding()
                 .navigationBarsPadding(),
             contentAlignment = Alignment.TopCenter
@@ -126,14 +125,6 @@ fun SettingsScreen(
                     strings = strings,
                     isCompact = isCompactLayout
                 )
-
-                // 4. Replay App Guide (if available)
-                if (onReplayGuide != null) {
-                    ReplayGuideCard(
-                        strings = strings,
-                        onReplayGuide = onReplayGuide
-                    )
-                }
 
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -438,53 +429,8 @@ private fun GitHubRepositoryCard(
 }
 
 /**
- * Replay Guide Action Card.
- */
-@Composable
-private fun ReplayGuideCard(
-    strings: AppStrings,
-    onReplayGuide: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onReplayGuide)
-            .pointerHoverIcon(PointerIcon.Hand),
-        color = Color(0xFF0E1726).copy(alpha = 0.95f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(text = "💡", fontSize = 18.sp)
-                Text(
-                    text = strings.replayGuideTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-            }
-            Text(
-                text = "↺",
-                color = PrimaryCyan,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-/**
  * Common Card Container for Settings Screen.
+ * Uses Cyberpunk Glassmorphic Surface to match Scanner and History screens.
  */
 @Composable
 private fun SettingsCard(
@@ -496,9 +442,9 @@ private fun SettingsCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1726).copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF091424).copy(alpha = 0.85f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(

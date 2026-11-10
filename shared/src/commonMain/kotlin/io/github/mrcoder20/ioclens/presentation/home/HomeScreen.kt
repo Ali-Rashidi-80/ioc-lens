@@ -106,7 +106,6 @@ import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
 import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
-import io.github.mrcoder20.ioclens.core.components.TrainMarqueeRow
 import io.github.mrcoder20.ioclens.core.components.rememberFilePickerLauncher
 import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
@@ -124,8 +123,6 @@ import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
-import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
-import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
 import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
 import kotlinx.coroutines.delay
@@ -148,10 +145,9 @@ fun HomeScreen(
     }
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
+    val isAnySheetOpen = uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
-            uiState.isGuideOverlayOpen -> viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
             drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
@@ -254,9 +250,9 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "🔍", fontSize = 18.sp) },
+                        icon = { Text(text = "🎯", fontSize = 18.sp) },
                         label = { Text(text = strings.menuHome, fontWeight = FontWeight.SemiBold) },
-                        selected = uiState.selectedBottomNavTab == 0 && !uiState.isGuideOverlayOpen,
+                        selected = uiState.selectedBottomNavTab == 0,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
                             coroutineScope.launch { drawerState.close() }
@@ -268,14 +264,14 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "📜", fontSize = 18.sp) },
+                        icon = { Text(text = "🗄️", fontSize = 18.sp) },
                         label = {
                             Text(
                                 text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage)})",
                                 fontWeight = FontWeight.SemiBold
                             )
                         },
-                        selected = uiState.selectedBottomNavTab == 1 && !uiState.isGuideOverlayOpen,
+                        selected = uiState.selectedBottomNavTab == 1,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
                             coroutineScope.launch { drawerState.close() }
@@ -287,9 +283,9 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "⚙️", fontSize = 18.sp) },
+                        icon = { Text(text = "🎛️", fontSize = 18.sp) },
                         label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
-                        selected = uiState.selectedBottomNavTab == 2 && !uiState.isGuideOverlayOpen,
+                        selected = uiState.selectedBottomNavTab == 2,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
                             coroutineScope.launch { drawerState.close() }
@@ -297,18 +293,6 @@ fun HomeScreen(
                         colors = NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                         ),
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text(text = "💡", fontSize = 18.sp) },
-                        label = { Text(text = strings.menuGuide, fontWeight = FontWeight.SemiBold) },
-                        selected = uiState.isGuideOverlayOpen,
-                        onClick = {
-                            viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
-                            introViewModel?.onEvent(IntroEvent.Reset)
-                            coroutineScope.launch { drawerState.close() }
-                        },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
                 }
@@ -352,11 +336,7 @@ fun HomeScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
                     isFullScreen = true,
-                    onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
-                    onReplayGuide = {
-                        viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
-                        introViewModel?.onEvent(IntroEvent.Reset)
-                    }
+                    onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) }
                 )
             } else {
                 Column(
@@ -486,6 +466,7 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
+                                    .springPress()
                                     .clickable {
                                         val nextTab = if (uiState.selectedBottomNavTab == 1) 0 else 1
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
@@ -498,7 +479,7 @@ fun HomeScreen(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = "📜", fontSize = 14.sp)
+                                    Text(text = "🗄️", fontSize = 14.sp)
                                     if (uiState.scanHistory.isNotEmpty()) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
@@ -515,6 +496,7 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
+                                    .springPress()
                                     .clickable {
                                         val nextTab = if (uiState.selectedBottomNavTab == 2) 0 else 2
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
@@ -524,7 +506,7 @@ fun HomeScreen(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = "⚙️",
+                                    text = "🎛️",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                     fontSize = 14.sp
                                 )
@@ -534,8 +516,6 @@ fun HomeScreen(
                 }
 
                 if (isWideScreen) {
-                    val dashboardHeight = (screenHeight - 165.dp).coerceAtLeast(535.dp)
-
                     when (uiState.selectedBottomNavTab) {
                         1 -> {
                             HistoryFullScreenView(
@@ -552,19 +532,17 @@ fun HomeScreen(
                             )
                         }
                         else -> {
-                            // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
+                            // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Natural Height With Outer Scroll)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(dashboardHeight)
                                     .padding(top = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
                                 Column(
                                     modifier = Modifier
-                                        .weight(1.08f)
-                                        .fillMaxHeight(),
+                                        .weight(1.08f),
                                     verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
                                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
@@ -606,7 +584,7 @@ fun HomeScreen(
                                         }
                                     }
 
-                                    // Desktop Recent Triage Scans HUD Feed dynamically fills remaining height to balance Left Pane
+                                    // Desktop Recent Triage Scans HUD Feed
                                     RecentTriageFeedHUD(
                                         history = uiState.scanHistory,
                                         appLanguage = uiState.appLanguage,
@@ -623,74 +601,103 @@ fun HomeScreen(
                                             viewModel.onEvent(HomeEvent.AnalyzeClicked)
                                             coroutineScope.launch { scrollState.scrollTo(0) }
                                         },
-                                        modifier = Modifier.weight(1f).fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
 
-                                // Right Pane: Threat Intel Provider Deck (Balanced Column on Widescreen)
+                                // Right Pane: Threat Intel Provider Deck
                                 Column(
                                     modifier = Modifier
-                                        .weight(0.92f)
-                                        .fillMaxHeight()
+                                        .weight(0.92f),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
                                     LiveProviderDeck(
                                         uiState = uiState,
                                         onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
                                         isTwoColumn = false,
-                                        modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
                         }
                     }
                 } else {
-                    // TRUE MULTI-SCREEN TAB CONTAINER (Phones & Foldables)
+                    // ADAPTIVE MOBILE & TABLET SINGLE-COLUMN VIEW
                     when (uiState.selectedBottomNavTab) {
                         0 -> {
-                            // TAB 1: SCANNER VIEW (Display ONLY Header, IOC input box, Zero-Key pill, action buttons, samples, verdict)
-                            FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
-
-                            AnimatedVisibility(
-                                visible = uiState.isLoading,
-                                enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                LiveScanBanner(
-                                    targetIndicator = uiState.targetIndicator,
-                                    finishedEngines = uiState.scanFinishedEngines,
-                                    totalEngines = uiState.scanTotalEngines,
-                                    appLanguage = uiState.appLanguage,
-                                    onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
-                                )
-                            }
+                                FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
 
-                            SearchCard(
-                                uiState = uiState,
-                                strings = strings,
-                                isCompact = isCompactScreen,
-                                onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                onOpenFilePicker = filePickerLauncher
-                            )
-
-                            ErrorMessageBanner(errorMessage = uiState.errorMessage)
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            AnimatedVisibility(
-                                visible = uiState.activeVerdict != null,
-                                enter = fadeIn(tween(350)) + expandVertically(tween(350)),
-                                exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
-                            ) {
-                                uiState.activeVerdict?.let { verdict ->
-                                    OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                AnimatedVisibility(
+                                    visible = uiState.isLoading,
+                                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                                ) {
+                                    LiveScanBanner(
+                                        targetIndicator = uiState.targetIndicator,
+                                        finishedEngines = uiState.scanFinishedEngines,
+                                        totalEngines = uiState.scanTotalEngines,
+                                        appLanguage = uiState.appLanguage,
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                    )
                                 }
+
+                                SearchCard(
+                                    uiState = uiState,
+                                    strings = strings,
+                                    isCompact = isCompactScreen,
+                                    onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                    onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                    onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                    onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                    onOpenFilePicker = filePickerLauncher
+                                )
+
+                                ErrorMessageBanner(errorMessage = uiState.errorMessage)
+
+                                AnimatedVisibility(
+                                    visible = uiState.activeVerdict != null,
+                                    enter = fadeIn(tween(350)) + expandVertically(tween(350)),
+                                    exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
+                                ) {
+                                    uiState.activeVerdict?.let { verdict ->
+                                        OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                    }
+                                }
+
+                                // 10 Threat Intel Providers Deck on Mobile
+                                LiveProviderDeck(
+                                    uiState = uiState,
+                                    onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
+                                    isTwoColumn = false,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                // Recent Triage Feed on Mobile
+                                RecentTriageFeedHUD(
+                                    history = uiState.scanHistory,
+                                    appLanguage = uiState.appLanguage,
+                                    strings = strings,
+                                    onSelect = { item ->
+                                        viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                                        coroutineScope.launch { scrollState.scrollTo(0) }
+                                    },
+                                    onDelete = { item ->
+                                        viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                    },
+                                    onReScan = { rawValue ->
+                                        viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                                        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                        coroutineScope.launch { scrollState.scrollTo(0) }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                         1 -> {
-                            // TAB 2: HISTORY VIEW (Dedicated full-screen view without modal backdrop or close button)
                             HistoryFullScreenView(
                                 history = uiState.scanHistory,
                                 appLanguage = uiState.appLanguage,
@@ -743,39 +750,12 @@ fun HomeScreen(
                 SettingsScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
-                    onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) },
-                    onReplayGuide = {
-                        viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
-                        viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
-                        introViewModel?.onEvent(IntroEvent.Reset)
-                    }
+                    onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) }
                 )
             }
 
-            // Guide Overlay with Embedded Header Close Button (Integrated into top bar to prevent collisions)
-            if (uiState.isGuideOverlayOpen && introViewModel != null) {
-                androidx.compose.runtime.key(uiState.isGuideOverlayOpen) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0xFF06080D))
-                            .zIndex(100f)
-                    ) {
-                        IntroScreen(
-                            viewModel = introViewModel,
-                            onIntroFinished = {
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                            },
-                            onClose = {
-                                viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
-                            }
-                        )
-                    }
-                }
-            }
-
             // Mobile & Tablet Adaptive Cyberpunk Bottom Navigation Bar
-            if (isMobileOrTablet && !uiState.isGuideOverlayOpen) {
+            if (isMobileOrTablet) {
                 CyberpunkBottomNavBar(
                     selectedTab = uiState.selectedBottomNavTab,
                     historyCount = uiState.scanHistory.size,
@@ -1037,9 +1017,9 @@ private fun CyberpunkBottomNavBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val tabs = listOf(
-                Triple(0, "🔍", strings.tabScanner),
-                Triple(1, "📜", strings.tabHistory),
-                Triple(2, "⚙️", strings.tabSettings)
+                Triple(0, "🎯", strings.tabScanner),
+                Triple(1, "🗄️", strings.tabHistory),
+                Triple(2, "🎛️", strings.tabSettings)
             )
 
             tabs.forEach { (index, icon, label) ->
@@ -1052,6 +1032,7 @@ private fun CyberpunkBottomNavBar(
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(12.dp))
+                        .springPress()
                         .clickable { onTabSelected(index) }
                         .pointerHoverIcon(PointerIcon.Hand)
                         .padding(vertical = 4.dp),
@@ -1340,6 +1321,35 @@ private fun SearchCard(
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .springPress()
+                                    .clickable { onOpenFilePicker() }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = PrimaryCyan.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(text = "🧬", fontSize = 13.sp)
+                                    Text(
+                                        text = strings.dropFileHint,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = PrimaryCyan,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             TextButton(
                                 onClick = {
                                     val clipText = clipboardManager.getText()?.text
@@ -1347,10 +1357,11 @@ private fun SearchCard(
                                         onQueryChange(clipText.trim())
                                     }
                                 },
+                                modifier = Modifier.springPress(),
                                 colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
                             ) {
                                 Text(
-                                    text = strings.pasteFromClipboard,
+                                    text = "📋 ${strings.pasteFromClipboard}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -1363,7 +1374,7 @@ private fun SearchCard(
                                     onClick = onCancel,
                                     colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(40.dp)
+                                    modifier = Modifier.height(40.dp).springPress()
                                 ) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(14.dp),
@@ -1383,7 +1394,7 @@ private fun SearchCard(
                                     onClick = onAnalyze,
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(40.dp)
+                                    modifier = Modifier.height(40.dp).springPress()
                                 ) {
                                     Text(
                                         text = strings.scanPayload,
@@ -1393,91 +1404,6 @@ private fun SearchCard(
                                     )
                                 }
                             }
-                        }
-                    }
-                }
-
-                // Quick Samples & Drop Target Banner
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = strings.sampleIocsTitle,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = PrimaryCyan.copy(alpha = 0.12f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f)),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onOpenFilePicker() }
-                                .pointerHoverIcon(PointerIcon.Hand)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = strings.dropFileHint,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = PrimaryCyan,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-                    }
-
-                    val samples = listOf(
-                        "8.8.8.8" to strings.sampleGoogleDns,
-                        "malware-test.com" to strings.sampleMalwareUrl,
-                        "44d88612fea8a8f36de82e1278abb02f" to strings.sampleHash
-                    )
-
-                    TrainMarqueeRow(
-                        items = samples,
-                        modifier = Modifier.fillMaxWidth(),
-                        velocityDpPerSecond = 26f,
-                        spacing = 8.dp,
-                        fadeEdges = true,
-                        fadeWidth = 20.dp
-                    ) { (ioc, label) ->
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    onQueryChange(ioc)
-                                    onAnalyze()
-                                }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
-                        ) {
-                            Text(
-                                text = label,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.5.sp,
-                                color = PrimaryCyan,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                softWrap = false
-                            )
                         }
                     }
                 }
@@ -1615,7 +1541,7 @@ private fun LiveProviderDeck(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1711,8 +1637,8 @@ private fun LiveProviderDeck(
                     }
                 } else {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(top = 12.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         allProviders.forEach { (name, isZeroKey) ->
                             val result = activeMap[name]
@@ -2422,7 +2348,7 @@ private fun RecentTriageFeedHUD(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2458,7 +2384,6 @@ private fun RecentTriageFeedHUD(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
                         .defaultMinSize(minHeight = 150.dp),
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF090E17).copy(alpha = 0.75f),
@@ -2466,7 +2391,7 @@ private fun RecentTriageFeedHUD(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2480,7 +2405,7 @@ private fun RecentTriageFeedHUD(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = "🛡️",
+                                    text = "🗄️",
                                     modifier = Modifier.padding(10.dp),
                                     fontSize = 22.sp
                                 )
@@ -2505,7 +2430,7 @@ private fun RecentTriageFeedHUD(
             } else {
                 val recentScans = history.take(6)
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     recentScans.forEach { item ->
@@ -2538,6 +2463,7 @@ private fun RecentTriageFeedHUD(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
+                                        .springPress()
                                         .clickable { onSelect(item) }
                                         .pointerHoverIcon(PointerIcon.Hand),
                                     shape = RoundedCornerShape(12.dp),
@@ -2597,6 +2523,7 @@ private fun RecentTriageFeedHUD(
                                             Surface(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
+                                                    .springPress()
                                                     .clickable { onReScan(item.indicator.rawValue) }
                                                     .pointerHoverIcon(PointerIcon.Hand),
                                                 color = PrimaryCyan.copy(alpha = 0.15f),

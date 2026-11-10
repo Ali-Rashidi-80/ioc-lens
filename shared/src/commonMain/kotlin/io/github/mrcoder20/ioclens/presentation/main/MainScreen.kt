@@ -61,38 +61,23 @@ fun MainScreen(
                 }
             } else {
                 AnimatedContent(
-                    targetState = uiState.appSettings.isIntroCompleted,
+                    targetState = uiState.isSplashFinished,
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                     modifier = Modifier.fillMaxSize()
-                ) { isCompleted ->
-                    if (isCompleted) {
+                ) { isSplashFinished ->
+                    if (isSplashFinished) {
                         HomeScreen(
                             viewModel = homeViewModel,
                             settingsRepository = settingsRepository,
-                            introViewModel = introViewModel
+                            introViewModel = null
                         )
                     } else {
-                        AnimatedContent(
-                            targetState = uiState.isSplashFinished,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            modifier = Modifier.fillMaxSize()
-                        ) { isSplashFinished ->
-                            if (isSplashFinished) {
-                                IntroScreen(
-                                    viewModel = introViewModel,
-                                    onIntroFinished = {
-                                        // Handled inside IntroViewModel
-                                    }
-                                )
-                            } else {
-                                SplashScreen(
-                                    appLanguage = uiState.appSettings.appLanguage,
-                                    onSplashFinished = {
-                                        mainViewModel.onSplashFinished()
-                                    }
-                                )
+                        SplashScreen(
+                            appLanguage = uiState.appSettings.appLanguage,
+                            onSplashFinished = {
+                                mainViewModel.onSplashFinished()
                             }
-                        }
+                        )
                     }
                 }
             }

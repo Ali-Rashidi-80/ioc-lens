@@ -21,14 +21,33 @@ class IOCParser {
     }
 
     fun refang(input: String): String {
-        return input.trim()
+        var cleaned = input.trim()
             .replace(INVISIBLE_CHARS_REGEX, "")
-            .replace(Regex("""\[\.\]|\(\.\)"""), ".")
-            .replace(Regex("""\[://\]|\(://\)"""), "://")
-            .replace(Regex("""\[:\]|\(:\)"""), ":")
-            .replace(Regex("""\[@\]|\[at\]""", RegexOption.IGNORE_CASE), "@")
-            .replace(Regex("""(?:^|\b)hx[xt]ps://""", RegexOption.IGNORE_CASE), "https://")
-            .replace(Regex("""(?:^|\b)hx[xt]p://""", RegexOption.IGNORE_CASE), "http://")
+
+        // Remove surrounding wrappers: <url>, (url), [url], 'url', "url", `url`
+        if (cleaned.startsWith("<") && cleaned.endsWith(">")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+        if (cleaned.startsWith("\"") && cleaned.endsWith("\"")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+        if (cleaned.startsWith("'") && cleaned.endsWith("'")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+        if (cleaned.startsWith("`") && cleaned.endsWith("`")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+
+        return cleaned
+            .replace("[.]", ".")
+            .replace("(.)", ".")
+            .replace("{.}", ".")
+            .replace("[dot]", ".", ignoreCase = true)
+            .replace("(dot)", ".", ignoreCase = true)
+            .replace("{dot}", ".", ignoreCase = true)
+            .replace("[://]", "://")
+            .replace("(://)", "://")
+            .replace("[:]//", "://")
+            .replace("(:)//", "://")
+            .replace("[:]", ":")
+            .replace("(:)", ":")
+            .replace("[@]", "@")
+            .replace("[at]", "@", ignoreCase = true)
+            .replace("(at)", "@", ignoreCase = true)
+            .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])ps://""", RegexOption.IGNORE_CASE), "https://")
+            .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])p://""", RegexOption.IGNORE_CASE), "http://")
             .replace(Regex("""(?:^|\b)fxp://""", RegexOption.IGNORE_CASE), "ftp://")
     }
 
@@ -109,6 +128,17 @@ class IOCParser {
                 }
             }
             return ParsedIoc.Unknown(trimmed, refanged)
+        }
+
+        // 4b. Scheme-less URL Check (e.g. evil.com/login.php, 1.2.3.4:8080/malware)
+        if (refanged.contains('/') && !refanged.contains(' ') && refanged.length <= MAX_URL_LENGTH) {
+            val hostPart = refanged.substringBefore('/')
+            val hostClean = if (hostPart.contains(':')) hostPart.substringBefore(':') else hostPart
+            if (isValidHost(hostClean)) {
+                val fullUrl = "http://$refanged"
+                val isInternal = isInternalHost(hostClean)
+                return ParsedIoc.Url(trimmed, fullUrl, host = hostClean, isInternal = isInternal)
+            }
         }
 
         // Input length guard for non-URL tokens
@@ -225,7 +255,9 @@ class IOCParser {
         if (isIpv6(host)) return true
         if (isInternalDomain(host)) return true
         val domainRegex = Regex("""^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,})$""")
-        return domainRegex.matches(host)
+        val domainMatch = domainRegex.matchEntire(host) ?: return false
+        val tld = domainMatch.groupValues[1].lowercase()
+        return tld !in NON_DOMAIN_EXTENSIONS
     }
 
     private fun isInternalHost(host: String): Boolean =

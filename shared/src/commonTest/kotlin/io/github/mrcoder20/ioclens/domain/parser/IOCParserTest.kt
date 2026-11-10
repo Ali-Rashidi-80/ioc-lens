@@ -242,4 +242,36 @@ class IOCParserTest {
         val allIocs = parser.extractAllIocs(multiMessage)
         assertEquals(2, allIocs.size)
     }
+
+    @Test
+    fun testSchemelessUrls() {
+        val schemelessDomain = parser.parse("evil-tracker.com/gate.php?id=123")
+        val parsed = assertIs<ParsedIoc.Url>(schemelessDomain)
+        assertEquals("http://evil-tracker.com/gate.php?id=123", parsed.normalizedValue)
+        assertEquals("evil-tracker.com", parsed.host)
+        assertFalse(parsed.isInternal)
+
+        val schemelessInternal = parser.parse("192.168.1.1/admin/login")
+        val parsedInternal = assertIs<ParsedIoc.Url>(schemelessInternal)
+        assertEquals("http://192.168.1.1/admin/login", parsedInternal.normalizedValue)
+        assertEquals("192.168.1.1", parsedInternal.host)
+        assertTrue(parsedInternal.isInternal)
+    }
+
+    @Test
+    fun testAdvancedDefangingAndWrappers() {
+        // Dot variants: (dot), [dot], {.}
+        val dotVariant = parser.parse("evil[dot]com")
+        val parsedDomain = assertIs<ParsedIoc.Domain>(dotVariant)
+        assertEquals("evil.com", parsedDomain.normalizedValue)
+
+        // Wrapper variants: <...>, "...", '...', `...`
+        val wrappedInAngle = parser.parse("<https://malware.org/sample.bin>")
+        val parsedAngle = assertIs<ParsedIoc.Url>(wrappedInAngle)
+        assertEquals("https://malware.org/sample.bin", parsedAngle.normalizedValue)
+
+        val wrappedInQuotes = parser.parse("\"8.8.4.4\"")
+        val parsedQuotes = assertIs<ParsedIoc.IpAddress>(wrappedInQuotes)
+        assertEquals("8.8.4.4", parsedQuotes.normalizedValue)
+    }
 }
