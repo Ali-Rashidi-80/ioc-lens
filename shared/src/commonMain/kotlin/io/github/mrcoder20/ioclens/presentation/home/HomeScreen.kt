@@ -148,7 +148,7 @@ fun HomeScreen(
     }
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null
+    val isAnySheetOpen = uiState.isGuideOverlayOpen || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
             uiState.isGuideOverlayOpen -> viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(false))
@@ -156,6 +156,7 @@ fun HomeScreen(
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
             drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
             uiState.isLoading -> viewModel.onEvent(HomeEvent.CancelScan)
+            uiState.selectedBottomNavTab != 0 -> viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
             uiState.activeVerdict != null -> viewModel.onEvent(HomeEvent.ClearClicked)
         }
     }
@@ -310,16 +311,6 @@ fun HomeScreen(
                         },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
-
-                    Spacer(modifier = Modifier.weight(1f))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    Box(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = strings.versionLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
                 }
             }
         },
@@ -355,8 +346,8 @@ fun HomeScreen(
                     .background(brush = ambientGlowBrush)
             )
 
-            // Main Dashboard Container with Responsive Width & Safe Area Padding
-            if (uiState.selectedBottomNavTab == 3) {
+            // Dedicated Full-Screen Settings Container (Outside scrolling dashboard to prevent Compose infinite height constraint crash)
+            if (uiState.selectedBottomNavTab == 2) {
                 SettingsScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
@@ -560,19 +551,6 @@ fun HomeScreen(
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
                         }
-                        2 -> {
-                            // TAB 3: SETTINGS VIEW (Dedicated full-screen view without modal backdrop)
-                            SettingsScreen(
-                                settingsRepository = settingsRepository,
-                                isMobileOrTablet = false,
-                                isFullScreen = true,
-                                onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
-                                onReplayGuide = {
-                                    viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
-                                    introViewModel?.onEvent(IntroEvent.Reset)
-                                }
-                            )
-                        }
                         else -> {
                             // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Guaranteed Equal Height Without Intrinsics)
                             Row(
@@ -724,19 +702,6 @@ fun HomeScreen(
                                     viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
                                 },
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
-                            )
-                        }
-                        2 -> {
-                            // TAB 3: SETTINGS VIEW (Dedicated full-screen view without modal backdrop or close button)
-                            SettingsScreen(
-                                settingsRepository = settingsRepository,
-                                isMobileOrTablet = true,
-                                isFullScreen = true,
-                                onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) },
-                                onReplayGuide = {
-                                    viewModel.onEvent(HomeEvent.SetGuideOverlayOpen(true))
-                                    introViewModel?.onEvent(IntroEvent.Reset)
-                                }
                             )
                         }
                     }
