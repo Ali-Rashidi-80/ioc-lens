@@ -68,7 +68,10 @@ fun MainScreen(
                     if (isSplashFinished) {
                         AnimatedContent(
                             targetState = uiState.appSettings.isIntroCompleted,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            transitionSpec = {
+                                fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) togetherWith
+                                fadeOut(animationSpec = androidx.compose.animation.core.tween(180))
+                            },
                             modifier = Modifier.fillMaxSize()
                         ) { isIntroCompleted ->
                             if (isIntroCompleted) {

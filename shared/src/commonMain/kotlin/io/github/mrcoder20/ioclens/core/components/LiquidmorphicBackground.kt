@@ -26,7 +26,8 @@ import kotlin.math.sin
  */
 @Composable
 fun LiquidmorphicBackground(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPaused: Boolean = false
 ) {
     val blob1Colors = remember {
         listOf(
@@ -44,16 +45,20 @@ fun LiquidmorphicBackground(
         )
     }
 
-    val infiniteTransition = rememberInfiniteTransition()
-
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * kotlin.math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(14000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+    val progress = if (isPaused) {
+        0f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition()
+        val p by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * kotlin.math.PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(14000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
         )
-    )
+        p
+    }
 
     Canvas(modifier = modifier) {
         val w = size.width

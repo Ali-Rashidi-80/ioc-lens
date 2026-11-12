@@ -44,7 +44,8 @@ private class ReusablePoint(
 fun CyberPolygonBackground(
     modifier: Modifier = Modifier,
     cols: Int = 3,
-    rows: Int = 3
+    rows: Int = 3,
+    isPaused: Boolean = false
 ) {
     val totalNodes = cols * rows
 
@@ -79,15 +80,20 @@ fun CyberPolygonBackground(
     val tealColors = remember { Array(101) { SecondaryTeal.copy(alpha = it / 100f * 0.55f) } }
     val skyColors = remember { Array(101) { HighlightSkyBlue.copy(alpha = it / 100f * 0.55f) } }
 
-    val infiniteTransition = rememberInfiniteTransition()
-    val time by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * kotlin.math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(22000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+    val time = if (isPaused) {
+        0f
+    } else {
+        val infiniteTransition = rememberInfiniteTransition()
+        val t by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2f * kotlin.math.PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(22000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
         )
-    )
+        t
+    }
 
     Canvas(modifier = modifier) {
         val w = size.width

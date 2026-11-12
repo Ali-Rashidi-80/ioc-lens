@@ -64,8 +64,10 @@ class IntroViewModel(
     }
 
     private fun completeIntro() {
-        setIntroCompletedUseCase(completed = true)
-        _uiState.update { it.copy(isCompleted = true) }
+        viewModelScope.launch {
+            setIntroCompletedUseCase(completed = true)
+            _uiState.update { it.copy(isCompleted = true) }
+        }
     }
 }
 
