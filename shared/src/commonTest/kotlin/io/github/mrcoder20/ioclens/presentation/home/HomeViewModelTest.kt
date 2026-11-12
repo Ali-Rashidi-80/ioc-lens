@@ -10,6 +10,11 @@ import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.domain.repository.ThreatIntelRepository
+import io.github.mrcoder20.ioclens.domain.security.FileHashResult
+import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
+import io.github.mrcoder20.ioclens.domain.security.SharedPayload
+import io.github.mrcoder20.ioclens.domain.security.StreamHasher
+import io.github.mrcoder20.ioclens.domain.security.TemporaryFileCleaner
 import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import kotlinx.coroutines.Dispatchers
@@ -79,11 +84,13 @@ class HomeViewModelTest {
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        SharePayloadReceiver.consume()
     }
 
     @AfterTest
     fun tearDown() {
         Dispatchers.resetMain()
+        SharePayloadReceiver.consume()
     }
 
     @Test
@@ -412,5 +419,151 @@ class HomeViewModelTest {
         assertEquals(1, remainingHistory.size)
         assertEquals("8.8.8.8", remainingHistory.first().indicator.rawValue)
         assertEquals(1, settingsRepo.getScanHistory().size)
+    }
+
+    @Test
+    fun testConsecutiveScanRaceConditionPreservesLoadingAndCancelability() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository().apply { delayMs = 1000 }
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // Launch Scan 1
+        viewModel.onEvent(HomeEvent.QueryChanged("1.1.1.1"))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        advanceTimeBy(100)
+        assertTrue(viewModel.uiState.value.isLoading)
+
+        // Launch Scan 2 (cancels Scan 1)
+        viewModel.onEvent(HomeEvent.QueryChanged("8.8.8.8"))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        advanceTimeBy(50)
+
+        // CRITICAL DEFECT 10 ASSERTION: Scan 1's cancellation MUST NOT flip isLoading to false
+        assertTrue(viewModel.uiState.value.isLoading, "Scan 2 must be actively loading; Scan 1 must not overwrite isLoading")
+        assertEquals("8.8.8.8", viewModel.uiState.value.targetIndicator?.rawValue)
+
+        // CRITICAL DEFECT 10 ASSERTION: Scan 2 must remain cancelable (scanJob must not be nullified by Scan 1)
+        viewModel.onEvent(HomeEvent.CancelScan)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.activeVerdict, "Scan 2 must be cleanly cancelled, no verdict published")
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testFileHashingLifecycleAndCancellation() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+
+        val fakeHasher = object : StreamHasher {
+            var delayMs = 500L
+            override suspend fun hashFile(filePath: String): FileHashResult {
+                delay(delayMs)
+                return FileHashResult("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "d41d8cd98f00b204e9800998ecf8427e", 0L)
+            }
+        }
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo, streamHasher = fakeHasher)
+
+        // Start file hashing
+        viewModel.onEvent(HomeEvent.FileDropped("/path/to/test.bin", "test.bin"))
+        advanceTimeBy(100)
+        assertTrue(viewModel.uiState.value.isHashingFile)
+        assertEquals("test.bin", viewModel.uiState.value.hashingFileName)
+
+        // Cancel mid-hashing
+        viewModel.onEvent(HomeEvent.CancelScan)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isHashingFile)
+        assertNull(viewModel.uiState.value.hashingFileName)
+        assertNull(viewModel.uiState.value.errorMessage, "No error banner should display on canceled hash")
+        assertNull(viewModel.uiState.value.activeVerdict)
+    }
+
+    @Test
+    fun testTemporaryFileCleanedOnCompletionAndCancellation() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+
+        val cleanedFiles = mutableListOf<String>()
+        val fakeCleaner = object : TemporaryFileCleaner {
+            override fun cleanIfTemporary(filePath: String): Boolean {
+                cleanedFiles.add(filePath)
+                return true
+            }
+        }
+        val fakeHasher = object : StreamHasher {
+            override suspend fun hashFile(filePath: String): FileHashResult =
+                FileHashResult("abc", "def", 100L)
+        }
+
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo, streamHasher = fakeHasher, temporaryFileCleaner = fakeCleaner)
+
+        // Dropping a temporary file (isTemporary = true)
+        viewModel.onEvent(HomeEvent.FileDropped("/cache/picked_123_sample.bin", "sample.bin", isTemporary = true))
+        advanceUntilIdle()
+
+        assertTrue(cleanedFiles.contains("/cache/picked_123_sample.bin"), "Temporary file must be cleaned on completion")
+
+        // Dropping a user Desktop file (isTemporary = false)
+        viewModel.onEvent(HomeEvent.FileDropped("C:\\Users\\Desktop\\sample.bin", "sample.bin", isTemporary = false))
+        advanceUntilIdle()
+
+        assertEquals(1, cleanedFiles.size, "User original desktop file must NEVER be cleaned")
+    }
+
+    @Test
+    fun testInvalidTabIndexClamped() {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // Tab 3 clamps to 2 (Settings)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(3))
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab, "Tab 3 must clamp to Tab 2 (Settings)")
+
+        // Out-of-bounds large tab index clamps to 2 (Settings)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(99))
+        assertEquals(2, viewModel.uiState.value.selectedBottomNavTab, "Large tab index must clamp to Tab 2 (Settings)")
+
+        // Negative tab index clamps to 0 (Scanner)
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(-1))
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab, "Negative tab index must clamp to Tab 0 (Scanner)")
+
+        // Collapse provider deck first
+        viewModel.onEvent(HomeEvent.ToggleProviderDeck)
+        assertFalse(viewModel.uiState.value.isProviderDeckExpanded)
+        // Tab 1 selects History without forcing isProviderDeckExpanded = true
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
+        assertFalse(viewModel.uiState.value.isProviderDeckExpanded, "History tab selection must not mutate isProviderDeckExpanded")
+    }
+
+    @Test
+    fun testSharedPayloadErrorMessageSetsErrorBanner() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        // Start on Tab 1
+        viewModel.onEvent(HomeEvent.SelectBottomNavTab(1))
+        assertEquals(1, viewModel.uiState.value.selectedBottomNavTab)
+
+        // Process error payload (e.g. from Desktop folder drop)
+        viewModel.handleIncomingPayload(SharedPayload(errorMessage = "Cannot analyze folder 'test'."))
+
+        assertEquals(0, viewModel.uiState.value.selectedBottomNavTab, "Must navigate to Scanner tab 0")
+        assertEquals("Cannot analyze folder 'test'.", viewModel.uiState.value.errorMessage)
     }
 }

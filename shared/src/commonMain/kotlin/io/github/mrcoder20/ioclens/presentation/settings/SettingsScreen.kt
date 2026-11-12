@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mrcoder20.ioclens.core.components.CountryFlag
+import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
@@ -156,6 +157,7 @@ private fun SettingsHeader(
             modifier = Modifier
                 .size(42.dp)
                 .clip(RoundedCornerShape(12.dp))
+                .springPress()
                 .clickable(onClick = onClose)
                 .pointerHoverIcon(PointerIcon.Hand),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
@@ -247,6 +249,7 @@ private fun LanguageTile(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .springPress()
             .clickable { onClick() }
             .pointerHoverIcon(PointerIcon.Hand),
         color = if (isSelected) {
@@ -379,7 +382,8 @@ private fun GitHubRepositoryCard(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(42.dp),
+                        .height(42.dp)
+                        .springPress(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryCyan,
                         contentColor = Color(0xFF070D18)
@@ -397,6 +401,7 @@ private fun GitHubRepositoryCard(
                     modifier = Modifier
                         .height(42.dp)
                         .clip(RoundedCornerShape(10.dp))
+                        .springPress()
                         .clickable {
                             clipboardManager.setText(AnnotatedString(strings.githubRepoUrl))
                             isCopied = true
@@ -442,7 +447,7 @@ private fun SettingsCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF091424).copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {

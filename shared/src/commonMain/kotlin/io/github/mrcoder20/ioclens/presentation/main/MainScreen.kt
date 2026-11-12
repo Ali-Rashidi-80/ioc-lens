@@ -21,14 +21,11 @@ import io.github.mrcoder20.ioclens.core.theme.SetSystemBarIconsColor
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.presentation.home.HomeScreen
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
-import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
-import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.splash.SplashScreen
 
 @Composable
 fun MainScreen(
     mainViewModel: MainViewModel,
-    introViewModel: IntroViewModel,
     homeViewModel: HomeViewModel,
     settingsRepository: SettingsRepository,
     modifier: Modifier = Modifier
@@ -68,8 +65,7 @@ fun MainScreen(
                     if (isSplashFinished) {
                         HomeScreen(
                             viewModel = homeViewModel,
-                            settingsRepository = settingsRepository,
-                            introViewModel = null
+                            settingsRepository = settingsRepository
                         )
                     } else {
                         SplashScreen(

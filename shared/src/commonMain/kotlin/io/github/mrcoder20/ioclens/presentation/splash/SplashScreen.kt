@@ -45,7 +45,6 @@ import io.github.mrcoder20.ioclens.core.components.LiquidmorphicBackground
 import io.github.mrcoder20.ioclens.core.components.LottiePreloader
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
-import io.github.mrcoder20.ioclens.presentation.intro.IntroSlideData
 import ioclens.shared.generated.resources.Res
 import ioclens.shared.generated.resources.app_logo_mark
 import kotlinx.coroutines.delay

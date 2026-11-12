@@ -6,8 +6,11 @@ import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.domain.security.ChunkedStreamHasher
+import io.github.mrcoder20.ioclens.domain.security.DefaultTemporaryFileCleaner
 import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
+import io.github.mrcoder20.ioclens.domain.security.StreamHasher
+import io.github.mrcoder20.ioclens.domain.security.TemporaryFileCleaner
 import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import kotlinx.coroutines.CancellationException
@@ -24,7 +27,8 @@ class HomeViewModel(
     private val analyzeIndicatorUseCase: AnalyzeIndicatorUseCase,
     private val setIntroCompletedUseCase: SetIntroCompletedUseCase,
     private val settingsRepository: SettingsRepository,
-    private val streamHasher: ChunkedStreamHasher = ChunkedStreamHasher()
+    private val streamHasher: StreamHasher = ChunkedStreamHasher(),
+    private val temporaryFileCleaner: TemporaryFileCleaner = DefaultTemporaryFileCleaner
 ) : ViewModel() {
 
     private val initialSettings = settingsRepository.getSettings()
@@ -40,6 +44,8 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private var scanJob: Job? = null
+    private var hashJob: Job? = null
+    private var currentGeneration: Long = 0L
 
     init {
         observeSettings()
@@ -70,18 +76,21 @@ class HomeViewModel(
         }
     }
 
-    private fun handleIncomingPayload(payload: SharedPayload) {
+    internal fun handleIncomingPayload(payload: SharedPayload) {
         // Automatically switch to Scanner view (Tab 0) and dismiss any open overlays
         _uiState.update {
             it.copy(
                 selectedBottomNavTab = 0,
                 isSettingsSheetOpen = false,
-                isHistorySheetOpen = false,
-                isGuideOverlayOpen = false
+                isHistorySheetOpen = false
             )
         }
+        if (!payload.errorMessage.isNullOrBlank()) {
+            _uiState.update { it.copy(errorMessage = payload.errorMessage) }
+            return
+        }
         if (!payload.filePath.isNullOrBlank()) {
-            onEvent(HomeEvent.FileDropped(payload.filePath, payload.fileName ?: "payload.bin"))
+            onEvent(HomeEvent.FileDropped(payload.filePath, payload.fileName ?: "payload.bin", payload.isTemporary))
         } else if (!payload.textOrUrl.isNullOrBlank()) {
             val iocParser = io.github.mrcoder20.ioclens.domain.parser.IOCParser()
             val extracted = iocParser.extractFirstIoc(payload.textOrUrl)
@@ -103,7 +112,7 @@ class HomeViewModel(
                 settingsRepository.setAppLanguage(event.language)
             }
             is HomeEvent.FileDropped -> {
-                hashAndAnalyzeFile(event.filePath, event.fileName)
+                hashAndAnalyzeFile(event.filePath, event.fileName, event.isTemporary)
             }
             is HomeEvent.HistoryItemClicked -> {
                 _uiState.update {
@@ -130,40 +139,13 @@ class HomeViewModel(
                 _uiState.update { it.copy(isProviderDeckExpanded = !it.isProviderDeckExpanded) }
             }
             is HomeEvent.SelectBottomNavTab -> {
-                when (event.tabIndex) {
-                    0 -> _uiState.update {
-                        it.copy(
-                            selectedBottomNavTab = 0,
-                            isSettingsSheetOpen = false,
-                            isHistorySheetOpen = false,
-                            isGuideOverlayOpen = false
-                        )
-                    }
-                    1 -> _uiState.update {
-                        it.copy(
-                            selectedBottomNavTab = 1,
-                            isProviderDeckExpanded = true,
-                            isSettingsSheetOpen = false,
-                            isHistorySheetOpen = false,
-                            isGuideOverlayOpen = false
-                        )
-                    }
-                    2 -> _uiState.update {
-                        it.copy(
-                            selectedBottomNavTab = 2,
-                            isHistorySheetOpen = false,
-                            isSettingsSheetOpen = false,
-                            isGuideOverlayOpen = false
-                        )
-                    }
-                    3 -> _uiState.update {
-                        it.copy(
-                            selectedBottomNavTab = 3,
-                            isSettingsSheetOpen = false,
-                            isHistorySheetOpen = false,
-                            isGuideOverlayOpen = false
-                        )
-                    }
+                val targetTab = event.tabIndex.coerceIn(0, 2)
+                _uiState.update {
+                    it.copy(
+                        selectedBottomNavTab = targetTab,
+                        isSettingsSheetOpen = false,
+                        isHistorySheetOpen = false
+                    )
                 }
             }
             is HomeEvent.SetHistorySheetOpen -> {
@@ -182,9 +164,6 @@ class HomeViewModel(
                     )
                 }
             }
-            is HomeEvent.SetGuideOverlayOpen -> {
-                _uiState.update { it.copy(isGuideOverlayOpen = event.isOpen) }
-            }
             is HomeEvent.DeleteHistoryItem -> {
                 settingsRepository.deleteScanHistoryItem(event.verdict.indicator.rawValue)
                 _uiState.update { current ->
@@ -201,40 +180,76 @@ class HomeViewModel(
     }
 
     private fun cancelScan() {
+        currentGeneration++
+        hashJob?.cancel()
+        hashJob = null
         scanJob?.cancel()
         scanJob = null
-        _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0, scanTotalEngines = 10) }
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                isHashingFile = false,
+                hashingFileName = null,
+                targetIndicator = null,
+                scanFinishedEngines = 0,
+                scanTotalEngines = 10
+            )
+        }
     }
 
-    private fun hashAndAnalyzeFile(filePath: String, fileName: String) {
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isHashingFile = true,
-                    hashingFileName = fileName,
-                    errorMessage = null
-                )
-            }
+    private fun hashAndAnalyzeFile(filePath: String, fileName: String, isTemporary: Boolean = false) {
+        cancelScan()
+        val generation = currentGeneration
+
+        _uiState.update {
+            it.copy(
+                isHashingFile = true,
+                hashingFileName = fileName,
+                errorMessage = null,
+                activeVerdict = null
+            )
+        }
+
+        hashJob = viewModelScope.launch {
             try {
-                val hashResult = withContext(Dispatchers.Default) {
-                    streamHasher.hashFile(filePath)
+                val hashResult = streamHasher.hashFile(filePath)
+                if (generation == currentGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            isHashingFile = false,
+                            hashingFileName = null,
+                            queryInput = hashResult.sha256
+                        )
+                    }
+                    executeAnalyzeQuery(hashResult.sha256, generation)
                 }
-                _uiState.update {
-                    it.copy(
-                        isHashingFile = false,
-                        hashingFileName = null,
-                        queryInput = hashResult.sha256
-                    )
+            } catch (e: CancellationException) {
+                if (generation == currentGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            isHashingFile = false,
+                            hashingFileName = null
+                        )
+                    }
                 }
-                analyzeQuery()
+                throw e
             } catch (e: Exception) {
-                val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
-                _uiState.update {
-                    it.copy(
-                        isHashingFile = false,
-                        hashingFileName = null,
-                        errorMessage = "${strings.streamHashingFailed}: ${e.message ?: "error"}"
-                    )
+                if (generation == currentGeneration) {
+                    val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
+                    _uiState.update {
+                        it.copy(
+                            isHashingFile = false,
+                            hashingFileName = null,
+                            errorMessage = "${strings.streamHashingFailed}: ${e.message ?: "error"}"
+                        )
+                    }
+                }
+            } finally {
+                if (isTemporary) {
+                    temporaryFileCleaner.cleanIfTemporary(filePath)
+                }
+                if (generation == currentGeneration) {
+                    hashJob = null
                 }
             }
         }
@@ -250,52 +265,72 @@ class HomeViewModel(
         }
 
         // Cancel any active in-flight scan to prevent race conditions from rapid re-submissions
-        scanJob?.cancel()
+        cancelScan()
+        val generation = currentGeneration
+
+        executeAnalyzeQuery(input, generation)
+    }
+
+    private fun executeAnalyzeQuery(input: String, generation: Long) {
+        val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
+        val indicator = analyzeIndicatorUseCase.parseIndicator(input)
+
+        // Immediately clear stale previous verdict and set loading state with target indicator
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                targetIndicator = indicator,
+                activeVerdict = null,
+                errorMessage = null,
+                scanFinishedEngines = 0,
+                scanTotalEngines = 10
+            )
+        }
+
         scanJob = viewModelScope.launch {
-            val indicator = analyzeIndicatorUseCase.parseIndicator(input)
-            // Immediately clear stale previous verdict and set loading state with target indicator
-            _uiState.update {
-                it.copy(
-                    isLoading = true,
-                    targetIndicator = indicator,
-                    activeVerdict = null,
-                    errorMessage = null,
-                    scanFinishedEngines = 0,
-                    scanTotalEngines = 10
-                )
-            }
             try {
                 val verdict = analyzeIndicatorUseCase(indicator) { finished, total ->
-                    _uiState.update { state ->
-                        if (state.isLoading) {
-                            state.copy(scanFinishedEngines = finished, scanTotalEngines = total)
-                        } else state
+                    if (generation == currentGeneration) {
+                        _uiState.update { state ->
+                            if (state.isLoading) {
+                                state.copy(scanFinishedEngines = finished, scanTotalEngines = total)
+                            } else state
+                        }
                     }
                 }
-                _uiState.update { state ->
-                    val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
-                        it.indicator.normalizedValue == verdict.indicator.normalizedValue
-                    }).take(20)
-                    settingsRepository.saveScanHistory(updatedHistory)
-                    state.copy(
-                        isLoading = false,
-                        activeVerdict = verdict,
-                        scanHistory = updatedHistory
-                    )
+                if (generation == currentGeneration) {
+                    _uiState.update { state ->
+                        val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
+                            it.indicator.normalizedValue == verdict.indicator.normalizedValue
+                        }).take(20)
+                        settingsRepository.saveScanHistory(updatedHistory)
+                        state.copy(
+                            isLoading = false,
+                            activeVerdict = verdict,
+                            scanHistory = updatedHistory
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
-                // Cooperative coroutine cancellation: clean exit, no error banner
-                _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0) }
-            } catch (e: Exception) {
-                val errorMsg = when {
-                    e.message?.contains("Rate Limit", ignoreCase = true) == true -> strings.errorRateLimit
-                    e.message?.contains("timeout", ignoreCase = true) == true -> strings.errorTimeout
-                    e.message?.contains("Network", ignoreCase = true) == true || e.message?.contains("Connect", ignoreCase = true) == true -> strings.errorNetwork
-                    else -> e.message ?: strings.errorNetwork
+                if (generation == currentGeneration) {
+                    // Cooperative coroutine cancellation: clean exit, no error banner
+                    _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0) }
                 }
-                _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = errorMsg) }
+                throw e
+            } catch (e: Exception) {
+                if (generation == currentGeneration) {
+                    val errorMsg = when {
+                        e.message?.contains("Rate Limit", ignoreCase = true) == true -> strings.errorRateLimit
+                        e.message?.contains("timeout", ignoreCase = true) == true -> strings.errorTimeout
+                        e.message?.contains("Network", ignoreCase = true) == true || e.message?.contains("Connect", ignoreCase = true) == true -> strings.errorNetwork
+                        else -> e.message ?: strings.errorNetwork
+                    }
+                    _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = errorMsg) }
+                }
             } finally {
-                scanJob = null
+                if (generation == currentGeneration) {
+                    scanJob = null
+                }
             }
         }
     }

@@ -28,9 +28,6 @@ import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import io.github.mrcoder20.ioclens.presentation.home.HomeEvent
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
-import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
-import io.github.mrcoder20.ioclens.presentation.intro.IntroSlideData
-import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -65,62 +62,6 @@ class Tier1FeatureCoverageTest {
 
     // ---------------------------------------------------------------------------------------------
     // FEATURE 1: Onboarding Flow (R2)
-    // ---------------------------------------------------------------------------------------------
-
-    @Test
-    fun testOnboardingSkipActionImmediatelyCompletesAndNavigates() {
-        val storage = InMemoryKeyValueStorage()
-        val settingsRepo = SettingsRepositoryImpl(storage)
-        val setIntroUseCase = SetIntroCompletedUseCase(settingsRepo)
-        val viewModel = IntroViewModel(setIntroUseCase, settingsRepo)
-
-        assertFalse(viewModel.uiState.value.isCompleted, "Initial onboarding state must not be completed")
-        assertFalse(settingsRepo.getSettings().isIntroCompleted, "Settings repository must report intro not completed")
-
-        // User taps Skip on header
-        viewModel.onEvent(IntroEvent.SkipClicked)
-
-        assertTrue(viewModel.uiState.value.isCompleted, "UI state must immediately reflect isCompleted = true")
-        assertTrue(settingsRepo.getSettings().isIntroCompleted, "Repository must persist isIntroCompleted = true immediately")
-    }
-
-    @Test
-    fun testOnboardingDoneActionOnFinalSlideCompletesOnFirstClick() {
-        val storage = InMemoryKeyValueStorage()
-        val settingsRepo = SettingsRepositoryImpl(storage)
-        val setIntroUseCase = SetIntroCompletedUseCase(settingsRepo)
-        val viewModel = IntroViewModel(setIntroUseCase, settingsRepo)
-
-        // User reaches final slide and taps DONE
-        viewModel.onEvent(IntroEvent.CompleteClicked)
-
-        assertTrue(viewModel.uiState.value.isCompleted, "UI state must reflect completion on first tap")
-        assertTrue(settingsRepo.getSettings().isIntroCompleted, "Repository must record completion on first tap")
-    }
-
-    @Test
-    fun testOnboardingSkipVisibilityAcrossSlides() {
-        val totalSlides = 4
-
-        // Skip button is completely removed from all onboarding slides
-        for (i in 0 until totalSlides) {
-            assertFalse(shouldShowOnboardingSkip(pageIndex = i, pageCount = totalSlides))
-        }
-    }
-
-    @Test
-    fun testOnboardingEliminatesPreviousButtonAcrossAllLanguages() {
-        for (lang in listOf(AppLanguage.ENGLISH, AppLanguage.PERSIAN, AppLanguage.RUSSIAN)) {
-            val slides = IntroSlideData.getSlides(lang)
-            assertEquals(4, slides.size, "Must have exactly 4 slides for $lang")
-            for (slide in slides) {
-                // Ensure slide titles and descriptions are populated
-                assertTrue(slide.title.isNotBlank())
-                assertTrue(slide.description.isNotBlank())
-            }
-        }
-    }
-
     // ---------------------------------------------------------------------------------------------
     // FEATURE 2: RTL-Aware Directional Navigation Icons (R2)
     // ---------------------------------------------------------------------------------------------

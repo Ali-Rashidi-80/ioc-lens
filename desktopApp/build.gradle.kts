@@ -17,6 +17,8 @@ dependencies {
     implementation("net.java.dev.jna:jna-platform:5.19.1")
 
     implementation(libs.compose.uiToolingPreview)
+
+    testImplementation(libs.kotlin.test)
 }
 
 compose.desktop {

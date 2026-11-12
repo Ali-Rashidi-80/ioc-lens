@@ -123,7 +123,6 @@ import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
-import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -132,7 +131,6 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     viewModel: HomeViewModel,
     settingsRepository: SettingsRepository,
-    introViewModel: IntroViewModel? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()

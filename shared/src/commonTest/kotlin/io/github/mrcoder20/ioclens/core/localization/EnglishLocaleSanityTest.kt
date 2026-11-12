@@ -2,7 +2,6 @@ package io.github.mrcoder20.ioclens.core.localization
 
 import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
-import io.github.mrcoder20.ioclens.presentation.intro.IntroSlideData
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -211,31 +210,6 @@ class EnglishLocaleSanityTest {
             "10 Threat Intel Engines",
             strings.cardThreatIntelTitle
         )
-    }
-
-    @Test
-    fun testEnglishIntroSlidesContainZeroPersianCharacters() {
-        val slides = IntroSlideData.getSlides(AppLanguage.ENGLISH)
-        assertTrue(slides.isNotEmpty())
-
-        slides.forEach { slide ->
-            assertFalse(
-                persianRegex.containsMatchIn(slide.title),
-                "English slide title contains Persian: '${slide.title}'"
-            )
-            assertFalse(
-                persianRegex.containsMatchIn(slide.subtitle),
-                "English slide subtitle contains Persian: '${slide.subtitle}'"
-            )
-            assertFalse(
-                persianRegex.containsMatchIn(slide.description),
-                "English slide description contains Persian: '${slide.description}'"
-            )
-            assertFalse(
-                persianRegex.containsMatchIn(slide.badgeText),
-                "English slide badgeText contains Persian: '${slide.badgeText}'"
-            )
-        }
     }
 
     @Test

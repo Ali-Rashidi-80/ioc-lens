@@ -22,20 +22,10 @@ object PrivacyGuardValidator {
     )
 
     private val IPV4_REGEX = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::(\d{1,5}))?$""")
-    private val BRACKETED_IPV6_REGEX = Regex("""^\[([0-9a-fA-F:.]+)\](?::(\d{1,5}))?$""")
+    private val BRACKETED_IPV6_REGEX = Regex("""^\[([0-9a-fA-F:.%a-zA-Z0-9_-]+)\](?::(\d{1,5}))?$""")
     private val INVISIBLE_CHARS_REGEX = Regex("[\u200B\u200C\u200D\uFEFF\u200E\u200F\u00A0]")
 
-    fun refang(input: String): String {
-        return input.trim()
-            .replace(INVISIBLE_CHARS_REGEX, "")
-            .replace(Regex("""\[\.\]|\(\.\)"""), ".")
-            .replace(Regex("""\[://\]|\(://\)"""), "://")
-            .replace(Regex("""\[:\]|\(:\)"""), ":")
-            .replace(Regex("""\[@\]|\[at\]""", RegexOption.IGNORE_CASE), "@")
-            .replace(Regex("""^hx[xt]ps://""", RegexOption.IGNORE_CASE), "https://")
-            .replace(Regex("""^hx[xt]p://""", RegexOption.IGNORE_CASE), "http://")
-            .replace(Regex("""^fxp://""", RegexOption.IGNORE_CASE), "ftp://")
-    }
+    fun refang(input: String): String = IOCParser.refang(input)
 
     fun isPrivateOrInternal(indicator: Indicator): Boolean {
         if (indicator.isInternalOrPrivate) return true
@@ -52,12 +42,17 @@ object PrivacyGuardValidator {
         val trimmed = refang(rawInput).trim()
         if (trimmed.isEmpty()) return false
 
-        // 1. URL check
+        // 1. URL check (both explicit scheme and scheme-less like 192.168.1.1/admin, [::1]:8080/path)
         val isUrlScheme = trimmed.startsWith("http://", ignoreCase = true) ||
                 trimmed.startsWith("https://", ignoreCase = true) ||
                 trimmed.startsWith("ftp://", ignoreCase = true)
         if (isUrlScheme) {
             return isInternalUrl(trimmed)
+        }
+
+        if (trimmed.contains('/') && !trimmed.contains(' ')) {
+            val host = extractHostFromUrl(trimmed)
+            if (host.isNotEmpty() && isInternalHost(host)) return true
         }
 
         // 2. IP check (IPv4 with optional port or IPv6)
@@ -184,15 +179,37 @@ object PrivacyGuardValidator {
             }
         }
 
-        // IPv4-mapped IPv6 check: ::ffff:127.0.0.1 or ::ffff:192.168.1.1
-        if (normalized.startsWith("::ffff:") && normalized.substringAfter("::ffff:").contains('.')) {
-            val ipv4Part = normalized.substringAfter("::ffff:")
-            val match = IPV4_REGEX.matchEntire(ipv4Part)
-            if (match != null) {
-                val octets = match.destructured.toList().take(4).mapNotNull { it.toIntOrNull() }
-                if (octets.size == 4 && octets.all { it in 0..255 }) {
-                    return isPrivateIpv4(octets)
+        // IPv4-mapped IPv6 check:
+        // Format A: Dotted-decimal suffix, e.g. ::ffff:10.0.0.1 or 0:0:0:0:0:ffff:10.0.0.1
+        if (normalized.contains('.')) {
+            val lastColon = normalized.lastIndexOf(':')
+            if (lastColon != -1) {
+                val v6Prefix = normalized.substring(0, lastColon)
+                val ipv4Part = normalized.substring(lastColon + 1)
+                val prefixHextets = expandPrefixToHextets(v6Prefix, expectedCount = 6)
+                if (prefixHextets != null && prefixHextets.take(5).all { it == 0 } && (prefixHextets[5] == 0xffff || prefixHextets[5] == 0)) {
+                    val match = IPV4_REGEX.matchEntire(ipv4Part)
+                    if (match != null) {
+                        val octets = match.destructured.toList().take(4).mapNotNull { it.toIntOrNull() }
+                        if (octets.size == 4 && octets.all { it in 0..255 }) {
+                            return isPrivateIpv4(octets)
+                        }
+                    }
                 }
+            }
+        } else {
+            // Format B: Hexadecimal format, e.g. ::ffff:0a00:0001 or 0:0:0:0:0:ffff:0a00:0001
+            val hextets = expandToEightHextets(normalized)
+            if (hextets != null && hextets.take(5).all { it == 0 } && hextets[5] == 0xffff) {
+                val h6 = hextets[6]
+                val h7 = hextets[7]
+                val octets = listOf(
+                    (h6 ushr 8) and 0xff,
+                    h6 and 0xff,
+                    (h7 ushr 8) and 0xff,
+                    h7 and 0xff
+                )
+                return isPrivateIpv4(octets)
             }
         }
 
@@ -207,6 +224,32 @@ object PrivacyGuardValidator {
         }
 
         return false
+    }
+
+    private fun expandPrefixToHextets(prefix: String, expectedCount: Int): List<Int>? {
+        val trimmed = prefix.trim()
+        val doubleColonCount = trimmed.windowed(2).count { it == "::" }
+        if (doubleColonCount > 1) return null
+
+        return if (doubleColonCount == 1) {
+            val left = trimmed.substringBefore("::")
+            val right = trimmed.substringAfter("::")
+            val leftParts = if (left.isEmpty()) emptyList() else left.split(":")
+            val rightParts = if (right.isEmpty()) emptyList() else right.split(":")
+            if (leftParts.size + rightParts.size > expectedCount) return null
+            val leftHex = leftParts.map { it.toIntOrNull(16) ?: return null }
+            val rightHex = rightParts.map { it.toIntOrNull(16) ?: return null }
+            val zeros = List(expectedCount - leftHex.size - rightHex.size) { 0 }
+            leftHex + zeros + rightHex
+        } else {
+            val parts = trimmed.split(":")
+            if (parts.size != expectedCount) return null
+            parts.map { it.toIntOrNull(16) ?: return null }
+        }
+    }
+
+    private fun expandToEightHextets(input: String): List<Int>? {
+        return expandPrefixToHextets(input, expectedCount = 8)
     }
 
     fun isInternalDomain(domain: String): Boolean {
@@ -232,7 +275,7 @@ object PrivacyGuardValidator {
 
     fun extractHostFromUrl(url: String): String {
         val refanged = refang(url)
-        val noScheme = refanged.substringAfter("://")
+        val noScheme = if (refanged.contains("://")) refanged.substringAfter("://") else refanged
         val authority = noScheme.substringBefore('/').substringBefore('?').substringBefore('#')
         val hostPart = authority.substringAfter('@')
         return if (hostPart.startsWith('[')) {

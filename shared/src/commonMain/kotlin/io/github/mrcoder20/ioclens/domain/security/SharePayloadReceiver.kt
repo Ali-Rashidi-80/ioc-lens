@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.asStateFlow
 data class SharedPayload(
     val textOrUrl: String? = null,
     val filePath: String? = null,
-    val fileName: String? = null
+    val fileName: String? = null,
+    val isTemporary: Boolean = false,
+    val errorMessage: String? = null
 )
 
 object SharePayloadReceiver {

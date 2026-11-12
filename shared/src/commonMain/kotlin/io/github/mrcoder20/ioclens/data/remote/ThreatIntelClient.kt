@@ -16,15 +16,19 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLPathPart
 import io.ktor.http.parameters
 import io.ktor.util.encodeBase64
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 val jsonParser = Json {
     ignoreUnknownKeys = true
@@ -202,9 +206,14 @@ class ThreatFoxProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
+        val requestBody = buildJsonObject {
+            put("query", "search_ioc")
+            put("search_term", indicator.normalizedValue)
+        }.toString()
+
         val response = client.post("https://threatfox-api.abuse.ch/api/v1/") {
             contentType(ContentType.Application.Json)
-            setBody("""{"query":"search_ioc","search_term":"${indicator.normalizedValue}"}""")
+            setBody(requestBody)
         }
 
         if (response.status != HttpStatusCode.OK) {
@@ -376,9 +385,9 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val (section, value) = when (indicator.type) {
             IndicatorType.DOMAIN -> "domain" to indicator.normalizedValue
-            IndicatorType.IP_ADDRESS -> "IPv4" to indicator.normalizedValue
+            IndicatorType.IP_ADDRESS -> (if (indicator.normalizedValue.contains(':')) "IPv6" else "IPv4") to indicator.normalizedValue
             IndicatorType.FILE_HASH -> "file" to indicator.normalizedValue
-            IndicatorType.URL -> "url" to indicator.normalizedValue
+            IndicatorType.URL -> "url" to indicator.normalizedValue.encodeURLPathPart()
             IndicatorType.UNKNOWN -> return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unknown indicator")
         }
 
@@ -570,6 +579,7 @@ class FeodoTrackerProvider(
         val response = try {
             client.get(endpointUrl)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Feodo Tracker unavailable: ${e.message ?: "Network error"}")
         }
 
@@ -588,7 +598,12 @@ class FeodoTrackerProvider(
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Feodo Tracker response payload")
         }
 
-        val targetIp = indicator.normalizedValue.substringBefore(':').lowercase()
+        val raw = indicator.normalizedValue.trim()
+        val targetIp = when {
+            raw.startsWith('[') -> raw.substringAfter('[').substringBefore(']').substringBefore('%').lowercase()
+            raw.count { it == ':' } == 1 -> raw.substringBefore(':').lowercase()
+            else -> raw.substringBefore('%').lowercase()
+        }
         val match = jsonArray.mapNotNull { it as? JsonObject }.firstOrNull { obj ->
             obj["ip_address"]?.jsonPrimitive?.contentOrNull?.lowercase() == targetIp
         }

@@ -9,6 +9,7 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.UByteVar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import platform.CoreCrypto.CC_MD5_CTX
 import platform.CoreCrypto.CC_MD5_DIGEST_LENGTH
@@ -24,9 +25,9 @@ import platform.posix.fclose
 import platform.posix.fopen
 import platform.posix.fread
 
-actual class ChunkedStreamHasher actual constructor() {
+actual class ChunkedStreamHasher actual constructor() : StreamHasher {
     @OptIn(ExperimentalForeignApi::class)
-    actual suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
+    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
         val filePtr = fopen(filePath, "rb")
             ?: throw IllegalArgumentException("Cannot open file at: $filePath")
 
@@ -43,6 +44,7 @@ actual class ChunkedStreamHasher actual constructor() {
                 var totalBytes = 0L
 
                 while (true) {
+                    ensureActive()
                     val bytesRead = fread(buffer, 1.convert(), bufferSize.convert(), filePtr)
                     if (bytesRead > 0u) {
                         CC_SHA256_Update(sha256Ctx.ptr, buffer, bytesRead.convert())

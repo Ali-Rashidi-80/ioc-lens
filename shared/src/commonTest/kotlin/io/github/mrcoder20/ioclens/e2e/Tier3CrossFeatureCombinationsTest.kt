@@ -20,8 +20,6 @@ import io.github.mrcoder20.ioclens.domain.usecase.GetAppSettingsUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import io.github.mrcoder20.ioclens.presentation.home.HomeEvent
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
-import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
-import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.main.MainViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -185,13 +183,12 @@ class Tier3CrossFeatureCombinationsTest {
         val setIntroCompletedUseCase = SetIntroCompletedUseCase(settingsRepo)
 
         val mainViewModel = MainViewModel(getAppSettingsUseCase)
-        val introViewModel = IntroViewModel(setIntroCompletedUseCase, settingsRepo)
 
         // Initial startup state: Intro is NOT completed
         assertFalse(mainViewModel.uiState.value.appSettings.isIntroCompleted)
 
-        // User taps Complete on onboarding
-        introViewModel.onEvent(IntroEvent.CompleteClicked)
+        // Intro is completed
+        setIntroCompletedUseCase(true)
         advanceUntilIdle()
 
         // MainViewModel observes updated settings via StateFlow

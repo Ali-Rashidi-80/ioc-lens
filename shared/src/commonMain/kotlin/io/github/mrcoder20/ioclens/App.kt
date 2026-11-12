@@ -10,7 +10,6 @@ import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.GetAppSettingsUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
-import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.main.MainScreen
 import io.github.mrcoder20.ioclens.presentation.main.MainViewModel
 
@@ -27,12 +26,10 @@ fun App() {
     val analyzeIndicatorUseCase = remember { AnalyzeIndicatorUseCase(threatIntelRepository) }
 
     val mainViewModel = remember { MainViewModel(getAppSettingsUseCase) }
-    val introViewModel = remember { IntroViewModel(setIntroCompletedUseCase, settingsRepository) }
     val homeViewModel = remember { HomeViewModel(analyzeIndicatorUseCase, setIntroCompletedUseCase, settingsRepository) }
 
     MainScreen(
         mainViewModel = mainViewModel,
-        introViewModel = introViewModel,
         homeViewModel = homeViewModel,
         settingsRepository = settingsRepository
     )

@@ -8,7 +8,7 @@ sealed interface HomeEvent {
     data class QueryChanged(val newQuery: String) : HomeEvent
     data class ThemeChanged(val theme: AppTheme) : HomeEvent
     data class LanguageChanged(val language: AppLanguage) : HomeEvent
-    data class FileDropped(val filePath: String, val fileName: String) : HomeEvent
+    data class FileDropped(val filePath: String, val fileName: String, val isTemporary: Boolean = false) : HomeEvent
     data class HistoryItemClicked(val verdict: TriageVerdict) : HomeEvent
     data object AnalyzeClicked : HomeEvent
     data object CancelScan : HomeEvent
@@ -16,7 +16,6 @@ sealed interface HomeEvent {
     data object ToggleProviderDeck : HomeEvent
     data class SetHistorySheetOpen(val isOpen: Boolean) : HomeEvent
     data class SetSettingsSheetOpen(val isOpen: Boolean) : HomeEvent
-    data class SetGuideOverlayOpen(val isOpen: Boolean) : HomeEvent
     data class SelectBottomNavTab(val tabIndex: Int) : HomeEvent
     data class DeleteHistoryItem(val verdict: TriageVerdict) : HomeEvent
     data object ClearHistory : HomeEvent

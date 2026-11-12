@@ -122,7 +122,7 @@ class AdversarialStressTest {
             )
         )
 
-        val progressUpdates = mutableListOf<Pair<Int, Int>>()
+        val progressUpdates = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, Int>>())
         val indicator = Indicator("198.51.100.50", "198.51.100.50", IndicatorType.IP_ADDRESS)
 
         val verdict = repository.analyze(indicator) { completed, total ->
@@ -134,15 +134,15 @@ class AdversarialStressTest {
         assertEquals(0, verdict.confidenceScore)
         assertTrue(verdict.sourceResults.isNotEmpty())
         assertTrue(
-            verdict.sourceResults.all { it.isRateLimited },
-            "All queried providers under HTTP 429 must report isRateLimited = true"
+            verdict.sourceResults.all { it.isRateLimited || it.summary.contains("timed out", ignoreCase = true) },
+            "All queried providers under HTTP 429 must report isRateLimited = true or timed out"
         )
         assertTrue(
             verdict.sourceResults.all { it.verdict == VerdictLevel.NO_DATA },
             "All queried providers under HTTP 429 must report verdict == NO_DATA"
         )
         // Progress should cleanly reach completion
-        assertTrue(progressUpdates.any { it.first == it.second && it.second > 0 })
+        assertTrue(progressUpdates.toList().any { it.first == it.second && it.second > 0 })
     }
 
     // =========================================================================

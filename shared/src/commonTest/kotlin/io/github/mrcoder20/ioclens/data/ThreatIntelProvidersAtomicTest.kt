@@ -915,7 +915,7 @@ class ThreatIntelProvidersAtomicTest {
         assertEquals("https://otx.alienvault.com/api/v1/indicators/file/hash123/general", requestedFileUrl)
 
         provider.query(client, Indicator("http://target.xyz", "http://target.xyz", IndicatorType.URL), settings)
-        assertEquals("https://otx.alienvault.com/api/v1/indicators/url/http://target.xyz/general", requestedWebUrl)
+        assertEquals("https://otx.alienvault.com/api/v1/indicators/url/http:%2F%2Ftarget.xyz/general", requestedWebUrl)
     }
 
     @Test

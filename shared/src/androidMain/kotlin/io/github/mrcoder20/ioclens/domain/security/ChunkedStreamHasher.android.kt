@@ -3,14 +3,15 @@
 package io.github.mrcoder20.ioclens.domain.security
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
 
-actual class ChunkedStreamHasher actual constructor() {
+actual class ChunkedStreamHasher actual constructor() : StreamHasher {
 
-    actual suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
+    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
         val file = File(filePath)
         if (!file.exists() || !file.isFile) {
             throw IllegalArgumentException("File not found or is not a regular file at: $filePath")
@@ -25,6 +26,7 @@ actual class ChunkedStreamHasher actual constructor() {
         FileInputStream(file).use { input ->
             var bytesRead: Int
             while (input.read(buffer).also { bytesRead = it } != -1) {
+                ensureActive()
                 sha256Digest.update(buffer, 0, bytesRead)
                 md5Digest.update(buffer, 0, bytesRead)
                 totalBytes += bytesRead

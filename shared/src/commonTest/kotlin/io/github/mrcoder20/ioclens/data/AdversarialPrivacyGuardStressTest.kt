@@ -1,18 +1,25 @@
 package io.github.mrcoder20.ioclens.data
 
+import io.github.mrcoder20.ioclens.data.remote.DEFAULT_ZERO_KEY_PROVIDERS
+import io.github.mrcoder20.ioclens.data.remote.FeodoTrackerProvider
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelAggregator
 import io.github.mrcoder20.ioclens.data.repository.ZeroKeyThreatIntelRepositoryImpl
+import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.IndicatorType
+import io.github.mrcoder20.ioclens.domain.model.ParsedIoc
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.parser.IOCParser
 import io.github.mrcoder20.ioclens.domain.parser.PrivacyGuardValidator
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class AdversarialPrivacyGuardStressTest {
@@ -469,5 +476,221 @@ class AdversarialPrivacyGuardStressTest {
         val verdict = aggregator.aggregate(indicator)
         assertEquals(0, networkDispatched, "Zero network calls must be dispatched for private indicator $target")
         assertTrue(verdict.indicator.isInternalOrPrivate, "Indicator must be marked internal or private")
+    }
+
+    /**
+     * Test 1: Bracketed IPv6 with Scope ID and Ports.
+     * Verifies that `%` (scope ID), ports, and IPv4-mapped bracketed addresses are extracted and evaluated as private.
+     */
+    @Test
+    fun testBracketedIpv6WithScopeIdAndPorts() {
+        val privateBracketedVectors = listOf(
+            "[fe80::1%eth0]:8080",
+            "[fe80::1%1]:8080",
+            "[::1]:8080",
+            "[::ffff:10.0.0.1]:8080",
+            "[::ffff:192.168.1.1]:443",
+            "[fc00::1]:8080"
+        )
+
+        for (vector in privateBracketedVectors) {
+            assertTrue(
+                PrivacyGuardValidator.isPrivateIp(vector),
+                "isPrivateIp must evaluate bracketed vector '$vector' as private"
+            )
+            assertTrue(
+                PrivacyGuardValidator.isPrivateOrInternal(vector),
+                "isPrivateOrInternal must evaluate bracketed vector '$vector' as private"
+            )
+
+            val parsed = parser.parseExact(vector)
+            assertIs<ParsedIoc.IpAddress>(parsed, "Vector '$vector' must parse as ParsedIoc.IpAddress")
+            assertTrue(parsed.isIpv6, "Vector '$vector' must be flagged as isIpv6")
+            assertTrue(parsed.isPrivate, "Vector '$vector' must be flagged as isPrivate")
+        }
+    }
+
+    /**
+     * Test 2: Uncompressed and Hexadecimal IPv4-Mapped IPv6 Variants.
+     * Evaluates uncompressed addresses (e.g. 0:0:0:0:0:ffff:10.0.0.1) and hex-mapped formats (e.g. ::ffff:0a00:0001).
+     */
+    @Test
+    fun testUncompressedAndHexIpv4MappedIpv6Variants() {
+        // Uncompressed IPv4-mapped private vectors
+        val uncompressedPrivate = listOf(
+            "0:0:0:0:0:ffff:10.0.0.1",
+            "0000:0000:0000:0000:0000:ffff:10.0.0.1",
+            "0:0:0:0:0:ffff:192.168.1.1",
+            "0:0:0:0:0:ffff:172.16.0.1",
+            "0:0:0:0:0:ffff:127.0.0.1"
+        )
+
+        for (vec in uncompressedPrivate) {
+            assertTrue(
+                PrivacyGuardValidator.isPrivateIp(vec),
+                "Uncompressed mapped IPv4 '$vec' must evaluate to true"
+            )
+            assertTrue(
+                PrivacyGuardValidator.isPrivateOrInternal(vec),
+                "Uncompressed mapped IPv4 '$vec' must evaluate to true in isPrivateOrInternal"
+            )
+        }
+
+        // Hex-mapped private vectors
+        val hexMappedPrivate = listOf(
+            "::ffff:0a00:0001", // 10.0.0.1
+            "::ffff:c0a8:0101", // 192.168.1.1
+            "::ffff:ac10:0001", // 172.16.0.1
+            "::ffff:7f00:0001", // 127.0.0.1
+            "0:0:0:0:0:ffff:0a00:0001" // Uncompressed hex-mapped
+        )
+
+        for (vec in hexMappedPrivate) {
+            assertTrue(
+                PrivacyGuardValidator.isPrivateIp(vec),
+                "Hex-mapped IPv4 '$vec' must evaluate to true"
+            )
+            assertTrue(
+                PrivacyGuardValidator.isPrivateOrInternal(vec),
+                "Hex-mapped IPv4 '$vec' must evaluate to true in isPrivateOrInternal"
+            )
+        }
+
+        // Public mapped addresses must NOT be marked private
+        val publicMapped = listOf(
+            "::ffff:0808:0808", // 8.8.8.8
+            "::ffff:8.8.8.8",
+            "0:0:0:0:0:ffff:8.8.8.8",
+            "::ffff:0101:0101"  // 1.1.1.1
+        )
+
+        for (vec in publicMapped) {
+            assertFalse(
+                PrivacyGuardValidator.isPrivateIp(vec),
+                "Public mapped IPv4 '$vec' must NOT evaluate to true"
+            )
+            assertFalse(
+                PrivacyGuardValidator.isPrivateOrInternal(vec),
+                "Public mapped IPv4 '$vec' must NOT evaluate to true in isPrivateOrInternal"
+            )
+        }
+    }
+
+    /**
+     * Test 3: Unified Refanging Matrix.
+     * Evaluates refanging consistency across `{.}`, `[dot]`, `(dot)`, `{dot}`, protocol obfuscation.
+     */
+    @Test
+    fun testUnifiedRefangMatrix() {
+        val obfuscatedPrivateVectors = listOf(
+            "10[dot]0[dot]0[dot]1",
+            "10(dot)0(dot)0(dot)1",
+            "10{.}0{.}0{.}1",
+            "10{dot}0{dot}0{dot}1",
+            "192{.}168{.}1{.}1:8080",
+            "hxxps://127.0.0.1:8443/login",
+            "h[tt]ps://localhost:3000/api"
+        )
+
+        for (vec in obfuscatedPrivateVectors) {
+            assertTrue(
+                PrivacyGuardValidator.isPrivateOrInternal(vec),
+                "Obfuscated vector '$vec' must be detected as private or internal"
+            )
+        }
+    }
+
+    /**
+     * Test 4: Scheme-less IPv6 and Internal URLs.
+     * Verifies that scheme-less URLs like `[::1]:8080/payload` and `192.168.1.1/admin` are correctly parsed and protected.
+     */
+    @Test
+    fun testSchemeLessIpv6AndInternalUrls() {
+        val internalSchemeLessUrls = listOf(
+            "[::1]:8080/payload",
+            "[fe80::1%eth0]:8080/admin",
+            "192.168.1.1/admin",
+            "10.0.0.1:8080/setup",
+            "localhost:3000/api",
+            "router.lan/login"
+        )
+
+        for (url in internalSchemeLessUrls) {
+            assertTrue(
+                PrivacyGuardValidator.isPrivateOrInternal(url),
+                "Scheme-less internal URL '$url' must be detected by PrivacyGuardValidator"
+            )
+            val parsed = parser.parseExact(url)
+            assertIs<ParsedIoc.Url>(parsed, "Scheme-less URL '$url' must be parsed as ParsedIoc.Url")
+            assertTrue(parsed.isInternal, "Scheme-less URL '$url' must have isInternal == true")
+        }
+    }
+
+    /**
+     * Test 5: IPv4 Canonicalization (stripping leading zeros).
+     */
+    @Test
+    fun testCanonicalIpv4OctetsStrippingLeadingZeros() {
+        val nonCanonicalVectors = listOf(
+            "010.000.000.001" to "10.0.0.1",
+            "010.000.000.001:8080" to "10.0.0.1",
+            "192.168.001.050" to "192.168.1.50"
+        )
+
+        for ((input, expectedCanonical) in nonCanonicalVectors) {
+            val parsed = parser.parseExact(input)
+            assertIs<ParsedIoc.IpAddress>(parsed)
+            assertEquals(
+                expectedCanonical,
+                parsed.normalizedValue,
+                "Leading zeros in octets must be stripped in normalizedValue"
+            )
+        }
+    }
+
+    /**
+     * Test 6: Freeform extractAllIocs scanning includes IPv6 indicators.
+     */
+    @Test
+    fun testExtractAllIocsIncludesIpv6Indicators() {
+        val sampleAlert = "Alert: compromised host 2001:db8::1 connected to C2 [fe80::1%eth0]:8080 and downloaded payload from 198.51.100.1"
+        val extracted = parser.extractAllIocs(sampleAlert)
+
+        val v6Items = extracted.filterIsInstance<ParsedIoc.IpAddress>().filter { it.isIpv6 }
+        assertTrue(v6Items.isNotEmpty(), "extractAllIocs must extract IPv6 addresses")
+        assertTrue(v6Items.any { it.normalizedValue == "2001:db8::1" }, "2001:db8::1 must be extracted")
+        assertTrue(v6Items.any { it.normalizedValue.contains("fe80::1") }, "fe80::1 must be extracted")
+    }
+
+    /**
+     * Test 7: FeodoTrackerProvider rethrows CancellationException.
+     */
+    @Test
+    fun testFeodoTrackerCancellationExceptionRethrown() = runTest {
+        val cancellingClient = HttpClient(MockEngine { _ ->
+            throw CancellationException("Simulated coroutine cancellation")
+        })
+        val provider = FeodoTrackerProvider()
+        val indicator = Indicator("198.51.100.1", "198.51.100.1", IndicatorType.IP_ADDRESS)
+
+        assertFailsWith<CancellationException> {
+            provider.query(cancellingClient, indicator, AppSettings())
+        }
+    }
+
+    /**
+     * Test 8: ALL_PROVIDERS zero-key integrity (deprecated authenticated providers removed).
+     */
+    @Test
+    fun testAllProvidersZeroKeyIntegrity() {
+        assertTrue(
+            DEFAULT_ZERO_KEY_PROVIDERS.all { it.isZeroKey },
+            "All providers in DEFAULT_ZERO_KEY_PROVIDERS must report isZeroKey == true"
+        )
+        val legacyNames = listOf("VirusTotal", "AbuseIPDB", "Pulsedive", "IPQualityScore")
+        assertTrue(
+            DEFAULT_ZERO_KEY_PROVIDERS.none { it.name in legacyNames },
+            "DEFAULT_ZERO_KEY_PROVIDERS must not contain retired authenticated engines"
+        )
     }
 }

@@ -18,38 +18,40 @@ class IOCParser {
             "gif", "webp", "docx", "xlsx", "pptx", "txt", "csv", "sys", "bat", "cmd",
             "ps1", "sh", "vbs", "elf", "so", "dylib", "ipa"
         )
+
+        fun refang(input: String): String {
+            var cleaned = input.trim()
+                .replace(INVISIBLE_CHARS_REGEX, "")
+
+            // Remove surrounding wrappers: <url>, (url), [url], 'url', "url", `url`
+            if (cleaned.startsWith("<") && cleaned.endsWith(">")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+            if (cleaned.startsWith("\"") && cleaned.endsWith("\"")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+            if (cleaned.startsWith("'") && cleaned.endsWith("'")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+            if (cleaned.startsWith("`") && cleaned.endsWith("`")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
+
+            return cleaned
+                .replace("[.]", ".")
+                .replace("(.)", ".")
+                .replace("{.}", ".")
+                .replace("[dot]", ".", ignoreCase = true)
+                .replace("(dot)", ".", ignoreCase = true)
+                .replace("{dot}", ".", ignoreCase = true)
+                .replace("[://]", "://")
+                .replace("(://)", "://")
+                .replace("[:]//", "://")
+                .replace("(:)//", "://")
+                .replace("[:]", ":")
+                .replace("(:)", ":")
+                .replace("[@]", "@")
+                .replace("[at]", "@", ignoreCase = true)
+                .replace("(at)", "@", ignoreCase = true)
+                .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])ps://""", RegexOption.IGNORE_CASE), "https://")
+                .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])p://""", RegexOption.IGNORE_CASE), "http://")
+                .replace(Regex("""(?:^|\b)fxp://""", RegexOption.IGNORE_CASE), "ftp://")
+        }
     }
 
-    fun refang(input: String): String {
-        var cleaned = input.trim()
-            .replace(INVISIBLE_CHARS_REGEX, "")
-
-        // Remove surrounding wrappers: <url>, (url), [url], 'url', "url", `url`
-        if (cleaned.startsWith("<") && cleaned.endsWith(">")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
-        if (cleaned.startsWith("\"") && cleaned.endsWith("\"")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
-        if (cleaned.startsWith("'") && cleaned.endsWith("'")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
-        if (cleaned.startsWith("`") && cleaned.endsWith("`")) cleaned = cleaned.substring(1, cleaned.length - 1).trim()
-
-        return cleaned
-            .replace("[.]", ".")
-            .replace("(.)", ".")
-            .replace("{.}", ".")
-            .replace("[dot]", ".", ignoreCase = true)
-            .replace("(dot)", ".", ignoreCase = true)
-            .replace("{dot}", ".", ignoreCase = true)
-            .replace("[://]", "://")
-            .replace("(://)", "://")
-            .replace("[:]//", "://")
-            .replace("(:)//", "://")
-            .replace("[:]", ":")
-            .replace("(:)", ":")
-            .replace("[@]", "@")
-            .replace("[at]", "@", ignoreCase = true)
-            .replace("(at)", "@", ignoreCase = true)
-            .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])ps://""", RegexOption.IGNORE_CASE), "https://")
-            .replace(Regex("""(?:^|\b)h(?:[xt]{2}|\[t\]\[t\]|\[tt\])p://""", RegexOption.IGNORE_CASE), "http://")
-            .replace(Regex("""(?:^|\b)fxp://""", RegexOption.IGNORE_CASE), "ftp://")
-    }
+    fun refang(input: String): String = Companion.refang(input)
 
     fun parse(rawInput: String): ParsedIoc {
         val exact = parseExact(rawInput)
@@ -91,14 +93,14 @@ class IOCParser {
             val octets = listOf(s1.toIntOrNull() ?: -1, s2.toIntOrNull() ?: -1, s3.toIntOrNull() ?: -1, s4.toIntOrNull() ?: -1)
             val portValid = portStr.isEmpty() || ((portStr.toIntOrNull() ?: -1) in 1..65535)
             if (octets.all { it in 0..255 } && portValid) {
-                val ipOnly = "$s1.$s2.$s3.$s4"
+                val ipOnly = octets.joinToString(".")
                 val isPrivate = isPrivateIpv4(octets)
                 return ParsedIoc.IpAddress(trimmed, ipOnly, isIpv6 = false, isPrivate = isPrivate)
             }
         }
 
         // 3. IPv6 Check (with optional wrapping brackets, e.g. [::1], and optional port, e.g. [::1]:8080)
-        val bracketedWithPortRegex = Regex("""^\[([0-9a-fA-F:.]+)\](?::(\d{1,5}))?$""")
+        val bracketedWithPortRegex = Regex("""^\[([0-9a-fA-F:.%a-zA-Z0-9_-]+)\](?::(\d{1,5}))?$""")
         val bracketedMatch = bracketedWithPortRegex.matchEntire(refanged)
         if (bracketedMatch != null) {
             val (ipPart, portStr) = bracketedMatch.destructured
@@ -132,8 +134,7 @@ class IOCParser {
 
         // 4b. Scheme-less URL Check (e.g. evil.com/login.php, 1.2.3.4:8080/malware)
         if (refanged.contains('/') && !refanged.contains(' ') && refanged.length <= MAX_URL_LENGTH) {
-            val hostPart = refanged.substringBefore('/')
-            val hostClean = if (hostPart.contains(':')) hostPart.substringBefore(':') else hostPart
+            val hostClean = extractHostFromUrl(refanged)
             if (isValidHost(hostClean)) {
                 val fullUrl = "http://$refanged"
                 val isInternal = isInternalHost(hostClean)
@@ -190,40 +191,53 @@ class IOCParser {
         val results = mutableListOf<ParsedIoc>()
         val seenValues = mutableSetOf<String>()
 
-        // 1. Scan for URLs
+        fun addIfValid(candidate: String) {
+            val parsed = parseExact(candidate)
+            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
+                results.add(parsed)
+            }
+        }
+
+        // 1. Scan for URLs (explicit scheme)
         val urlRegex = Regex("""(?:https?|ftp)://[^\s<>"'{}|\\^`]+""", RegexOption.IGNORE_CASE)
         urlRegex.findAll(refanged).forEach { match ->
-            val parsed = parseExact(match.value)
-            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
-                results.add(parsed)
-            }
+            addIfValid(match.value)
         }
 
-        // 2. Scan for Hashes (SHA-256, SHA-1, MD5)
+        // 2. Scan for Scheme-less URLs (paths with domain, ipv4, or bracketed ipv6)
+        val schemelessUrlRegex = Regex("""(?:\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?::\d{1,5})?|\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?|\[[0-9a-fA-F:.%a-zA-Z0-9_-]+\](?::\d{1,5})?)/[^\s<>"'{}|\\^`]+""")
+        schemelessUrlRegex.findAll(refanged).forEach { match ->
+            addIfValid(match.value)
+        }
+
+        // 3. Scan for Hashes (SHA-256, SHA-1, MD5)
         val hashRegex = Regex("""\b([a-fA-F0-9]{64}|[a-fA-F0-9]{40}|[a-fA-F0-9]{32})\b""")
         hashRegex.findAll(refanged).forEach { match ->
-            val parsed = parseExact(match.value)
-            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
-                results.add(parsed)
-            }
+            addIfValid(match.value)
         }
 
-        // 3. Scan for IPv4
+        // 4. Scan for Bracketed IPv6 (with optional scope and port)
+        val bracketedIpv6Regex = Regex("""\[[0-9a-fA-F:.%a-zA-Z0-9_-]+\](?::\d{1,5})?""")
+        bracketedIpv6Regex.findAll(refanged).forEach { match ->
+            addIfValid(match.value)
+        }
+
+        // 5. Scan for Unbracketed IPv6
+        val unbracketedIpv6Regex = Regex("""(?<![0-9a-fA-F:])(?:(?:[0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}|::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:)+:(?:[0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,6}:(?:\d{1,3}\.){3}\d{1,3}|::(?:ffff:)?(?:\d{1,3}\.){3}\d{1,3})(?:%[a-zA-Z0-9_-]+)?(?![0-9a-fA-F:])""")
+        unbracketedIpv6Regex.findAll(refanged).forEach { match ->
+            addIfValid(match.value)
+        }
+
+        // 6. Scan for IPv4
         val ipv4Regex = Regex("""\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::\d{1,5})?\b""")
         ipv4Regex.findAll(refanged).forEach { match ->
-            val parsed = parseExact(match.value)
-            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
-                results.add(parsed)
-            }
+            addIfValid(match.value)
         }
 
-        // 4. Scan for Domains
+        // 7. Scan for Domains
         val domainRegex = Regex("""\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,})\b""")
         domainRegex.findAll(refanged).forEach { match ->
-            val parsed = parseExact(match.value)
-            if (parsed !is ParsedIoc.Unknown && seenValues.add(parsed.normalizedValue)) {
-                results.add(parsed)
-            }
+            addIfValid(match.value)
         }
 
         return results

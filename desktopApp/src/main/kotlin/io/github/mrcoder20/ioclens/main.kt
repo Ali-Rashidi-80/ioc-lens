@@ -75,18 +75,16 @@ fun main(args: Array<String>) {
         remember {
             val arg = args.firstOrNull()?.trim()
             if (!arg.isNullOrBlank()) {
-                val file = File(arg)
-                if (file.exists() && file.isFile) {
-                    SharePayloadReceiver.dispatch(SharedPayload(filePath = file.absolutePath, fileName = file.name))
-                } else {
-                    SharePayloadReceiver.dispatch(SharedPayload(textOrUrl = arg))
+                DesktopDropHandler.processStartupArg(arg) { payload ->
+                    SharePayloadReceiver.dispatch(payload)
                 }
             }
         }
+        val initialBounds = remember { WindowBoundsClamper.resolveInitialBounds() }
         val windowState = rememberWindowState(
             placement = WindowPlacement.Floating,
-            position = WindowPosition.Aligned(Alignment.Center),
-            size = DpSize(1040.dp, 740.dp)
+            position = initialBounds.position,
+            size = initialBounds.size
         )
 
         val iconPainter = remember {
@@ -169,13 +167,7 @@ fun main(args: Array<String>) {
                         if (prev != null && prev.width >= 400 && prev.height >= 300) {
                             window.bounds = prev
                         } else {
-                            val gc = window.graphicsConfiguration
-                            val screenBounds = gc.bounds
-                            val defaultW = 1040
-                            val defaultH = 740
-                            val targetX = screenBounds.x + (screenBounds.width - defaultW) / 2
-                            val targetY = screenBounds.y + (screenBounds.height - defaultH) / 2
-                            window.setBounds(targetX, targetY, defaultW, defaultH)
+                            window.bounds = WindowBoundsClamper.resolveRestoreBounds(window.graphicsConfiguration)
                         }
                         isMaximized = false
                     }
@@ -193,14 +185,10 @@ fun main(args: Array<String>) {
                             val transferable = evt.transferable
                             if (transferable.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor)) {
                                 val files = transferable.getTransferData(java.awt.datatransfer.DataFlavor.javaFileListFlavor) as? List<*>
-                                val firstFile = files?.firstOrNull() as? File
-                                if (firstFile != null && firstFile.exists()) {
-                                    SharePayloadReceiver.dispatch(
-                                        SharedPayload(
-                                            filePath = firstFile.absolutePath,
-                                            fileName = firstFile.name
-                                        )
-                                    )
+                                val handled = DesktopDropHandler.processDroppedFiles(files) { payload ->
+                                    SharePayloadReceiver.dispatch(payload)
+                                }
+                                if (handled) {
                                     evt.dropComplete(true)
                                     return
                                 }

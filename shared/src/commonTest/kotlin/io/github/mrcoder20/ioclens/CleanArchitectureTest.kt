@@ -125,25 +125,6 @@ class CleanArchitectureTest {
     }
 
     @Test
-    fun testIntroResetForReplay() {
-        val storage = InMemoryKeyValueStorage()
-        val settingsRepo = SettingsRepositoryImpl(storage)
-        val setIntroUseCase = SetIntroCompletedUseCase(settingsRepo)
-        val introViewModel = io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel(setIntroUseCase, settingsRepo)
-
-        // User navigates through slides and completes intro
-        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.CompleteClicked)
-
-        assertTrue(introViewModel.uiState.value.isCompleted)
-        assertTrue(settingsRepo.getSettings().isIntroCompleted)
-
-        // User triggers guide replay from Drawer or Settings
-        introViewModel.onEvent(io.github.mrcoder20.ioclens.presentation.intro.IntroEvent.Reset)
-
-        assertFalse(introViewModel.uiState.value.isCompleted, "isCompleted must be reset to false for smooth replay")
-    }
-
-    @Test
     fun testMainViewModelSplashNotReplayedOnIntroReplay() {
         val storage = InMemoryKeyValueStorage()
         val settingsRepo = SettingsRepositoryImpl(storage)

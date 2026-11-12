@@ -8,6 +8,6 @@ data class FileHashResult(
     val totalBytes: Long
 )
 
-expect class ChunkedStreamHasher() {
-    suspend fun hashFile(filePath: String): FileHashResult
+expect class ChunkedStreamHasher() : StreamHasher {
+    override suspend fun hashFile(filePath: String): FileHashResult
 }
