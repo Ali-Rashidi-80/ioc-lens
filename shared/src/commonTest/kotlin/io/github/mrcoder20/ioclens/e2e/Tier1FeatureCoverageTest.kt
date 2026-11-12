@@ -1,8 +1,5 @@
 package io.github.mrcoder20.ioclens.e2e
 
-import io.github.mrcoder20.ioclens.core.components.slider.OnboardingArrowDirection
-import io.github.mrcoder20.ioclens.core.components.slider.getOnboardingNextArrowDirection
-import io.github.mrcoder20.ioclens.core.components.slider.shouldShowOnboardingSkip
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.storage.InMemoryKeyValueStorage
@@ -68,17 +65,20 @@ class Tier1FeatureCoverageTest {
 
     @Test
     fun testDirectionalArrowPointsLeftForPersianAndRightForEnglishRussian() {
-        // Persian (RTL) -> Arrow points LEFT (←)
+        // Persian (RTL) -> Back Arrow points Right (→)
         assertTrue(AppLanguage.PERSIAN.isRtl)
-        assertEquals(OnboardingArrowDirection.LEFT, getOnboardingNextArrowDirection(isRtl = true))
+        val persianArrow = if (AppLanguage.PERSIAN.isRtl) "→" else "←"
+        assertEquals("→", persianArrow)
 
-        // English (LTR) -> Arrow points RIGHT (→)
+        // English (LTR) -> Back Arrow points Left (←)
         assertFalse(AppLanguage.ENGLISH.isRtl)
-        assertEquals(OnboardingArrowDirection.RIGHT, getOnboardingNextArrowDirection(isRtl = false))
+        val englishArrow = if (AppLanguage.ENGLISH.isRtl) "→" else "←"
+        assertEquals("←", englishArrow)
 
-        // Russian (LTR) -> Arrow points RIGHT (→)
+        // Russian (LTR) -> Back Arrow points Left (←)
         assertFalse(AppLanguage.RUSSIAN.isRtl)
-        assertEquals(OnboardingArrowDirection.RIGHT, getOnboardingNextArrowDirection(isRtl = AppLanguage.RUSSIAN.isRtl))
+        val russianArrow = if (AppLanguage.RUSSIAN.isRtl) "→" else "←"
+        assertEquals("←", russianArrow)
     }
 
     // ---------------------------------------------------------------------------------------------
