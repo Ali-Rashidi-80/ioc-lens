@@ -1,16 +1,23 @@
 package io.github.mrcoder20.ioclens.presentation.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,6 +93,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -621,64 +629,98 @@ fun HomeScreen(
                     }
                 } else {
                     // ADAPTIVE MOBILE & TABLET SINGLE-COLUMN VIEW
-                    when (uiState.selectedBottomNavTab) {
-                        0 -> {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
-
-                                AnimatedVisibility(
-                                    visible = uiState.isLoading,
-                                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                    AnimatedContent(
+                        targetState = uiState.selectedBottomNavTab,
+                        transitionSpec = {
+                            val isRtl = uiState.appLanguage.isRtl
+                            if (targetState > initialState) {
+                                (slideInHorizontally { width -> if (isRtl) -width / 4 else width / 4 } + fadeIn(tween(250)))
+                                    .togetherWith(slideOutHorizontally { width -> if (isRtl) width / 4 else -width / 4 } + fadeOut(tween(200)))
+                            } else {
+                                (slideInHorizontally { width -> if (isRtl) width / 4 else -width / 4 } + fadeIn(tween(250)))
+                                    .togetherWith(slideOutHorizontally { width -> if (isRtl) -width / 4 else width / 4 } + fadeOut(tween(200)))
+                            }
+                        },
+                        label = "tabContentTransition"
+                    ) { targetTab ->
+                        when (targetTab) {
+                            0 -> {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    LiveScanBanner(
-                                        targetIndicator = uiState.targetIndicator,
-                                        finishedEngines = uiState.scanFinishedEngines,
-                                        totalEngines = uiState.scanTotalEngines,
+                                    FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+
+                                    AnimatedVisibility(
+                                        visible = uiState.isLoading,
+                                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                                    ) {
+                                        LiveScanBanner(
+                                            targetIndicator = uiState.targetIndicator,
+                                            finishedEngines = uiState.scanFinishedEngines,
+                                            totalEngines = uiState.scanTotalEngines,
+                                            appLanguage = uiState.appLanguage,
+                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                        )
+                                    }
+
+                                    SearchCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        isCompact = isCompactScreen,
+                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        onOpenFilePicker = filePickerLauncher
+                                    )
+
+                                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
+
+                                    AnimatedVisibility(
+                                        visible = uiState.activeVerdict != null,
+                                        enter = fadeIn(tween(350)) + expandVertically(tween(350)),
+                                        exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
+                                    ) {
+                                        uiState.activeVerdict?.let { verdict ->
+                                            OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                        }
+                                    }
+
+                                    // 10 Threat Intel Providers Deck on Mobile
+                                    LiveProviderDeck(
+                                        uiState = uiState,
+                                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
+                                        isTwoColumn = false,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    // Recent Triage Feed on Mobile
+                                    RecentTriageFeedHUD(
+                                        history = uiState.scanHistory,
                                         appLanguage = uiState.appLanguage,
-                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                        strings = strings,
+                                        onSelect = { item ->
+                                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
+                                            coroutineScope.launch { scrollState.scrollTo(0) }
+                                        },
+                                        onDelete = { item ->
+                                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                        },
+                                        onReScan = { rawValue ->
+                                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
+                                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                            coroutineScope.launch { scrollState.scrollTo(0) }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
-
-                                SearchCard(
-                                    uiState = uiState,
-                                    strings = strings,
-                                    isCompact = isCompactScreen,
-                                    onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                    onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                    onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                    onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                    onOpenFilePicker = filePickerLauncher
-                                )
-
-                                ErrorMessageBanner(errorMessage = uiState.errorMessage)
-
-                                AnimatedVisibility(
-                                    visible = uiState.activeVerdict != null,
-                                    enter = fadeIn(tween(350)) + expandVertically(tween(350)),
-                                    exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
-                                ) {
-                                    uiState.activeVerdict?.let { verdict ->
-                                        OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
-                                    }
-                                }
-
-                                // 10 Threat Intel Providers Deck on Mobile
-                                LiveProviderDeck(
-                                    uiState = uiState,
-                                    onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                    isTwoColumn = false,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                // Recent Triage Feed on Mobile
-                                RecentTriageFeedHUD(
+                            }
+                            1 -> {
+                                HistoryFullScreenView(
                                     history = uiState.scanHistory,
                                     appLanguage = uiState.appLanguage,
-                                    strings = strings,
                                     onSelect = { item ->
                                         viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
                                         coroutineScope.launch { scrollState.scrollTo(0) }
@@ -686,28 +728,9 @@ fun HomeScreen(
                                     onDelete = { item ->
                                         viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
                                     },
-                                    onReScan = { rawValue ->
-                                        viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                                        viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                                        coroutineScope.launch { scrollState.scrollTo(0) }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
+                                    onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                                 )
                             }
-                        }
-                        1 -> {
-                            HistoryFullScreenView(
-                                history = uiState.scanHistory,
-                                appLanguage = uiState.appLanguage,
-                                onSelect = { item ->
-                                    viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
-                                    coroutineScope.launch { scrollState.scrollTo(0) }
-                                },
-                                onDelete = { item ->
-                                    viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
-                                },
-                                onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
-                            )
                         }
                     }
                 }
@@ -1015,7 +1038,7 @@ private fun CyberpunkBottomNavBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val tabs = listOf(
-                Triple(0, "🎯", strings.tabScanner),
+                Triple(0, "☣️", strings.tabScanner),
                 Triple(1, "🗄️", strings.tabHistory),
                 Triple(2, "🎛️", strings.tabSettings)
             )
@@ -1024,6 +1047,17 @@ private fun CyberpunkBottomNavBar(
                 val isSelected = selectedTab == index
                 val activeColor = PrimaryCyan
                 val inactiveColor = Color(0xFF7E8B9F)
+
+                val indicatorWidth by animateDpAsState(
+                    targetValue = if (isSelected) 22.dp else 0.dp,
+                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
+                    label = "tabIndicatorWidth_$index"
+                )
+                val iconScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.18f else 1.0f,
+                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 500f),
+                    label = "tabIconScale_$index"
+                )
 
                 Box(
                     modifier = Modifier
@@ -1043,7 +1077,11 @@ private fun CyberpunkBottomNavBar(
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = icon,
-                                fontSize = 18.sp
+                                fontSize = 18.sp,
+                                modifier = Modifier.graphicsLayer {
+                                    scaleX = iconScale
+                                    scaleY = iconScale
+                                }
                             )
                             if (index == 1 && historyCount > 0) {
                                 Box(
@@ -1079,10 +1117,10 @@ private fun CyberpunkBottomNavBar(
                         Spacer(modifier = Modifier.height(3.dp))
                         Box(
                             modifier = Modifier
-                                .width(if (isSelected) 18.dp else 0.dp)
+                                .width(indicatorWidth)
                                 .height(2.dp)
                                 .clip(RoundedCornerShape(1.dp))
-                                .background(if (isSelected) PrimaryCyan else Color.Transparent)
+                                .background(if (indicatorWidth > 1.dp) PrimaryCyan else Color.Transparent)
                         )
                     }
                 }
@@ -1141,6 +1179,16 @@ private fun SearchCard(
     onOpenFilePicker: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val infiniteTransition = rememberInfiniteTransition(label = "scanPulse")
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseGlow"
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1284,7 +1332,8 @@ private fun SearchCard(
                                     onClick = onAnalyze,
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(38.dp)
+                                    border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
+                                    modifier = Modifier.height(38.dp).springPress()
                                 ) {
                                     Text(
                                         text = strings.scanPayload,
@@ -1392,6 +1441,7 @@ private fun SearchCard(
                                     onClick = onAnalyze,
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                                     shape = RoundedCornerShape(10.dp),
+                                    border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
                                     modifier = Modifier.height(40.dp).springPress()
                                 ) {
                                     Text(
