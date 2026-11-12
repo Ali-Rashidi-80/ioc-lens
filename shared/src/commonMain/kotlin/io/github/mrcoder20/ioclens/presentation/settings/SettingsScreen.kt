@@ -116,9 +116,12 @@ fun SettingsScreen(
                     onLanguageSelected = { settingsRepository.setAppLanguage(it) }
                 )
 
-                // 2. Client-Side Manifesto Card
-                ClientManifestoCard(
-                    strings = strings
+                // 2. App Tour / Guide Replay Card
+                AppTourCard(
+                    strings = strings,
+                    onReplayIntro = {
+                        settingsRepository.setIntroCompleted(false)
+                    }
                 )
 
                 // 3. GitHub Repository Action Card
@@ -298,43 +301,53 @@ private fun LanguageTile(
 }
 
 /**
- * Client-Side Architecture Manifesto Card:
- * Explains 100% direct-to-engine queries, zero cloud DB, zero telemetry,
- * and automatic RFC 1918 on-device privacy protection.
+ * Interactive App Tour & Introduction Replay Card:
+ * Allows users to replay the zero-lag onboarding intro anytime.
  */
 @Composable
-private fun ClientManifestoCard(
+private fun AppTourCard(
     strings: AppStrings,
+    onReplayIntro: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     SettingsCard(
-        title = "⚡ ${strings.clientManifestoTitle}",
-        badge = "100% CLIENT-SIDE",
+        title = strings.introGuide,
+        badge = "TOUR / GUIDE",
         modifier = modifier
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                text = strings.clientManifestoDesc,
+                text = if (strings.introGuide.contains("راهنما")) {
+                    "مشاهده مجدد اسلایدهای معرفی برنامه، آشنایی با ۱۰ موتور تریاژ، سپر حریم خصوصی و راهنمای کاربری."
+                } else if (strings.introGuide.contains("Руководство")) {
+                    "Повторный просмотр слайдов руководства: знакомство с 10 движками триажа, защитой данных и функциями."
+                } else {
+                    "Replay the interactive onboarding walkthrough to explore the 10 triage engines, local privacy guard, and features."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color(0xFFCBD5E1),
                 lineHeight = 22.sp
             )
-            Surface(
+
+            Button(
+                onClick = onReplayIntro,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PrimaryCyan,
+                    contentColor = Color(0xFF041019)
+                ),
                 shape = RoundedCornerShape(10.dp),
-                color = PrimaryCyan.copy(alpha = 0.08f),
-                border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.3f))
+                modifier = Modifier.fillMaxWidth().height(42.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "🛡️", fontSize = 16.sp)
+                    Text(text = "▶️", fontSize = 14.sp)
                     Text(
-                        text = strings.privacyGuardNotice,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.Medium
+                        text = if (strings.introGuide.contains("راهنما")) "مشاهده و بازپخش معرفی برنامه" else if (strings.introGuide.contains("Руководство")) "Повторить знакомство" else "Replay Intro Tour",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF041019)
                     )
                 }
             }

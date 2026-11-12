@@ -301,6 +301,20 @@ fun HomeScreen(
                         ),
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
+
+                    NavigationDrawerItem(
+                        icon = { Text(text = "💡", fontSize = 18.sp) },
+                        label = { Text(text = strings.introGuide, fontWeight = FontWeight.SemiBold) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            settingsRepository.setIntroCompleted(false)
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
                 }
             }
         },
@@ -382,56 +396,6 @@ fun HomeScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = PrimaryCyan
                                 )
-                            }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Desktop Telemetry Status Indicators
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Surface(
-                                    color = Color(0xFF0B192C),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.5f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                                        Text(text = strings.systemReadyEngines, fontSize = 10.5.sp, color = VerdictClean, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-
-                                Surface(
-                                    color = Color(0xFF0B192C),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.5f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(PrimaryCyan))
-                                        Text(text = strings.freeFeedsBadge, fontSize = 10.5.sp, color = PrimaryCyan, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-
-                                Surface(
-                                    color = Color(0xFF0B192C),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Text(text = "🛡️", fontSize = 10.sp)
-                                        Text(text = strings.privacyGuardActiveBadge, fontSize = 10.5.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
                             }
                         }
                     }
@@ -1259,89 +1223,62 @@ private fun SearchCard(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (useStackedLayout) {
-                    // Stacked Layout: Status banner in full width row, buttons on bottom row
-                    Column(
+                    // Stacked Layout: Actions on a single clean row
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = VerdictClean.copy(alpha = 0.10f),
-                            border = androidx.compose.foundation.BorderStroke(0.6.dp, VerdictClean.copy(alpha = 0.35f)),
-                            modifier = Modifier.fillMaxWidth()
+                        TextButton(
+                            onClick = {
+                                val clipText = clipboardManager.getText()?.text
+                                if (!clipText.isNullOrBlank()) {
+                                    onQueryChange(clipText.trim())
+                                }
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                                ControlledMarqueeText(
-                                    text = strings.zeroKeyInstantScanReady,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VerdictClean,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            Text(
+                                text = "📋 ${strings.pasteFromClipboard}",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    val clipText = clipboardManager.getText()?.text
-                                    if (!clipText.isNullOrBlank()) {
-                                        onQueryChange(clipText.trim())
-                                    }
-                                },
-                                colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                        if (uiState.isLoading) {
+                            Button(
+                                onClick = onCancel,
+                                colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(38.dp)
                             ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(13.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = strings.pasteFromClipboard,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = strings.cancelScan,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp
                                 )
                             }
-
-                            if (uiState.isLoading) {
-                                Button(
-                                    onClick = onCancel,
-                                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(38.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(13.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = strings.cancelScan,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            } else {
-                                Button(
-                                    onClick = onAnalyze,
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
-                                    modifier = Modifier.height(38.dp).springPress()
-                                ) {
-                                    Text(
-                                        text = strings.scanPayload,
-                                        color = Color.Black,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 11.sp
-                                    )
-                                }
+                        } else {
+                            Button(
+                                onClick = onAnalyze,
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                                shape = RoundedCornerShape(10.dp),
+                                border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
+                                modifier = Modifier.height(38.dp).springPress()
+                            ) {
+                                Text(
+                                    text = strings.scanPayload,
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp
+                                )
                             }
                         }
                     }
@@ -1352,21 +1289,6 @@ private fun SearchCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f).padding(end = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(VerdictClean))
-                            ControlledMarqueeText(
-                                text = strings.zeroKeyInstantScanReady,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = VerdictClean,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                        }
-
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 modifier = Modifier

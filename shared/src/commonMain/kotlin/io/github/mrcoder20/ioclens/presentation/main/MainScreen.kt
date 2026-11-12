@@ -21,11 +21,14 @@ import io.github.mrcoder20.ioclens.core.theme.SetSystemBarIconsColor
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.presentation.home.HomeScreen
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
+import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
+import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.splash.SplashScreen
 
 @Composable
 fun MainScreen(
     mainViewModel: MainViewModel,
+    introViewModel: IntroViewModel,
     homeViewModel: HomeViewModel,
     settingsRepository: SettingsRepository,
     modifier: Modifier = Modifier
@@ -63,10 +66,25 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 ) { isSplashFinished ->
                     if (isSplashFinished) {
-                        HomeScreen(
-                            viewModel = homeViewModel,
-                            settingsRepository = settingsRepository
-                        )
+                        AnimatedContent(
+                            targetState = uiState.appSettings.isIntroCompleted,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            modifier = Modifier.fillMaxSize()
+                        ) { isIntroCompleted ->
+                            if (isIntroCompleted) {
+                                HomeScreen(
+                                    viewModel = homeViewModel,
+                                    settingsRepository = settingsRepository
+                                )
+                            } else {
+                                IntroScreen(
+                                    viewModel = introViewModel,
+                                    onIntroFinished = {
+                                        // Handled inside IntroViewModel
+                                    }
+                                )
+                            }
+                        }
                     } else {
                         SplashScreen(
                             appLanguage = uiState.appSettings.appLanguage,
