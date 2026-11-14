@@ -611,11 +611,22 @@ fun HomeScreen(
                                     }
                                 }
 
-                                // 6. Minimalist Desktop Security Status & Telemetry Bar
-                                DesktopMinimalistTelemetryBar(
+                                // 6. Desktop Quick Triage Shelf (Interactive Test Lab & Recent Scans)
+                                DesktopQuickTriageShelf(
+                                    scanHistory = uiState.scanHistory,
                                     appLanguage = uiState.appLanguage,
-                                    onOpenSettings = {
-                                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+                                    onSampleSelect = { sampleValue ->
+                                        viewModel.onEvent(HomeEvent.QueryChanged(sampleValue))
+                                        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                    },
+                                    onHistorySelect = { verdict ->
+                                        viewModel.onEvent(HomeEvent.HistoryItemClicked(verdict))
+                                    },
+                                    onClearHistory = {
+                                        viewModel.onEvent(HomeEvent.ClearHistory)
+                                    },
+                                    onDeleteHistoryItem = { verdict ->
+                                        viewModel.onEvent(HomeEvent.DeleteHistoryItem(verdict))
                                     }
                                 )
                             }
@@ -2752,21 +2763,47 @@ private fun RecentTriageFeedHUD(
     }
 }
 
+private data class TriageSample(
+    val title: String,
+    val typeTag: String,
+    val value: String,
+    val isMalicious: Boolean
+)
+
+private val CURATED_TRIAGE_SAMPLES = listOf(
+    TriageSample("WannaCry", "SHA-256", "eceb2f25bac4cbca1da5f4e390124912cd91f541ad1ccada2ae2b46f4aceb414", true),
+    TriageSample("Feodo C2", "BOTNET IP", "195.123.245.11", true),
+    TriageSample("URLhaus", "DROPPER", "http://61.92.220.176:37567/bin.sh", true),
+    TriageSample("RedLine", "STEALER", "b3e93fda43d72109f6d17cf6aa0fa6017db1f8ee9c237ec49083385bb0248bf5", true),
+    TriageSample("1.1.1.1", "CLEAN DNS", "1.1.1.1", false),
+    TriageSample("github.com", "CLEAN DOMAIN", "github.com", false),
+    TriageSample("192.168.1.1", "RFC 1918", "192.168.1.1", false)
+)
+
 /**
- * Minimalist Non-Slop Desktop Security & Telemetry Status Bar.
- * Inspired by high-end security and developer tools (Linear, Raycast, CrowdStrike Falcon).
+ * High-Utility Desktop Quick Triage Shelf.
  *
- * Provides at-a-glance status verification:
- * - Live Engine Readiness (10 Zero-Key Engines Operational)
- * - Pro-Workflow Shortcuts ([Ctrl+V] Quick Triage • [Drag & Drop] Local Hash)
- * - Cryptographic & Privacy Guarantee (100% Client-Side Local Hashing, Zero Cloud Leaks)
+ * Replaces non-functional static footer with an actionable SOC investigation dock:
+ * 1. Curated One-Click Test Lab Samples (Real-world WannaCry, Feodo C2, RedLine, Clean DNS, etc.)
+ * 2. Instant Recent Scans Strip for rapid back-and-forth investigation switching
+ * 3. One-Click Smart "Paste & Triage" from OS clipboard
+ * 4. Zero marketing slogans, 100% actionable workflow tools
  */
 @Composable
-private fun DesktopMinimalistTelemetryBar(
+private fun DesktopQuickTriageShelf(
+    scanHistory: List<TriageVerdict>,
     appLanguage: AppLanguage,
-    onOpenSettings: () -> Unit,
+    onSampleSelect: (String) -> Unit,
+    onHistorySelect: (TriageVerdict) -> Unit,
+    onClearHistory: () -> Unit,
+    onDeleteHistoryItem: (TriageVerdict) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedTab by remember(scanHistory.isNotEmpty()) {
+        mutableStateOf(if (scanHistory.isNotEmpty()) 1 else 0)
+    }
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -2775,126 +2812,279 @@ private fun DesktopMinimalistTelemetryBar(
         color = CardDark.copy(alpha = 0.55f),
         border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.14f))
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Left Slot: Live Engines Health & Readiness
+            // Header Bar: Segmented Tab Selector & Quick Action
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onOpenSettings)
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .padding(vertical = 2.dp, horizontal = 4.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF10B981))
-                )
-                Text(
-                    text = when (appLanguage) {
-                        AppLanguage.PERSIAN -> "۱۰ موتور هوش تهدیدات فعال • Zero-Key"
-                        AppLanguage.RUSSIAN -> "10 движков анализа угроз активны • Zero-Key"
-                        else -> "10 Threat Intel Engines Active • Zero-Key"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF94A3B8),
-                    fontSize = 11.sp
-                )
-            }
-
-            // Center Slot: Pro Desktop Productivity Shortcuts
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                // Left: Tabs (Test Lab / Recent Investigations)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Tab 0: Test Lab Samples
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.15f))
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { selectedTab = 0 }
+                            .pointerHoverIcon(PointerIcon.Hand),
+                        color = if (selectedTab == 0) PrimaryCyan.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f),
+                        border = BorderStroke(
+                            0.8.dp,
+                            if (selectedTab == 0) PrimaryCyan.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f)
+                        )
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "🧪",
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = when (appLanguage) {
+                                    AppLanguage.PERSIAN -> "نمونه‌های آماده تست"
+                                    AppLanguage.RUSSIAN -> "Тестовые образцы"
+                                    else -> "Test Lab Samples"
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 0) PrimaryCyan else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+
+                    // Tab 1: Recent Investigations (if history exists)
+                    if (scanHistory.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { selectedTab = 1 }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = if (selectedTab == 1) PrimaryCyan.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(
+                                0.8.dp,
+                                if (selectedTab == 1) PrimaryCyan.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f)
+                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "🕒",
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = when (appLanguage) {
+                                        AppLanguage.PERSIAN -> "سوابق اخیر (${scanHistory.size})"
+                                        AppLanguage.RUSSIAN -> "Недавние (${scanHistory.size})"
+                                        else -> "Recent Triages (${scanHistory.size})"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == 1) PrimaryCyan else Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Right: Action Buttons (Paste & Triage / Clear History)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (selectedTab == 1 && scanHistory.isNotEmpty()) {
                         Text(
-                            text = "Ctrl + V",
-                            fontSize = 9.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryCyan,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            text = when (appLanguage) {
+                                AppLanguage.PERSIAN -> "پاک‌سازی سوابق"
+                                AppLanguage.RUSSIAN -> "Очистить"
+                                else -> "Clear History"
+                            },
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable(onClick = onClearHistory)
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
                         )
                     }
-                    Text(
-                        text = when (appLanguage) {
-                            AppLanguage.PERSIAN -> "پویش سریع"
-                            AppLanguage.RUSSIAN -> "Быстрый анализ"
-                            else -> "Quick Triage"
-                        },
-                        fontSize = 11.sp,
-                        color = Color(0xFF64748B)
-                    )
-                    Text(
-                        text = "•",
-                        fontSize = 10.sp,
-                        color = Color(0xFF475569)
-                    )
+
+                    // 1-Click Paste & Triage Button
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.15f))
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    onSampleSelect(clip.trim())
+                                }
+                            }
+                            .pointerHoverIcon(PointerIcon.Hand),
+                        color = PrimaryCyan.copy(alpha = 0.12f),
+                        border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
                     ) {
-                        Text(
-                            text = "Drag & Drop",
-                            fontSize = 9.5.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryCyan,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
+                        ) {
+                            ClipboardVectorIcon(tint = PrimaryCyan, size = 12.dp)
+                            Text(
+                                text = when (appLanguage) {
+                                    AppLanguage.PERSIAN -> "پیست و پویش فوری"
+                                    AppLanguage.RUSSIAN -> "Вставить и сканировать"
+                                    else -> "Paste & Triage"
+                                },
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryCyan
+                            )
+                        }
                     }
-                    Text(
-                        text = when (appLanguage) {
-                            AppLanguage.PERSIAN -> "هش محلی"
-                            AppLanguage.RUSSIAN -> "Локальный хеش"
-                            else -> "Local Hash"
-                        },
-                        fontSize = 11.sp,
-                        color = Color(0xFF64748B)
-                    )
                 }
             }
 
-            // Right Slot: Privacy & Security Guarantee
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ShieldVerdictVectorIcon(tint = Color(0xFF10B981), size = 13.dp)
-                Text(
-                    text = when (appLanguage) {
-                        AppLanguage.PERSIAN -> "عدم آپلود فایل • ۱۰۰٪ آفلاین"
-                        AppLanguage.RUSSIAN -> "Без утечек в облако • 100% офлайн"
-                        else -> "Zero Cloud Leak • 100% Offline Hash"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 11.sp,
-                    color = Color(0xFF94A3B8)
-                )
-                Text(
-                    text = "v1.0.0",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    color = Color(0xFF475569)
-                )
+            // Shelf Content Row: Horizontal Scrolling Chips
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (selectedTab == 0 || scanHistory.isEmpty()) {
+                        // Test Lab Samples Chips
+                        CURATED_TRIAGE_SAMPLES.forEach { sample ->
+                            val dotColor = if (sample.isMalicious) Color(0xFFEF4444) else Color(0xFF10B981)
+                            val borderColor = if (sample.isMalicious) Color(0xFFEF4444).copy(alpha = 0.28f) else Color(0xFF10B981).copy(alpha = 0.28f)
+                            val tagBg = if (sample.isMalicious) Color(0xFFEF4444).copy(alpha = 0.12f) else Color(0xFF10B981).copy(alpha = 0.12f)
+                            val tagText = if (sample.isMalicious) Color(0xFFFCA5A5) else Color(0xFF6EE7B7)
+
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSampleSelect(sample.value) }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, borderColor)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Text(
+                                        text = sample.title,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFF1F5F9)
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(3.dp),
+                                        color = tagBg
+                                    ) {
+                                        Text(
+                                            text = sample.typeTag,
+                                            fontSize = 8.5.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            color = tagText,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Recent Triages Chips
+                        scanHistory.take(7).forEach { verdict ->
+                            val (dotColor, verdictText) = when (verdict.overallVerdict) {
+                                VerdictLevel.MALICIOUS -> Color(0xFFEF4444) to "MALICIOUS"
+                                VerdictLevel.SUSPICIOUS -> Color(0xFFF59E0B) to "SUSPICIOUS"
+                                VerdictLevel.LOW_RISK -> Color(0xFF38BDF8) to "LOW RISK"
+                                VerdictLevel.CLEAN -> Color(0xFF10B981) to "CLEAN"
+                                VerdictLevel.NO_DATA -> Color(0xFF94A3B8) to "NO DATA"
+                            }
+                            val displayValue = if (verdict.indicator.rawValue.length > 20) {
+                                verdict.indicator.rawValue.take(10) + "…" + verdict.indicator.rawValue.takeLast(6)
+                            } else {
+                                verdict.indicator.rawValue
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onHistorySelect(verdict) }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(1.dp, dotColor.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Text(
+                                        text = displayValue,
+                                        fontSize = 11.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(3.dp),
+                                        color = dotColor.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = verdictText,
+                                            fontSize = 8.5.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            color = dotColor,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    // Subtle Delete Icon
+                                    Text(
+                                        text = "✕",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF64748B),
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .clickable { onDeleteHistoryItem(verdict) }
+                                            .padding(2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
