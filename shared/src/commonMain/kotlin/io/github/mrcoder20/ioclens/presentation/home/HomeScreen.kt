@@ -1,4 +1,6 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.RectangleShape
 import io.github.mrcoder20.ioclens.data.remote.createZeroKeyHttpClient
 import io.ktor.client.request.get
@@ -2802,6 +2804,7 @@ private fun DesktopEngineConnectivityStatusBar(
     var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
     var isProbing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val chipsScrollState = rememberScrollState()
 
     val onlineEngines = engineStatuses.filter { it.isOnline }
     val avgPing = if (onlineEngines.isNotEmpty()) {
@@ -2856,9 +2859,8 @@ private fun DesktopEngineConnectivityStatusBar(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // Slot 1: Master Health & Probe Button
             Row(
@@ -2922,83 +2924,148 @@ private fun DesktopEngineConnectivityStatusBar(
                 }
             }
 
-            // Slot 2: Live Individual Engine Latency Chips (Center, Horizontally Scrollable)
+            // Subtle vertical separator
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
+                    .width(1.dp)
+                    .height(18.dp)
+                    .background(Color.White.copy(alpha = 0.12f))
+            )
+
+            // Slot 2: Full-Width Scrollable & Draggable Threat Engine Latency Chips (Zero Character Breaking)
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Row(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .padding(horizontal = 10.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    engineStatuses.forEach { engine ->
-                        val dotColor = if (engine.isOnline) Color(0xFF10B981) else Color(0xFFEF4444)
+                    // Left scroll chevron button (visible when scrolled right)
+                    if (chipsScrollState.value > 0) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color.White.copy(alpha = 0.04f),
-                            border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f))
+                            modifier = Modifier
+                                .padding(end = 5.dp)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        chipsScrollState.animateScrollBy(-220f)
+                                    }
+                                }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = PrimaryCyan.copy(alpha = 0.15f),
+                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "‹",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PrimaryCyan
+                                )
+                            }
+                        }
+                    }
+
+                    // Chips list with Mouse Wheel Scroll + Mouse/Touch Drag-to-Scroll
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        if (event.type == PointerEventType.Scroll) {
+                                            val change = event.changes.firstOrNull()
+                                            if (change != null) {
+                                                val delta = if (change.scrollDelta.x != 0f) change.scrollDelta.x else change.scrollDelta.y
+                                                if (delta != 0f) {
+                                                    chipsScrollState.dispatchRawDelta(delta * 40f)
+                                                    change.consume()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    chipsScrollState.dispatchRawDelta(-dragAmount)
+                                }
+                            }
+                            .horizontalScroll(chipsScrollState),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        engineStatuses.forEach { engine ->
+                            val dotColor = if (engine.isOnline) Color(0xFF10B981) else Color(0xFFEF4444)
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f))
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(5.dp)
-                                        .clip(CircleShape)
-                                        .background(dotColor)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Text(
+                                        text = engine.name,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFCBD5E1),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        text = if (engine.isOnline) "${engine.pingMs}ms" else "ERR",
+                                        fontSize = 9.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Right scroll chevron button (visible when not reached end)
+                    if (chipsScrollState.value < chipsScrollState.maxValue) {
+                        Surface(
+                            modifier = Modifier
+                                .padding(start = 5.dp)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        chipsScrollState.animateScrollBy(220f)
+                                    }
+                                }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = PrimaryCyan.copy(alpha = 0.15f),
+                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = engine.name,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFFCBD5E1),
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                                Text(
-                                    text = if (engine.isOnline) "${engine.pingMs}ms" else "ERR",
-                                    fontSize = 9.5.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444),
-                                    maxLines = 1,
-                                    softWrap = false
+                                    text = "›",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PrimaryCyan
                                 )
                             }
                         }
                     }
                 }
-            }
-
-            // Slot 3: Security Invariant & Zero Cloud Leak
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ShieldVerdictVectorIcon(tint = Color(0xFF10B981), size = 12.dp)
-                Text(
-                    text = when (appLanguage) {
-                        AppLanguage.PERSIAN -> "ارتباط امن TLS • Zero-Key"
-                        AppLanguage.RUSSIAN -> "Защищено TLS • Zero-Key"
-                        else -> "Encrypted TLS • Zero-Key"
-                    },
-                    fontSize = 11.sp,
-                    color = Color(0xFF94A3B8),
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Text(
-                    text = "v1.0.0",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF475569),
-                    maxLines = 1,
-                    softWrap = false
-                )
             }
         }
     }
