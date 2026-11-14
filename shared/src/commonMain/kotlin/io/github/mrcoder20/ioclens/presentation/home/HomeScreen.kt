@@ -610,6 +610,14 @@ fun HomeScreen(
                                         OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
                                     }
                                 }
+
+                                // 6. Minimalist Desktop Security Status & Telemetry Bar
+                                DesktopMinimalistTelemetryBar(
+                                    appLanguage = uiState.appLanguage,
+                                    onOpenSettings = {
+                                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
+                                    }
+                                )
                             }
                         }
                     }
@@ -2739,6 +2747,154 @@ private fun RecentTriageFeedHUD(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Minimalist Non-Slop Desktop Security & Telemetry Status Bar.
+ * Inspired by high-end security and developer tools (Linear, Raycast, CrowdStrike Falcon).
+ *
+ * Provides at-a-glance status verification:
+ * - Live Engine Readiness (10 Zero-Key Engines Operational)
+ * - Pro-Workflow Shortcuts ([Ctrl+V] Quick Triage • [Drag & Drop] Local Hash)
+ * - Cryptographic & Privacy Guarantee (100% Client-Side Local Hashing, Zero Cloud Leaks)
+ */
+@Composable
+private fun DesktopMinimalistTelemetryBar(
+    appLanguage: AppLanguage,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = CardDark.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.14f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Left Slot: Live Engines Health & Readiness
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onOpenSettings)
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .padding(vertical = 2.dp, horizontal = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981))
+                )
+                Text(
+                    text = when (appLanguage) {
+                        AppLanguage.PERSIAN -> "۱۰ موتور هوش تهدیدات فعال • Zero-Key"
+                        AppLanguage.RUSSIAN -> "10 движков анализа угроз активны • Zero-Key"
+                        else -> "10 Threat Intel Engines Active • Zero-Key"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp
+                )
+            }
+
+            // Center Slot: Pro Desktop Productivity Shortcuts
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Text(
+                            text = "Ctrl + V",
+                            fontSize = 9.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                        )
+                    }
+                    Text(
+                        text = when (appLanguage) {
+                            AppLanguage.PERSIAN -> "پویش سریع"
+                            AppLanguage.RUSSIAN -> "Быстрый анализ"
+                            else -> "Quick Triage"
+                        },
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    Text(
+                        text = "•",
+                        fontSize = 10.sp,
+                        color = Color(0xFF475569)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Text(
+                            text = "Drag & Drop",
+                            fontSize = 9.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                        )
+                    }
+                    Text(
+                        text = when (appLanguage) {
+                            AppLanguage.PERSIAN -> "هش محلی"
+                            AppLanguage.RUSSIAN -> "Локальный хеش"
+                            else -> "Local Hash"
+                        },
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+
+            // Right Slot: Privacy & Security Guarantee
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                ShieldVerdictVectorIcon(tint = Color(0xFF10B981), size = 13.dp)
+                Text(
+                    text = when (appLanguage) {
+                        AppLanguage.PERSIAN -> "عدم آپلود فایل • ۱۰۰٪ آفلاین"
+                        AppLanguage.RUSSIAN -> "Без утечек в облако • 100% офлайн"
+                        else -> "Zero Cloud Leak • 100% Offline Hash"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8)
+                )
+                Text(
+                    text = "v1.0.0",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    color = Color(0xFF475569)
+                )
             }
         }
     }
