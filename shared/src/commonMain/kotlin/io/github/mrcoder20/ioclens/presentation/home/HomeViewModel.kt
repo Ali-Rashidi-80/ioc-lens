@@ -16,6 +16,7 @@ import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,28 @@ class HomeViewModel(
     private var scanJob: Job? = null
     private var hashJob: Job? = null
     private var currentGeneration: Long = 0L
+    private var errorDismissJob: Job? = null
+
+    private fun setTimedErrorMessage(message: String?, autoDismissDelayMs: Long = 4000L) {
+        errorDismissJob?.cancel()
+        _uiState.update { it.copy(errorMessage = message) }
+        if (!message.isNullOrBlank() && autoDismissDelayMs > 0) {
+            errorDismissJob = viewModelScope.launch {
+                delay(autoDismissDelayMs)
+                _uiState.update { state ->
+                    if (state.errorMessage == message) {
+                        state.copy(errorMessage = null)
+                    } else state
+                }
+            }
+        }
+    }
+
+    private fun clearErrorMessage() {
+        errorDismissJob?.cancel()
+        errorDismissJob = null
+        _uiState.update { it.copy(errorMessage = null) }
+    }
 
     init {
         observeSettings()
@@ -86,7 +109,7 @@ class HomeViewModel(
             )
         }
         if (!payload.errorMessage.isNullOrBlank()) {
-            _uiState.update { it.copy(errorMessage = payload.errorMessage) }
+            setTimedErrorMessage(payload.errorMessage)
             return
         }
         if (!payload.filePath.isNullOrBlank()) {
@@ -103,7 +126,8 @@ class HomeViewModel(
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.QueryChanged -> {
-                _uiState.update { it.copy(queryInput = event.newQuery, errorMessage = null) }
+                clearErrorMessage()
+                _uiState.update { it.copy(queryInput = event.newQuery) }
             }
             is HomeEvent.ThemeChanged -> {
                 settingsRepository.setAppTheme(event.theme)
@@ -133,7 +157,8 @@ class HomeViewModel(
             }
             HomeEvent.ClearClicked -> {
                 cancelScan()
-                _uiState.update { it.copy(queryInput = "", targetIndicator = null, activeVerdict = null, errorMessage = null) }
+                clearErrorMessage()
+                _uiState.update { it.copy(queryInput = "", targetIndicator = null, activeVerdict = null) }
             }
             HomeEvent.ToggleProviderDeck -> {
                 _uiState.update { it.copy(isProviderDeckExpanded = !it.isProviderDeckExpanded) }
@@ -185,6 +210,7 @@ class HomeViewModel(
         hashJob = null
         scanJob?.cancel()
         scanJob = null
+        clearErrorMessage()
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -201,11 +227,11 @@ class HomeViewModel(
         cancelScan()
         val generation = currentGeneration
 
+        clearErrorMessage()
         _uiState.update {
             it.copy(
                 isHashingFile = true,
                 hashingFileName = fileName,
-                errorMessage = null,
                 activeVerdict = null
             )
         }
@@ -239,10 +265,10 @@ class HomeViewModel(
                     _uiState.update {
                         it.copy(
                             isHashingFile = false,
-                            hashingFileName = null,
-                            errorMessage = "${strings.streamHashingFailed}: ${e.message ?: "error"}"
+                            hashingFileName = null
                         )
                     }
+                    setTimedErrorMessage("${strings.streamHashingFailed}: ${e.message ?: "error"}")
                 }
             } finally {
                 if (isTemporary) {
@@ -260,7 +286,7 @@ class HomeViewModel(
         val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
 
         if (input.isBlank()) {
-            _uiState.update { it.copy(errorMessage = strings.enterIndicatorError) }
+            setTimedErrorMessage(strings.enterIndicatorError)
             return
         }
 
@@ -276,12 +302,12 @@ class HomeViewModel(
         val indicator = analyzeIndicatorUseCase.parseIndicator(input)
 
         // Immediately clear stale previous verdict and set loading state with target indicator
+        clearErrorMessage()
         _uiState.update {
             it.copy(
                 isLoading = true,
                 targetIndicator = indicator,
                 activeVerdict = null,
-                errorMessage = null,
                 scanFinishedEngines = 0,
                 scanTotalEngines = 10
             )
@@ -325,7 +351,8 @@ class HomeViewModel(
                         e.message?.contains("Network", ignoreCase = true) == true || e.message?.contains("Connect", ignoreCase = true) == true -> strings.errorNetwork
                         else -> e.message ?: strings.errorNetwork
                     }
-                    _uiState.update { it.copy(isLoading = false, targetIndicator = null, errorMessage = errorMsg) }
+                    _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
+                    setTimedErrorMessage(errorMsg)
                 }
             } finally {
                 if (generation == currentGeneration) {

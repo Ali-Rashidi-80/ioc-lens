@@ -180,33 +180,31 @@ private fun FallbackVectorGraphic(
     emojiFontSize: Int = 36,
     isActive: Boolean = true
 ) {
-    val rotation: Float
-    val pulseScale: Float
-
-    if (isActive) {
-        val infiniteTransition = rememberInfiniteTransition()
-        val r by infiniteTransition.animateFloat(
+    val rotationState = if (isActive) {
+        val infiniteTransition = rememberInfiniteTransition(label = "fallbackRotation")
+        infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
                 animation = tween(4000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
-            )
+            ),
+            label = "rotation"
         )
-        val p by infiniteTransition.animateFloat(
+    } else null
+
+    val pulseScaleState = if (isActive && slideId == 2) {
+        val infiniteTransition = rememberInfiniteTransition(label = "fallbackPulse")
+        infiniteTransition.animateFloat(
             initialValue = 0.85f,
             targetValue = 1.15f,
             animationSpec = infiniteRepeatable(
                 animation = tween(1500, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
-            )
+            ),
+            label = "pulseScale"
         )
-        rotation = r
-        pulseScale = p
-    } else {
-        rotation = 0f
-        pulseScale = 1f
-    }
+    } else null
 
     Box(
         modifier = modifier
@@ -219,7 +217,12 @@ private fun FallbackVectorGraphic(
         val primaryColor = MaterialTheme.colorScheme.primary
         val secondaryColor = MaterialTheme.colorScheme.secondary
 
-        Canvas(modifier = Modifier.matchParentSize().rotate(rotation)) {
+        Canvas(
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer { rotationZ = rotationState?.value ?: 0f }
+        ) {
+            val pulseScale = pulseScaleState?.value ?: 1f
             val centerOffset = Offset(this.size.width / 2f, this.size.height / 2f)
             val maxR = this.size.width / 2f
 

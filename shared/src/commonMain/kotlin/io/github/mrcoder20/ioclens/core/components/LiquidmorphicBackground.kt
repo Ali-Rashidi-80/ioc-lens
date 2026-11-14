@@ -45,22 +45,23 @@ fun LiquidmorphicBackground(
         )
     }
 
-    val progress = if (isPaused) {
-        0f
+    val progressState = if (isPaused) {
+        null
     } else {
-        val infiniteTransition = rememberInfiniteTransition()
-        val p by infiniteTransition.animateFloat(
+        val infiniteTransition = rememberInfiniteTransition(label = "LiquidmorphicTransition")
+        infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * kotlin.math.PI.toFloat(),
             animationSpec = infiniteRepeatable(
                 animation = tween(14000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
-            )
+            ),
+            label = "liquidmorphicProgress"
         )
-        p
     }
 
     Canvas(modifier = modifier) {
+        val progress = progressState?.value ?: 0f
         val w = size.width
         val h = size.height
 

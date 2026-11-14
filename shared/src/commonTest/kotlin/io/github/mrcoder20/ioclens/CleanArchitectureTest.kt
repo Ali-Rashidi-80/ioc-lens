@@ -26,14 +26,16 @@ class CleanArchitectureTest {
         val getIntroUseCase = GetAppSettingsUseCase(settingsRepo)
         val setIntroUseCase = SetIntroCompletedUseCase(settingsRepo)
 
-        // Initial default theme should be DARK
-        assertEquals(AppTheme.DARK, settingsRepo.getSettings().appTheme)
+        // Initial default theme should be IOC_LENS_CLASSIC
+        assertEquals(AppTheme.IOC_LENS_CLASSIC, settingsRepo.getSettings().appTheme)
 
         // Complete intro
         setIntroUseCase(completed = true)
         assertTrue(getIntroUseCase().isIntroCompleted)
 
         // Switch Theme
+        settingsRepo.setAppTheme(AppTheme.DARK)
+        assertEquals(AppTheme.DARK, settingsRepo.getSettings().appTheme)
         settingsRepo.setAppTheme(AppTheme.SYSTEM)
         assertEquals(AppTheme.SYSTEM, settingsRepo.getSettings().appTheme)
 

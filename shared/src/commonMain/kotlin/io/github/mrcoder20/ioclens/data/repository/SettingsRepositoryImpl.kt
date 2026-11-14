@@ -103,11 +103,11 @@ class SettingsRepositoryImpl(
     }
 
     private fun loadSettingsFromStorage(): AppSettings {
-        val defaultLang = getSystemLanguage()
-        val themeStr = storage.getString(KEY_THEME, AppTheme.DARK.name)
+        val defaultLang = AppLanguage.ENGLISH
+        val themeStr = storage.getString(KEY_THEME, AppTheme.IOC_LENS_CLASSIC.name)
         val langStr = storage.getString(KEY_LANGUAGE, defaultLang.name)
 
-        val theme = runCatching { AppTheme.valueOf(themeStr) }.getOrDefault(AppTheme.DARK)
+        val theme = runCatching { AppTheme.valueOf(themeStr) }.getOrDefault(AppTheme.IOC_LENS_CLASSIC)
         val language = runCatching { AppLanguage.valueOf(langStr) }.getOrDefault(defaultLang)
 
         return AppSettings(

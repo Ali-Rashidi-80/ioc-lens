@@ -13,8 +13,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.github.mrcoder20.ioclens.core.components.LiquidGlowBackground
 import io.github.mrcoder20.ioclens.core.localization.AppTheme
 import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.SetSystemBarIconsColor
@@ -42,6 +46,7 @@ fun MainScreen(
         val isDark = when (uiState.appSettings.appTheme) {
             AppTheme.SYSTEM -> isSystemInDarkTheme()
             AppTheme.DARK -> true
+            AppTheme.IOC_LENS_CLASSIC -> true
         }
 
         // Dynamically update status bar icon brightness (White in Dark theme)
@@ -52,49 +57,51 @@ fun MainScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (uiState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                AnimatedContent(
-                    targetState = uiState.isSplashFinished,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    modifier = Modifier.fillMaxSize()
-                ) { isSplashFinished ->
-                    if (isSplashFinished) {
-                        AnimatedContent(
-                            targetState = uiState.appSettings.isIntroCompleted,
-                            transitionSpec = {
-                                fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) togetherWith
-                                fadeOut(animationSpec = androidx.compose.animation.core.tween(180))
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        ) { isIntroCompleted ->
-                            if (isIntroCompleted) {
-                                HomeScreen(
-                                    viewModel = homeViewModel,
-                                    settingsRepository = settingsRepository
-                                )
-                            } else {
-                                IntroScreen(
-                                    viewModel = introViewModel,
-                                    onIntroFinished = {
-                                        // Handled inside IntroViewModel
-                                    }
-                                )
+            LiquidGlowBackground(isDark = isDark) {
+                if (uiState.isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    AnimatedContent(
+                        targetState = uiState.isSplashFinished,
+                        transitionSpec = { fadeIn() togetherWith fadeOut() },
+                        modifier = Modifier.fillMaxSize()
+                    ) { isSplashFinished ->
+                        if (isSplashFinished) {
+                            AnimatedContent(
+                                targetState = uiState.appSettings.isIntroCompleted,
+                                transitionSpec = {
+                                    fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) togetherWith
+                                    fadeOut(animationSpec = androidx.compose.animation.core.tween(180))
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            ) { isIntroCompleted ->
+                                if (isIntroCompleted) {
+                                    HomeScreen(
+                                        viewModel = homeViewModel,
+                                        settingsRepository = settingsRepository
+                                    )
+                                } else {
+                                    IntroScreen(
+                                        viewModel = introViewModel,
+                                        onIntroFinished = {
+                                            // Handled inside IntroViewModel
+                                        }
+                                    )
+                                }
                             }
+                        } else {
+                            SplashScreen(
+                                appLanguage = uiState.appSettings.appLanguage,
+                                onSplashFinished = {
+                                    mainViewModel.onSplashFinished()
+                                }
+                            )
                         }
-                    } else {
-                        SplashScreen(
-                            appLanguage = uiState.appSettings.appLanguage,
-                            onSplashFinished = {
-                                mainViewModel.onSplashFinished()
-                            }
-                        )
                     }
                 }
             }

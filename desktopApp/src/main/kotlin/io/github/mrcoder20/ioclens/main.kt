@@ -52,10 +52,14 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import io.github.mrcoder20.ioclens.core.components.AppLogoImage
+import io.github.mrcoder20.ioclens.core.components.rememberAppLogoPainter
+import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
 import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
+import java.awt.AWTEvent
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.EventQueue
@@ -65,11 +69,56 @@ import java.awt.event.WindowEvent
 import java.awt.event.WindowFocusListener
 import java.io.File
 
+/**
+ * Intercepts all unhandled exceptions on the AWT Event Dispatch Thread (EDT).
+ * This completely prevents jpackage's native launcher from displaying
+ * raw modal crash popups ("Error: Can't wrap nullptr") and terminating the app process.
+ */
+class SafeEventQueue : EventQueue() {
+    override fun dispatchEvent(event: AWTEvent) {
+        try {
+            super.dispatchEvent(event)
+        } catch (t: Throwable) {
+            val msg = t.message ?: ""
+            if (msg.contains("Can't wrap nullptr") || msg.contains("nullptr")) {
+                System.err.println("[IOCLens] Gracefully suppressed Skiko native nullptr on EDT: $msg")
+            } else {
+                System.err.println("[IOCLens] Uncaught EventQueue error: $msg")
+                t.printStackTrace()
+            }
+        }
+    }
+
+    companion object {
+        fun install() {
+            try {
+                Toolkit.getDefaultToolkit().systemEventQueue.push(SafeEventQueue())
+            } catch (e: Throwable) {
+                System.err.println("[IOCLens] Failed to install SafeEventQueue: ${e.message}")
+            }
+        }
+    }
+}
+
 fun main(args: Array<String>) {
-    // High-performance desktop networking and encoding optimizations
+    // 1. Install EDT exception guard to prevent jpackage fatal native crash popups
+    SafeEventQueue.install()
+
+    // 2. High-performance desktop networking and encoding optimizations
     System.setProperty("java.net.preferIPv6Addresses", "false")
     System.setProperty("sun.net.useExclusiveBind", "false")
     System.setProperty("file.encoding", "UTF-8")
+
+    // 3. Global Uncaught Exception Handler
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+        val msg = throwable.message ?: ""
+        if (msg.contains("Can't wrap nullptr") || msg.contains("nullptr")) {
+            System.err.println("[IOCLens] Suppressed Skiko nullptr on thread ${thread.name}")
+        } else {
+            System.err.println("[IOCLens] Handled uncaught exception on thread ${thread.name}: $msg")
+            throwable.printStackTrace()
+        }
+    }
 
     application {
         remember {
@@ -87,29 +136,13 @@ fun main(args: Array<String>) {
             size = initialBounds.size
         )
 
-        val iconPainter = remember {
-            runCatching {
-                val relative1 = File("docs/assets/logo/icon-512.png")
-                val relative2 = File("../docs/assets/logo/icon-512.png")
-                when {
-                    relative1.exists() -> relative1
-                    relative2.exists() -> relative2
-                    else -> null
-                }
-            }.getOrNull()?.let { file ->
-                runCatching {
-                    file.inputStream().use { stream ->
-                        BitmapPainter(stream.readAllBytes().decodeToImageBitmap())
-                    }
-                }.getOrNull()
-            }
-        }
+        val appLogoPainter = rememberAppLogoPainter()
 
         Window(
             onCloseRequest = ::exitApplication,
             title = "IOC Lens - Copy it. Know in a second.",
             state = windowState,
-            icon = iconPainter,
+            icon = appLogoPainter,
             undecorated = true
         ) {
             var isMaximized by remember { mutableStateOf(false) }
@@ -138,14 +171,6 @@ fun main(args: Array<String>) {
                 }
             }
 
-            LaunchedEffect(windowState.placement) {
-                EventQueue.invokeLater {
-                    window.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-                    window.rootPane.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-                    window.contentPane.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-                }
-            }
-
             // Taskbar-respecting custom maximize toggle for undecorated Compose Desktop window
             val toggleMaximize = {
                 EventQueue.invokeLater {
@@ -171,9 +196,6 @@ fun main(args: Array<String>) {
                         }
                         isMaximized = false
                     }
-                    window.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-                    window.rootPane.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-                    window.contentPane.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
                 }
             }
 
@@ -212,7 +234,7 @@ fun main(args: Array<String>) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFF041C24))
+                        .background(BackgroundDark)
                         .pointerHoverIcon(PointerIcon.Default)
                 ) {
                     // Custom Dead-Centered Window Title Bar with Permanently Anchored Right Controls (Enforce LTR for Windows OS invariants)
@@ -222,10 +244,29 @@ fun main(args: Array<String>) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(38.dp)
-                                    .background(Color(0xFF041C24))
+                                    .background(BackgroundDark)
                                     .padding(horizontal = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // Left Slot: App Brand & Logo Icon
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(start = 4.dp)
+                                ) {
+                                    AppLogoImage(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(RoundedCornerShape(5.dp))
+                                    )
+                                    Text(
+                                        text = "IOC Lens",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
                                 // Center Slot: Full Draggable Space (Clean, Minimal, Modern)
                                 Spacer(modifier = Modifier.weight(1f))
 

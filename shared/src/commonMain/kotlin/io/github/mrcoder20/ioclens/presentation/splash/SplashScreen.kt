@@ -44,6 +44,7 @@ import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.components.LiquidmorphicBackground
 import io.github.mrcoder20.ioclens.core.components.LottiePreloader
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
+import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import ioclens.shared.generated.resources.Res
 import ioclens.shared.generated.resources.app_logo_mark
@@ -110,7 +111,7 @@ fun SplashScreen(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF041C24),
+                            BackgroundDark,
                             PrimaryCyan.copy(alpha = 0.22f),
                             PrimaryCyan.copy(alpha = 0.08f),
                             Color.Transparent

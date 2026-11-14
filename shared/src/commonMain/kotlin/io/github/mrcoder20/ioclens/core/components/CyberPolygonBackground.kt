@@ -80,22 +80,23 @@ fun CyberPolygonBackground(
     val tealColors = remember { Array(101) { SecondaryTeal.copy(alpha = it / 100f * 0.55f) } }
     val skyColors = remember { Array(101) { HighlightSkyBlue.copy(alpha = it / 100f * 0.55f) } }
 
-    val time = if (isPaused) {
-        0f
+    val timeState = if (isPaused) {
+        null
     } else {
-        val infiniteTransition = rememberInfiniteTransition()
-        val t by infiniteTransition.animateFloat(
+        val infiniteTransition = rememberInfiniteTransition(label = "CyberPolygonTransition")
+        infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * kotlin.math.PI.toFloat(),
             animationSpec = infiniteRepeatable(
                 animation = tween(22000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
-            )
+            ),
+            label = "cyberPolygonTime"
         )
-        t
     }
 
     Canvas(modifier = modifier) {
+        val time = timeState?.value ?: 0f
         val w = size.width
         val h = size.height
 

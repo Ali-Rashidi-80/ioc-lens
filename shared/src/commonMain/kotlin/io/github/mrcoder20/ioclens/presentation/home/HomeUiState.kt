@@ -22,5 +22,5 @@ data class HomeUiState(
     val scanTotalEngines: Int = 10,
     val errorMessage: String? = null,
     val appTheme: AppTheme = AppTheme.DARK,
-    val appLanguage: AppLanguage = getSystemLanguage()
+    val appLanguage: AppLanguage = AppLanguage.ENGLISH
 )

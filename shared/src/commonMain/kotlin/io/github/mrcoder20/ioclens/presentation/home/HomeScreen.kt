@@ -18,14 +18,25 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import ioclens.shared.generated.resources.Res
+import ioclens.shared.generated.resources.app_logo_mark
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -112,14 +123,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
+import io.github.mrcoder20.ioclens.core.components.ClipboardVectorIcon
 import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
+import io.github.mrcoder20.ioclens.core.components.FileDocumentVectorIcon
+import io.github.mrcoder20.ioclens.core.components.HistoryVectorIcon
+import io.github.mrcoder20.ioclens.core.components.LiquidGlowBackground
+import io.github.mrcoder20.ioclens.core.components.ScannerVectorIcon
+import io.github.mrcoder20.ioclens.core.components.SettingsVectorIcon
+import io.github.mrcoder20.ioclens.core.components.ShieldVerdictVectorIcon
+import io.github.mrcoder20.ioclens.core.components.UploadCloudVectorIcon
 import io.github.mrcoder20.ioclens.core.components.rememberFilePickerLauncher
 import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
+import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
+import io.github.mrcoder20.ioclens.core.theme.CardDark
+import io.github.mrcoder20.ioclens.core.theme.DangerNeon
+import io.github.mrcoder20.ioclens.core.theme.PlaceholderHighContrast
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.PrimaryNeon
+import io.github.mrcoder20.ioclens.core.theme.SurfaceDark
+import io.github.mrcoder20.ioclens.core.theme.topBorderHighlightBrush
+import io.github.mrcoder20.ioclens.core.theme.cardGlassBackdropBrush
 import io.github.mrcoder20.ioclens.core.theme.VerdictClean
 import io.github.mrcoder20.ioclens.core.theme.VerdictLowRisk
 import io.github.mrcoder20.ioclens.core.theme.VerdictMalicious
@@ -182,7 +209,7 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(brush = Brush.verticalGradient(colors = listOf(Color(0xFF090D16), Color(0xFF131B2E))))
+                            .background(brush = Brush.verticalGradient(colors = listOf(BackgroundDark, CardDark)))
                             .statusBarsPadding()
                             .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
@@ -213,15 +240,13 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                modifier = Modifier.size(44.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(text = "🛡️", fontSize = 22.sp)
-                                }
-                            }
+                            Image(
+                                painter = painterResource(Res.drawable.app_logo_mark),
+                                contentDescription = strings.appTitle,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
@@ -256,7 +281,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "🎯", fontSize = 18.sp) },
+                        icon = {
+                            ScannerVectorIcon(
+                                tint = if (uiState.selectedBottomNavTab == 0) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                size = 20.dp
+                            )
+                        },
                         label = { Text(text = strings.menuHome, fontWeight = FontWeight.SemiBold) },
                         selected = uiState.selectedBottomNavTab == 0,
                         onClick = {
@@ -270,7 +300,12 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "🗄️", fontSize = 18.sp) },
+                        icon = {
+                            HistoryVectorIcon(
+                                tint = if (uiState.selectedBottomNavTab == 1) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                size = 20.dp
+                            )
+                        },
                         label = {
                             Text(
                                 text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage)})",
@@ -289,26 +324,17 @@ fun HomeScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text(text = "🎛️", fontSize = 18.sp) },
+                        icon = {
+                            SettingsVectorIcon(
+                                tint = if (uiState.selectedBottomNavTab == 2) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                size = 20.dp
+                            )
+                        },
                         label = { Text(text = strings.menuSettings, fontWeight = FontWeight.SemiBold) },
                         selected = uiState.selectedBottomNavTab == 2,
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
                             coroutineScope.launch { drawerState.close() }
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text(text = "💡", fontSize = 18.sp) },
-                        label = { Text(text = strings.introGuide, fontWeight = FontWeight.SemiBold) },
-                        selected = false,
-                        onClick = {
-                            coroutineScope.launch { drawerState.close() }
-                            settingsRepository.setIntroCompleted(false)
                         },
                         colors = NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -323,7 +349,7 @@ fun HomeScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .background(Color.Transparent)
         ) {
             val screenWidth = maxWidth
             val screenHeight = maxHeight
@@ -332,13 +358,12 @@ fun HomeScreen(
             val isCompactScreen = screenWidth < 600.dp
             val isMobileOrTablet = screenWidth < 840.dp
 
-            // Ambient Top Glow (Cached Brush to avoid GC pressure and hitch)
-            val bgColor = MaterialTheme.colorScheme.background
-            val ambientGlowBrush = remember(bgColor) {
+            // Ambient Top Glow (Subtle translucent cyber accent wash)
+            val ambientGlowBrush = remember {
                 Brush.verticalGradient(
                     colors = listOf(
-                        PrimaryCyan.copy(alpha = 0.18f),
-                        bgColor
+                        PrimaryNeon.copy(alpha = 0.08f),
+                        Color.Transparent
                     )
                 )
             }
@@ -346,7 +371,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(260.dp)
                     .background(brush = ambientGlowBrush)
             )
 
@@ -406,21 +431,33 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "IOC ",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    letterSpacing = 1.sp
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(Res.drawable.app_logo_mark),
+                                    contentDescription = strings.appTitle,
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                 )
-                                Text(
-                                    text = "LENS",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = PrimaryCyan,
-                                    letterSpacing = 1.sp
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "IOC ",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Text(
+                                        text = "LENS",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PrimaryCyan,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -449,7 +486,7 @@ fun HomeScreen(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(text = "🗄️", fontSize = 14.sp)
+                                    HistoryVectorIcon(tint = PrimaryCyan, size = 16.dp)
                                     if (uiState.scanHistory.isNotEmpty()) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
@@ -475,11 +512,12 @@ fun HomeScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
-                                Text(
-                                    text = "🎛️",
+                                Box(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    fontSize = 14.sp
-                                )
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    SettingsVectorIcon(tint = PrimaryCyan, size = 16.dp)
+                                }
                             }
                         }
                     }
@@ -502,91 +540,75 @@ fun HomeScreen(
                             )
                         }
                         else -> {
-                            // ADAPTIVE 2-COLUMN SPLIT DASHBOARD (Desktop & Wide Tablets - Natural Height With Outer Scroll)
-                            Row(
+                            // ADAPTIVE UNIFIED DASHBOARD (Desktop & Wide Displays)
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                // Left Pane: Search Console, Progress, Verdict & Recent Triage Feed
-                                Column(
+                                // 1. Dual-Input Scanner Hub (Side-by-side with balanced heights)
+                                Row(
                                     modifier = Modifier
-                                        .weight(1.08f),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                        .fillMaxWidth()
+                                        .height(IntrinsicSize.Max),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
-
-                                    AnimatedVisibility(
-                                        visible = uiState.isLoading,
-                                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
-                                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-                                    ) {
-                                        LiveScanBanner(
-                                            targetIndicator = uiState.targetIndicator,
-                                            finishedEngines = uiState.scanFinishedEngines,
-                                            totalEngines = uiState.scanTotalEngines,
-                                            appLanguage = uiState.appLanguage,
-                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
-                                        )
-                                    }
-
                                     SearchCard(
                                         uiState = uiState,
                                         strings = strings,
-                                        isCompact = isCompactScreen,
+                                        isCompact = false,
                                         onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
                                         onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                         onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                         onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                        onOpenFilePicker = filePickerLauncher
+                                        onOpenFilePicker = filePickerLauncher,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
                                     )
 
-                                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
-
-                                    AnimatedVisibility(
-                                        visible = uiState.activeVerdict != null,
-                                        enter = fadeIn(tween(350)) + expandVertically(tween(350)),
-                                        exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
-                                    ) {
-                                        uiState.activeVerdict?.let { verdict ->
-                                            OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
-                                        }
-                                    }
-
-                                    // Desktop Recent Triage Scans HUD Feed
-                                    RecentTriageFeedHUD(
-                                        history = uiState.scanHistory,
-                                        appLanguage = uiState.appLanguage,
+                                    FileScannerCard(
+                                        uiState = uiState,
                                         strings = strings,
-                                        onSelect = { item ->
-                                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
-                                            coroutineScope.launch { scrollState.scrollTo(0) }
-                                        },
-                                        onDelete = { item ->
-                                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
-                                        },
-                                        onReScan = { rawValue ->
-                                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                                            coroutineScope.launch { scrollState.scrollTo(0) }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
+                                        onOpenFilePicker = filePickerLauncher,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(),
+                                        isCompact = false
                                     )
                                 }
 
-                                // Right Pane: Threat Intel Provider Deck
-                                Column(
-                                    modifier = Modifier
-                                        .weight(0.92f),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                // 2. File Hashing Progress Banner (Full Width)
+                                FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+
+                                // 3. Auto-Dismissing Error Message Banner (Full Width)
+                                ErrorMessageBanner(errorMessage = uiState.errorMessage)
+
+                                // 4. Live Multi-Engine Scan Banner (Full Width)
+                                AnimatedVisibility(
+                                    visible = uiState.isLoading,
+                                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
                                 ) {
-                                    LiveProviderDeck(
-                                        uiState = uiState,
-                                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                        isTwoColumn = false,
-                                        modifier = Modifier.fillMaxWidth()
+                                    LiveScanBanner(
+                                        targetIndicator = uiState.targetIndicator,
+                                        finishedEngines = uiState.scanFinishedEngines,
+                                        totalEngines = uiState.scanTotalEngines,
+                                        appLanguage = uiState.appLanguage,
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
                                     )
+                                }
+
+                                // 5. Overall Threat Verdict & Intelligence Report (Full Width!)
+                                AnimatedVisibility(
+                                    visible = uiState.activeVerdict != null,
+                                    enter = fadeIn(tween(350)) + expandVertically(tween(350)),
+                                    exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
+                                ) {
+                                    uiState.activeVerdict?.let { verdict ->
+                                        OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                    }
                                 }
                             }
                         }
@@ -613,7 +635,28 @@ fun HomeScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
+                                    SearchCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        isCompact = isCompactScreen,
+                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        onOpenFilePicker = filePickerLauncher
+                                    )
+
+                                    FileScannerCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        onOpenFilePicker = filePickerLauncher,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        isCompact = true
+                                    )
+
                                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+
+                                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
 
                                     AnimatedVisibility(
                                         visible = uiState.isLoading,
@@ -629,19 +672,6 @@ fun HomeScreen(
                                         )
                                     }
 
-                                    SearchCard(
-                                        uiState = uiState,
-                                        strings = strings,
-                                        isCompact = isCompactScreen,
-                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                        onOpenFilePicker = filePickerLauncher
-                                    )
-
-                                    ErrorMessageBanner(errorMessage = uiState.errorMessage)
-
                                     AnimatedVisibility(
                                         visible = uiState.activeVerdict != null,
                                         enter = fadeIn(tween(350)) + expandVertically(tween(350)),
@@ -651,34 +681,6 @@ fun HomeScreen(
                                             OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
                                         }
                                     }
-
-                                    // 10 Threat Intel Providers Deck on Mobile
-                                    LiveProviderDeck(
-                                        uiState = uiState,
-                                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
-                                        isTwoColumn = false,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    // Recent Triage Feed on Mobile
-                                    RecentTriageFeedHUD(
-                                        history = uiState.scanHistory,
-                                        appLanguage = uiState.appLanguage,
-                                        strings = strings,
-                                        onSelect = { item ->
-                                            viewModel.onEvent(HomeEvent.HistoryItemClicked(item))
-                                            coroutineScope.launch { scrollState.scrollTo(0) }
-                                        },
-                                        onDelete = { item ->
-                                            viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
-                                        },
-                                        onReScan = { rawValue ->
-                                            viewModel.onEvent(HomeEvent.QueryChanged(rawValue))
-                                            viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                                            coroutineScope.launch { scrollState.scrollTo(0) }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
                                 }
                             }
                             1 -> {
@@ -770,16 +772,17 @@ private fun LiveScanBanner(
     modifier: Modifier = Modifier
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
-    val infiniteTransition = rememberInfiniteTransition()
+    val infiniteTransition = rememberInfiniteTransition(label = "LiveScanRadar")
 
-    // Rotating radar beam
-    val radarRotation by infiniteTransition.animateFloat(
+    // Rotating radar beam (deferred to graphicsLayer to prevent parent card recomposition)
+    val radarRotationState = infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(1800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
-        )
+        ),
+        label = "radarRotation"
     )
 
     Card(
@@ -825,7 +828,7 @@ private fun LiveScanBanner(
                             .border(1.dp, PrimaryCyan.copy(alpha = 0.4f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.size(28.dp).rotate(radarRotation)) {
+                        Canvas(modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = radarRotationState.value }) {
                             val center = Offset(size.width / 2f, size.height / 2f)
                             val radius = size.width / 2f
 
@@ -1002,12 +1005,12 @@ private fun CyberpunkBottomNavBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val tabs = listOf(
-                Triple(0, "☣️", strings.tabScanner),
-                Triple(1, "🗄️", strings.tabHistory),
-                Triple(2, "🎛️", strings.tabSettings)
+                Pair(0, strings.tabScanner),
+                Pair(1, strings.tabHistory),
+                Pair(2, strings.tabSettings)
             )
 
-            tabs.forEach { (index, icon, label) ->
+            tabs.forEach { (index, label) ->
                 val isSelected = selectedTab == index
                 val activeColor = PrimaryCyan
                 val inactiveColor = Color(0xFF7E8B9F)
@@ -1039,14 +1042,27 @@ private fun CyberpunkBottomNavBar(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = icon,
-                                fontSize = 18.sp,
+                            Box(
                                 modifier = Modifier.graphicsLayer {
                                     scaleX = iconScale
                                     scaleY = iconScale
                                 }
-                            )
+                            ) {
+                                when (index) {
+                                    0 -> ScannerVectorIcon(
+                                        tint = if (isSelected) activeColor else inactiveColor,
+                                        size = 18.dp
+                                    )
+                                    1 -> HistoryVectorIcon(
+                                        tint = if (isSelected) activeColor else inactiveColor,
+                                        size = 18.dp
+                                    )
+                                    else -> SettingsVectorIcon(
+                                        tint = if (isSelected) activeColor else inactiveColor,
+                                        size = 18.dp
+                                    )
+                                }
+                            }
                             if (index == 1 && historyCount > 0) {
                                 Box(
                                     modifier = Modifier
@@ -1101,8 +1117,8 @@ private fun FileHashingBanner(uiState: HomeUiState, appLanguage: AppLanguage) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF131F38)),
-            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan),
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.90f)),
+            border = BorderStroke(1.dp, topBorderHighlightBrush(PrimaryNeon, isDark = true)),
             shape = RoundedCornerShape(14.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -1124,7 +1140,7 @@ private fun FileHashingBanner(uiState: HomeUiState, appLanguage: AppLanguage) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(3.dp),
                     color = PrimaryCyan,
-                    trackColor = Color(0xFF0A1226)
+                    trackColor = BackgroundDark
                 )
             }
         }
@@ -1140,242 +1156,366 @@ private fun SearchCard(
     onClear: () -> Unit,
     onCancel: () -> Unit,
     onAnalyze: () -> Unit,
-    onOpenFilePicker: () -> Unit = {}
+    onOpenFilePicker: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
-    val infiniteTransition = rememberInfiniteTransition(label = "scanPulse")
-    val pulseGlow by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
+    var isHovered by remember { mutableStateOf(false) }
+    val pulseGlowState = if (uiState.queryInput.isNotBlank()) {
+        val infiniteTransition = rememberInfiniteTransition(label = "scanPulse")
+        infiniteTransition.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 0.95f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseGlow"
+        )
+    } else null
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        isHovered = event.type != PointerEventType.Exit
+                    }
+                }
+            },
+        shape = RoundedCornerShape(16.dp),
+        color = CardDark.copy(alpha = if (isHovered) 0.95f else 0.85f),
+        border = BorderStroke(
+            1.dp,
+            if (isHovered) Brush.linearGradient(listOf(PrimaryCyan, PrimaryCyan.copy(alpha = 0.45f)))
+            else topBorderHighlightBrush(PrimaryNeon, isDark = true)
         ),
-        label = "pulseGlow"
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        shadowElevation = if (isHovered) 8.dp else 4.dp
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            val cardWidth = maxWidth
-            val useStackedLayout = isCompact || cardWidth < 580.dp
-
-            Column {
-                OutlinedTextField(
-                    value = uiState.queryInput,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(
-                        textDirection = TextDirection.Ltr,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = if (isCompact) 13.5.sp else 15.sp,
+        Column(
+            modifier = if (isCompact) Modifier.fillMaxWidth().padding(18.dp) else Modifier.fillMaxSize().padding(18.dp)
+        ) {
+            // Header matching FileScannerCard perfectly
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(PrimaryCyan.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ScannerVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                }
+                Column {
+                    Text(
+                        text = when (uiState.appLanguage) {
+                            AppLanguage.PERSIAN -> "پویش نشانگر و هوش تهدیدات"
+                            AppLanguage.RUSSIAN -> "Анализ IOC и индикаторов"
+                            else -> "IOC & Payload Analysis"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White
-                    ),
-                    placeholder = {
-                        Text(
-                            text = strings.searchFieldPlaceholder,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontSize = if (isCompact) 12.sp else 13.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    trailingIcon = {
-                        if (uiState.queryInput.isNotEmpty()) {
-                            IconButton(
-                                onClick = onClear,
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .springPress()
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "✕",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = PrimaryCyan,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    )
+                    Text(
+                        text = when (uiState.appLanguage) {
+                            AppLanguage.PERSIAN -> "تحلیل چندموتوره و بلادرنگ IP، دامنه، URL و هش"
+                            AppLanguage.RUSSIAN -> "Мгновенный анализ IP, доменов, URL и хешей"
+                            else -> "Real-time zero-key triage for IP, Domain, URL & Hash"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            }
 
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-                if (useStackedLayout) {
-                    // Stacked Layout: Actions on a single clean row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(
-                            onClick = {
-                                val clipText = clipboardManager.getText()?.text
-                                if (!clipText.isNullOrBlank()) {
-                                    onQueryChange(clipText.trim())
-                                }
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+            // Search Input Field
+            OutlinedTextField(
+                value = uiState.queryInput,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(
+                    textDirection = TextDirection.Ltr,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = if (isCompact) 13.5.sp else 14.5.sp,
+                    color = Color.White
+                ),
+                placeholder = {
+                    Text(
+                        text = strings.searchFieldPlaceholder,
+                        color = PlaceholderHighContrast,
+                        fontSize = if (isCompact) 12.sp else 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                trailingIcon = {
+                    if (uiState.queryInput.isNotEmpty()) {
+                        IconButton(
+                            onClick = onClear,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .springPress()
                         ) {
-                            Text(
-                                text = "📋 ${strings.pasteFromClipboard}",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "✕",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                         }
+                    }
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = PrimaryCyan,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
 
-                        if (uiState.isLoading) {
-                            Button(
-                                onClick = onCancel,
-                                colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(38.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(13.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = strings.cancelScan,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        } else {
-                            Button(
-                                onClick = onAnalyze,
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                shape = RoundedCornerShape(10.dp),
-                                border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
-                                modifier = Modifier.height(38.dp).springPress()
-                            ) {
-                                Text(
-                                    text = strings.scanPayload,
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp
-                                )
-                            }
+            Spacer(modifier = Modifier.height(14.dp))
+            if (!isCompact) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Actions Row: Paste & Scan Payload
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = {
+                        val clipText = clipboardManager.getText()?.text
+                        if (!clipText.isNullOrBlank()) {
+                            onQueryChange(clipText.trim())
                         }
+                    },
+                    modifier = Modifier.springPress(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ClipboardVectorIcon(tint = PrimaryCyan, size = 15.dp)
+                        Text(
+                            text = strings.pasteFromClipboard,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                if (uiState.isLoading) {
+                    Button(
+                        onClick = onCancel,
+                        colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(38.dp).springPress()
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = strings.cancelScan,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.sp
+                        )
                     }
                 } else {
-                    // Standard Wide Layout
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Button(
+                        onClick = onAnalyze,
+                        enabled = uiState.queryInput.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryCyan,
+                            contentColor = Color.Black,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            disabledContentColor = Color.White.copy(alpha = 0.35f)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        border = if (uiState.queryInput.isNotBlank()) BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlowState?.value ?: 0.35f)) else null,
+                        modifier = Modifier.height(38.dp).springPress()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .springPress()
-                                    .clickable { onOpenFilePicker() }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = PrimaryCyan.copy(alpha = 0.12f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Text(text = "🧬", fontSize = 13.sp)
-                                    Text(
-                                        text = strings.dropFileHint,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = PrimaryCyan,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            TextButton(
-                                onClick = {
-                                    val clipText = clipboardManager.getText()?.text
-                                    if (!clipText.isNullOrBlank()) {
-                                        onQueryChange(clipText.trim())
-                                    }
-                                },
-                                modifier = Modifier.springPress(),
-                                colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
-                            ) {
-                                Text(
-                                    text = "📋 ${strings.pasteFromClipboard}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            if (uiState.isLoading) {
-                                Button(
-                                    onClick = onCancel,
-                                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(40.dp).springPress()
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = strings.cancelScan,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            } else {
-                                Button(
-                                    onClick = onAnalyze,
-                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = if (uiState.queryInput.isNotBlank()) androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlow)) else null,
-                                    modifier = Modifier.height(40.dp).springPress()
-                                ) {
-                                    Text(
-                                        text = strings.scanPayload,
-                                        color = Color.Black,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
+                        Text(
+                            text = strings.scanPayload,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.sp
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dedicated File Triage & SHA-256 Scanner Card on Scanner Page.
+ * Computes SHA-256 hash locally in client memory with zero cloud uploads.
+ */
+@Composable
+private fun FileScannerCard(
+    uiState: HomeUiState,
+    strings: AppStrings,
+    onOpenFilePicker: () -> Unit,
+    modifier: Modifier = Modifier,
+    isCompact: Boolean = false
+) {
+    var isCardHovered by remember { mutableStateOf(false) }
+    val dropInteractionSource = remember { MutableInteractionSource() }
+    val isDropHovered by dropInteractionSource.collectIsHoveredAsState()
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        isCardHovered = event.type != PointerEventType.Exit
+                    }
+                }
+            },
+        color = CardDark.copy(alpha = if (isCardHovered) 0.95f else 0.85f),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(
+            1.dp,
+            if (isCardHovered) Brush.linearGradient(listOf(PrimaryCyan, PrimaryCyan.copy(alpha = 0.45f)))
+            else topBorderHighlightBrush(PrimaryNeon, isDark = true)
+        ),
+        shadowElevation = if (isCardHovered) 8.dp else 4.dp
+    ) {
+        Column(
+            modifier = if (isCompact) Modifier.fillMaxWidth().padding(18.dp) else Modifier.fillMaxSize().padding(18.dp)
+        ) {
+            // Header: Icon + Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(PrimaryCyan.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    FileDocumentVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                }
+                Column {
+                    Text(
+                        text = when (uiState.appLanguage) {
+                            AppLanguage.PERSIAN -> "پویش و تحلیل فایل (SHA-256)"
+                            AppLanguage.RUSSIAN -> "Анализ файла (SHA-256)"
+                            else -> "File Triage & SHA-256 Scanner"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = when (uiState.appLanguage) {
+                            AppLanguage.PERSIAN -> "محاسبه کاملاً آفلاین هش بدون آپلود فایل"
+                            AppLanguage.RUSSIAN -> "Локальное вычисление хеша без загрузки файла"
+                            else -> "100% Client-side local hashing, zero cloud upload"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Interactive Drop / Select Box Area (Fills remaining height harmoniously on desktop, solid minimum height on mobile)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (isCompact) {
+                            Modifier.heightIn(min = 125.dp)
+                        } else {
+                            Modifier.weight(1f).defaultMinSize(minHeight = 110.dp)
+                        }
+                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .springPress(interactionSource = dropInteractionSource)
+                    .clickable(
+                        interactionSource = dropInteractionSource,
+                        indication = null,
+                        onClick = onOpenFilePicker
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand),
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDropHovered) PrimaryCyan.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                border = BorderStroke(1.5.dp, if (isDropHovered) PrimaryCyan else PrimaryCyan.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp, horizontal = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryCyan.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        UploadCloudVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = strings.dropFileHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryCyan,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = when (uiState.appLanguage) {
+                            AppLanguage.PERSIAN -> "پشتیبانی از انواع فایل‌ها: اجرایی (EXE/DLL)، اسناد (PDF/Office)، فشرده (ZIP/RAR) و..."
+                            AppLanguage.RUSSIAN -> "Поддержка любых файлов: исполняемые, документы, архивы и др."
+                            else -> "Supports all formats: Executables, Documents, Archives, Scripts"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF94A3B8),
+                        textAlign = TextAlign.Center,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -1384,15 +1524,41 @@ private fun SearchCard(
 
 @Composable
 private fun ErrorMessageBanner(errorMessage: String?) {
-    errorMessage?.let { error ->
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = error,
-            color = VerdictMalicious,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+    AnimatedVisibility(
+        visible = !errorMessage.isNullOrBlank(),
+        enter = fadeIn(animationSpec = tween(250)) + expandVertically(animationSpec = tween(250)),
+        exit = fadeOut(animationSpec = tween(350)) + shrinkVertically(animationSpec = tween(350))
+    ) {
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = DangerNeon.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, DangerNeon.copy(alpha = 0.45f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "⚠",
+                        color = DangerNeon,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = errorMessage,
+                        color = DangerNeon,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1413,57 +1579,80 @@ private fun OverallVerdictCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.8f)),
+        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
+        border = BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.85f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        ControlledMarqueeText(
-                            text = verdict.indicator.rawValue,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(verdictColor.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ShieldVerdictVectorIcon(
+                            tint = verdictColor,
+                            size = 24.dp
                         )
                     }
-                    Text(
-                        text = "${strings.indicatorTypeLabel}: ${LocalizationProvider.getIndicatorTypeName(verdict.indicator.type, appLanguage)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            ControlledMarqueeText(
+                                text = verdict.indicator.rawValue,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.5.sp
+                                ),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${strings.indicatorTypeLabel}: ${LocalizationProvider.getIndicatorTypeName(verdict.indicator.type, appLanguage)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                 }
 
                 Surface(
-                    color = verdictColor.copy(alpha = 0.2f),
+                    color = verdictColor.copy(alpha = 0.20f),
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor)
+                    border = BorderStroke(1.dp, verdictColor)
                 ) {
                     Text(
                         text = LocalizationProvider.getVerdictName(verdict.overallVerdict, appLanguage),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         color = verdictColor,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 12.sp
+                        fontSize = 13.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = LocalizationProvider.getLocalizedVerdictSummary(verdict, appLanguage),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color(0xFFE2E8F0)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1483,7 +1672,7 @@ private fun OverallVerdictCard(
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             LinearProgressIndicator(
                 progress = { verdict.confidenceScore / 100f },
                 modifier = Modifier
@@ -1818,12 +2007,15 @@ private fun HistoryFullScreenView(
             placeholder = {
                 Text(
                     text = strings.searchHistoryPlaceholder,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = PlaceholderHighContrast,
                     fontSize = 12.5.sp
                 )
             },
             leadingIcon = {
-                Text(text = "🔍", fontSize = 13.sp)
+                ScannerVectorIcon(
+                    size = 16.dp,
+                    tint = PrimaryCyan.copy(alpha = 0.85f)
+                )
             },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -2118,7 +2310,7 @@ private fun HistorySheet(
                         }
 
                         Text(
-                            text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
+                            text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
                             style = MaterialTheme.typography.titleMedium,
                             color = PrimaryCyan,
                             fontWeight = FontWeight.Bold
@@ -2126,7 +2318,7 @@ private fun HistorySheet(
                     } else {
                         // In LTR, Title first, then Clear and Close button on the Right (End)
                         Text(
-                            text = "📜 ${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
+                            text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
                             style = MaterialTheme.typography.titleMedium,
                             color = PrimaryCyan,
                             fontWeight = FontWeight.Bold

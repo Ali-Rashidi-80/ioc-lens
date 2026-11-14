@@ -129,8 +129,6 @@ fun IntroScreen(
                 transitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
                 doneText = currentStrings.done,
                 nextText = currentStrings.next,
-                skipText = currentStrings.skip,
-                onSkipClicked = handleSkip,
                 onFinishClicked = handleFinish,
                 topBarContent = {
                     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -236,26 +234,6 @@ fun IntroScreen(
                                             }
                                         )
                                     }
-                                }
-                            }
-
-                            // Skip Action in Header
-                            if (shouldShowOnboardingSkip(pagerState.currentPage, uiState.slides.size)) {
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { handleSkip() }
-                                        .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color.Transparent
-                                ) {
-                                    Text(
-                                        text = currentStrings.skip,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = Color(0xFF94A3B8),
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
-                                    )
                                 }
                             }
 

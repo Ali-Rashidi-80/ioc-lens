@@ -56,7 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.springPress
+import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.SurfaceDark
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -191,8 +193,8 @@ fun <T> OnboardingSlider(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF041C24).copy(alpha = 0.55f),
-                            Color(0xFF06141F).copy(alpha = 0.25f),
+                            BackgroundDark.copy(alpha = 0.55f),
+                            SurfaceDark.copy(alpha = 0.25f),
                             Color.Transparent
                         )
                     )

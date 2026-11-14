@@ -33,6 +33,11 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Exe)
             packageName = "io.github.mrcoder20.ioclens"
             packageVersion = "1.0.0"
+            description = "High-Speed IOC & Security Intelligence Hub"
+            vendor = "mr-coder20"
+            copyright = "© 2026 mr-coder20"
+
+            modules("java.instrument", "java.management", "java.sql", "jdk.unsupported", "java.naming", "java.desktop", "jdk.security.auth")
 
             windows {
                 iconFile.set(project.file("../docs/assets/logo/icon.ico"))
@@ -40,6 +45,7 @@ compose.desktop {
                 menu = true
                 menuGroup = "IOC Lens"
                 dirChooser = true
+                jvmArgs("-Xmx2G", "-Dcompose.application.configure.stdio=true")
             }
             macOS {
                 iconFile.set(project.file("../docs/assets/logo/icon.icns"))

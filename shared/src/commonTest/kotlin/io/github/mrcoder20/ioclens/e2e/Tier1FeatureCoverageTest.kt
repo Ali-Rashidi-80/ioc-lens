@@ -283,8 +283,8 @@ class Tier1FeatureCoverageTest {
     @Test
     fun testMobileNativeActionLabelsInAllLanguages() {
         val en = LocalizationProvider.getStrings(AppLanguage.ENGLISH)
-        assertEquals("📋 Paste", en.pasteFromClipboard)
-        assertEquals("📁 Select File to Hash", en.dropFileHint)
+        assertEquals("Paste", en.pasteFromClipboard)
+        assertEquals("Select File to Scan", en.dropFileHint)
         assertFalse(en.pasteFromClipboard.contains("Ctrl+V", ignoreCase = true))
         assertFalse(en.dropFileHint.contains("Drop any file", ignoreCase = true))
 
@@ -293,7 +293,7 @@ class Tier1FeatureCoverageTest {
         assertTrue(fa.dropFileHint.contains(persianRegex))
 
         val ru = LocalizationProvider.getStrings(AppLanguage.RUSSIAN)
-        assertEquals("📋 Вставить", ru.pasteFromClipboard)
-        assertEquals("📁 Выбрать файл для хеша", ru.dropFileHint)
+        assertEquals("Вставить", ru.pasteFromClipboard)
+        assertEquals("Выбрать файл для сканирования", ru.dropFileHint)
     }
 }

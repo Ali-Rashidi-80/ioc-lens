@@ -279,18 +279,21 @@ class EnglishLocaleSanityTest {
         assertEquals("Лицензия MIT (Open Source)", ru.specOpenSource)
 
         assertEquals("CYBER DARK", en.badgeThemeCyberDark)
+        assertEquals("IOC CLASSIC", en.badgeThemeIocClassic)
         assertEquals("AUTO SYSTEM", en.badgeThemeAutoSystem)
         assertEquals("RFC 1918 ACTIVE", en.badgeGuardActive)
         assertEquals("GUARD DISABLED", en.badgeGuardDisabled)
         assertEquals("OPEN SOURCE v1.0", en.badgeOpenSourceVersion)
 
         assertEquals("تم تاریک سایبری", fa.badgeThemeCyberDark)
+        assertEquals("اورجینال IOC LENS", fa.badgeThemeIocClassic)
         assertEquals("پیش‌فرض سیستم", fa.badgeThemeAutoSystem)
         assertEquals("سپر فعال (RFC 1918)", fa.badgeGuardActive)
         assertEquals("سپر غیرفعال", fa.badgeGuardDisabled)
         assertEquals("متن‌باز نسخه ۱.۰", fa.badgeOpenSourceVersion)
 
         assertEquals("ТЁМНАЯ ТЕМА", ru.badgeThemeCyberDark)
+        assertEquals("IOC CLASSIC", ru.badgeThemeIocClassic)
         assertEquals("СИСТЕМНАЯ", ru.badgeThemeAutoSystem)
         assertEquals("RFC 1918 АКТИВЕН", ru.badgeGuardActive)
         assertEquals("ЗАЩИТА ОТКЛЮЧЕНА", ru.badgeGuardDisabled)
@@ -304,17 +307,17 @@ class EnglishLocaleSanityTest {
         val ru = LocalizationProvider.getStrings(AppLanguage.RUSSIAN)
 
         // Verify (Ctrl+V) desktop shortcut is removed across all locales
-        assertEquals("📋 Paste", en.pasteFromClipboard)
-        assertEquals("📋 چسباندن", fa.pasteFromClipboard)
-        assertEquals("📋 Вставить", ru.pasteFromClipboard)
+        assertEquals("Paste", en.pasteFromClipboard)
+        assertEquals("چسباندن", fa.pasteFromClipboard)
+        assertEquals("Вставить", ru.pasteFromClipboard)
         assertFalse(en.pasteFromClipboard.contains("Ctrl+V"))
         assertFalse(fa.pasteFromClipboard.contains("Ctrl+V"))
         assertFalse(ru.pasteFromClipboard.contains("Ctrl+V"))
 
         // Verify mobile file picker copy replaces desktop drop copy
-        assertEquals("📁 Select File to Hash", en.dropFileHint)
-        assertEquals("📁 انتخاب فایل برای هش", fa.dropFileHint)
-        assertEquals("📁 Выбрать файл для хеша", ru.dropFileHint)
+        assertEquals("Select File to Scan", en.dropFileHint)
+        assertEquals("انتخاب فایل برای اسکن", fa.dropFileHint)
+        assertEquals("Выбрать файл для сканирования", ru.dropFileHint)
         assertFalse(en.dropFileHint.contains("Drop any file"))
         assertFalse(fa.dropFileHint.contains("رهاسازی فایل"))
         assertFalse(ru.dropFileHint.contains("Перетащите файл"))

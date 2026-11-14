@@ -60,18 +60,21 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class Tier4RealWorldScenariosTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private var testDispatcher = StandardTestDispatcher()
     private val parser = IOCParser()
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
     private val persianRegex = Regex("[\\u0600-\\u06FF]")
 
     @BeforeTest
     fun setUp() {
+        testDispatcher = StandardTestDispatcher()
         Dispatchers.setMain(testDispatcher)
+        io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver.consume()
     }
 
     @AfterTest
     fun tearDown() {
+        io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver.consume()
         Dispatchers.resetMain()
     }
 

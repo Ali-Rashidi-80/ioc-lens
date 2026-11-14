@@ -566,4 +566,39 @@ class HomeViewModelTest {
         assertEquals(0, viewModel.uiState.value.selectedBottomNavTab, "Must navigate to Scanner tab 0")
         assertEquals("Cannot analyze folder 'test'.", viewModel.uiState.value.errorMessage)
     }
+
+    @Test
+    fun testErrorMessageAutoDismissesAfterTimer() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        viewModel.onEvent(HomeEvent.QueryChanged(""))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+
+        assertNotNull(viewModel.uiState.value.errorMessage, "Error must be immediately present")
+
+        // Advance virtual clock past the 4000ms auto-dismiss delay
+        advanceTimeBy(4001L)
+
+        assertNull(viewModel.uiState.value.errorMessage, "Error must be automatically dismissed after timer")
+    }
+
+    @Test
+    fun testQueryChangedCancelsErrorDismissTimerAndClearsImmediately() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        viewModel.onEvent(HomeEvent.QueryChanged(""))
+        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+        assertNotNull(viewModel.uiState.value.errorMessage)
+
+        viewModel.onEvent(HomeEvent.QueryChanged("8.8.8.8"))
+        assertNull(viewModel.uiState.value.errorMessage, "Typing must clear error immediately")
+    }
 }
