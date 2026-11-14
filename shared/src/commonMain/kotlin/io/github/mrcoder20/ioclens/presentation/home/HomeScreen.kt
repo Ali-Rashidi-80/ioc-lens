@@ -1,4 +1,9 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.RectangleShape
@@ -2797,6 +2802,91 @@ private val DEFAULT_PROBE_ENGINES = listOf(
  * - Encrypted TLS & Zero Cloud Leak privacy invariants
  */
 @Composable
+private fun StatusBarNavChevron(
+    isLeft: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isHovered by remember { mutableStateOf(false) }
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isHovered) 1.10f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+    )
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isHovered) 0.32f else 0.10f,
+        animationSpec = tween(140)
+    )
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (isHovered) 0.95f else 0.40f,
+        animationSpec = tween(140)
+    )
+
+    Surface(
+        modifier = modifier
+            .size(24.dp)
+            .graphicsLayer {
+                scaleX = animatedScale
+                scaleY = animatedScale
+            }
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        isHovered = event.type != PointerEventType.Exit
+                    }
+                }
+            },
+        color = Color(0xEE0B132B),
+        border = BorderStroke(0.9.dp, PrimaryCyan.copy(alpha = borderAlpha)),
+        shape = RoundedCornerShape(6.dp),
+        shadowElevation = if (isHovered) 3.dp else 0.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(PrimaryCyan.copy(alpha = glowAlpha)),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.size(10.dp)) {
+                val strokeWidth = 1.9.dp.toPx()
+                val path = Path()
+                if (isLeft) {
+                    path.moveTo(size.width * 0.65f, size.height * 0.16f)
+                    path.lineTo(size.width * 0.30f, size.height * 0.5f)
+                    path.lineTo(size.width * 0.65f, size.height * 0.84f)
+                } else {
+                    path.moveTo(size.width * 0.35f, size.height * 0.16f)
+                    path.lineTo(size.width * 0.70f, size.height * 0.5f)
+                    path.lineTo(size.width * 0.35f, size.height * 0.84f)
+                }
+                drawPath(
+                    path = path,
+                    color = PrimaryCyan,
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Desktop Live Threat Intel Engines Ping & Connectivity Status Bar.
+ *
+ * Grounded at the absolute bottom of the desktop window:
+ * - Live Ping / Latency measurement for all 10 Zero-Key Engines
+ * - Interactive [Ping All] probe trigger
+ * - Smooth Mouse Wheel & Drag-to-Scroll navigation
+ * - Precision vector chevrons and gradient fade masks
+ * - Strict BiDi / LTR character isolation (zero letter breaking)
+ */
+@Composable
 private fun DesktopEngineConnectivityStatusBar(
     appLanguage: AppLanguage,
     modifier: Modifier = Modifier
@@ -2806,14 +2896,19 @@ private fun DesktopEngineConnectivityStatusBar(
     val coroutineScope = rememberCoroutineScope()
     val chipsScrollState = rememberScrollState()
 
-    val onlineEngines = engineStatuses.filter { it.isOnline }
-    val avgPing = if (onlineEngines.isNotEmpty()) {
-        onlineEngines.map { it.pingMs }.average().toLong()
-    } else {
-        0L
+    val onlineEngines = remember(engineStatuses) { engineStatuses.filter { it.isOnline } }
+    val avgPing = remember(onlineEngines) {
+        if (onlineEngines.isNotEmpty()) {
+            onlineEngines.map { it.pingMs }.average().toLong()
+        } else {
+            0L
+        }
     }
     val onlineCount = onlineEngines.size
     val totalCount = engineStatuses.size
+
+    val canScrollLeft by remember { derivedStateOf { chipsScrollState.value > 0 } }
+    val canScrollRight by remember { derivedStateOf { chipsScrollState.value < chipsScrollState.maxValue } }
 
     fun probeAllEngines() {
         if (isProbing) return
@@ -2877,7 +2972,12 @@ private fun DesktopEngineConnectivityStatusBar(
 
                 Text(
                     text = when (appLanguage) {
-                        AppLanguage.PERSIAN -> "$onlineCount از $totalCount موتور متصل • میانگین: ${avgPing}ms"
+                        AppLanguage.PERSIAN -> {
+                            val onlineFmt = LocalizationProvider.formatNumber(onlineCount, appLanguage)
+                            val totalFmt = LocalizationProvider.formatNumber(totalCount, appLanguage)
+                            val pingFmt = LocalizationProvider.formatNumber(avgPing.toInt(), appLanguage)
+                            "$onlineFmt از $totalFmt موتور فعال • میانگین: ${pingFmt}ms"
+                        }
                         AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
                         else -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
                     },
@@ -2939,31 +3039,35 @@ private fun DesktopEngineConnectivityStatusBar(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left scroll chevron button (visible when scrolled right)
-                    if (chipsScrollState.value > 0) {
-                        Surface(
-                            modifier = Modifier
-                                .padding(end = 5.dp)
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .clickable {
-                                    coroutineScope.launch {
-                                        chipsScrollState.animateScrollBy(-220f)
-                                    }
+                    // Left scroll chevron button with animated entry/exit
+                    AnimatedVisibility(
+                        visible = canScrollLeft,
+                        enter = fadeIn(tween(150)) + expandHorizontally(),
+                        exit = fadeOut(tween(150)) + shrinkHorizontally()
+                    ) {
+                        StatusBarNavChevron(
+                            isLeft = true,
+                            onClick = {
+                                coroutineScope.launch {
+                                    chipsScrollState.animateScrollBy(-220f)
                                 }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = PrimaryCyan.copy(alpha = 0.15f),
-                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "‹",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = PrimaryCyan
+                            },
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                    }
+
+                    // Left edge gradient fade when scrolled
+                    if (canScrollLeft) {
+                        Box(
+                            modifier = Modifier
+                                .width(8.dp)
+                                .height(26.dp)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFA080E1C), Color.Transparent)
+                                    )
                                 )
-                            }
-                        }
+                        )
                     }
 
                     // Chips list with Mouse Wheel Scroll + Mouse/Touch Drag-to-Scroll
@@ -2979,7 +3083,7 @@ private fun DesktopEngineConnectivityStatusBar(
                                             val change = event.changes.firstOrNull()
                                             if (change != null) {
                                                 val delta = if (change.scrollDelta.x != 0f) change.scrollDelta.x else change.scrollDelta.y
-                                                if (delta != 0f) {
+                                                if (delta.isFinite() && delta != 0f) {
                                                     chipsScrollState.dispatchRawDelta(delta * 40f)
                                                     change.consume()
                                                 }
@@ -2991,7 +3095,9 @@ private fun DesktopEngineConnectivityStatusBar(
                             .pointerInput(Unit) {
                                 detectHorizontalDragGestures { change, dragAmount ->
                                     change.consume()
-                                    chipsScrollState.dispatchRawDelta(-dragAmount)
+                                    if (dragAmount.isFinite() && dragAmount != 0f) {
+                                        chipsScrollState.dispatchRawDelta(-dragAmount)
+                                    }
                                 }
                             }
                             .horizontalScroll(chipsScrollState),
@@ -3039,31 +3145,35 @@ private fun DesktopEngineConnectivityStatusBar(
                         }
                     }
 
-                    // Right scroll chevron button (visible when not reached end)
-                    if (chipsScrollState.value < chipsScrollState.maxValue) {
-                        Surface(
+                    // Right edge gradient fade when scrollable
+                    if (canScrollRight) {
+                        Box(
                             modifier = Modifier
-                                .padding(start = 5.dp)
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .clickable {
-                                    coroutineScope.launch {
-                                        chipsScrollState.animateScrollBy(220f)
-                                    }
-                                }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = PrimaryCyan.copy(alpha = 0.15f),
-                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "›",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = PrimaryCyan
+                                .width(8.dp)
+                                .height(26.dp)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color.Transparent, Color(0xFA080E1C))
+                                    )
                                 )
-                            }
-                        }
+                        )
+                    }
+
+                    // Right scroll chevron button with animated entry/exit
+                    AnimatedVisibility(
+                        visible = canScrollRight,
+                        enter = fadeIn(tween(150)) + expandHorizontally(),
+                        exit = fadeOut(tween(150)) + shrinkHorizontally()
+                    ) {
+                        StatusBarNavChevron(
+                            isLeft = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    chipsScrollState.animateScrollBy(220f)
+                                }
+                            },
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
                     }
                 }
             }
