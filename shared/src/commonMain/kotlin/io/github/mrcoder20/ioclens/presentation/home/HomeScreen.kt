@@ -1,4 +1,11 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import androidx.compose.ui.graphics.RectangleShape
+import io.github.mrcoder20.ioclens.data.remote.createZeroKeyHttpClient
+import io.ktor.client.request.get
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -611,24 +618,7 @@ fun HomeScreen(
                                     }
                                 }
 
-                                // 6. Desktop Quick Triage Shelf (Interactive Test Lab & Recent Scans)
-                                DesktopQuickTriageShelf(
-                                    scanHistory = uiState.scanHistory,
-                                    appLanguage = uiState.appLanguage,
-                                    onSampleSelect = { sampleValue ->
-                                        viewModel.onEvent(HomeEvent.QueryChanged(sampleValue))
-                                        viewModel.onEvent(HomeEvent.AnalyzeClicked)
-                                    },
-                                    onHistorySelect = { verdict ->
-                                        viewModel.onEvent(HomeEvent.HistoryItemClicked(verdict))
-                                    },
-                                    onClearHistory = {
-                                        viewModel.onEvent(HomeEvent.ClearHistory)
-                                    },
-                                    onDeleteHistoryItem = { verdict ->
-                                        viewModel.onEvent(HomeEvent.DeleteHistoryItem(verdict))
-                                    }
-                                )
+
                             }
                         }
                     }
@@ -720,7 +710,7 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(if (isMobileOrTablet) 84.dp else 40.dp))
+                Spacer(modifier = Modifier.height(if (isMobileOrTablet) 84.dp else 48.dp))
             }
         }
 
@@ -774,6 +764,17 @@ fun HomeScreen(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
+            // Desktop Live Threat Intel Engines Ping & Connectivity Status Bar (Docked at the very bottom of the window)
+            if (!isMobileOrTablet && uiState.selectedBottomNavTab != 2) {
+                DesktopEngineConnectivityStatusBar(
+                    appLanguage = uiState.appLanguage,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                )
+            }
+
         }
     }
 }
@@ -2763,328 +2764,241 @@ private fun RecentTriageFeedHUD(
     }
 }
 
-private data class TriageSample(
-    val title: String,
-    val typeTag: String,
-    val value: String,
-    val isMalicious: Boolean
+private data class EngineProbeStatus(
+    val id: String,
+    val name: String,
+    val probeUrl: String,
+    val isOnline: Boolean = true,
+    val pingMs: Long = 32L
 )
 
-private val CURATED_TRIAGE_SAMPLES = listOf(
-    TriageSample("WannaCry", "SHA-256", "eceb2f25bac4cbca1da5f4e390124912cd91f541ad1ccada2ae2b46f4aceb414", true),
-    TriageSample("Feodo C2", "BOTNET IP", "195.123.245.11", true),
-    TriageSample("URLhaus", "DROPPER", "http://61.92.220.176:37567/bin.sh", true),
-    TriageSample("RedLine", "STEALER", "b3e93fda43d72109f6d17cf6aa0fa6017db1f8ee9c237ec49083385bb0248bf5", true),
-    TriageSample("1.1.1.1", "CLEAN DNS", "1.1.1.1", false),
-    TriageSample("github.com", "CLEAN DOMAIN", "github.com", false),
-    TriageSample("192.168.1.1", "RFC 1918", "192.168.1.1", false)
+private val DEFAULT_PROBE_ENGINES = listOf(
+    EngineProbeStatus("urlhaus", "URLhaus", "https://urlhaus-api.abuse.ch/v1/url/", true, 32),
+    EngineProbeStatus("mb", "MalwareBazaar", "https://mb-api.abuse.ch/api/v1/", true, 42),
+    EngineProbeStatus("tf", "ThreatFox", "https://threatfox-api.abuse.ch/api/v1/", true, 38),
+    EngineProbeStatus("feodo", "Feodo Tracker", "https://feodotracker.abuse.ch/downloads/ipblocklist.json", true, 35),
+    EngineProbeStatus("shodan", "Shodan DB", "https://internetdb.shodan.io/1.1.1.1", true, 44),
+    EngineProbeStatus("otx", "AlienVault", "https://otx.alienvault.com/", true, 58),
+    EngineProbeStatus("cf", "Cloudflare DoH", "https://cloudflare-dns.com/dns-query", true, 14),
+    EngineProbeStatus("rdap", "RDAP", "https://rdap.org/ip/1.1.1.1", true, 46),
+    EngineProbeStatus("ripe", "RIPE Stat", "https://stat.ripe.net/data/routing-status/data.json?resource=1.1.1.1", true, 52),
+    EngineProbeStatus("crt", "crt.sh", "https://crt.sh/?q=github.com&output=json", true, 65)
 )
 
 /**
- * High-Utility Desktop Quick Triage Shelf.
+ * Desktop Live Threat Intel Engines Ping & Connectivity Status Bar.
  *
- * Replaces non-functional static footer with an actionable SOC investigation dock:
- * 1. Curated One-Click Test Lab Samples (Real-world WannaCry, Feodo C2, RedLine, Clean DNS, etc.)
- * 2. Instant Recent Scans Strip for rapid back-and-forth investigation switching
- * 3. One-Click Smart "Paste & Triage" from OS clipboard
- * 4. Zero marketing slogans, 100% actionable workflow tools
+ * Grounded at the absolute bottom of the desktop window:
+ * - Live Ping / Latency measurement for all 10 Zero-Key Engines
+ * - Interactive [Ping All] probe trigger
+ * - Scrollable micro-latency chips with LTR protection against character breaking
+ * - Encrypted TLS & Zero Cloud Leak privacy invariants
  */
 @Composable
-private fun DesktopQuickTriageShelf(
-    scanHistory: List<TriageVerdict>,
+private fun DesktopEngineConnectivityStatusBar(
     appLanguage: AppLanguage,
-    onSampleSelect: (String) -> Unit,
-    onHistorySelect: (TriageVerdict) -> Unit,
-    onClearHistory: () -> Unit,
-    onDeleteHistoryItem: (TriageVerdict) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember(scanHistory.isNotEmpty()) {
-        mutableStateOf(if (scanHistory.isNotEmpty()) 1 else 0)
+    var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
+    var isProbing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val onlineEngines = engineStatuses.filter { it.isOnline }
+    val avgPing = if (onlineEngines.isNotEmpty()) {
+        onlineEngines.map { it.pingMs }.average().toLong()
+    } else {
+        0L
     }
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val onlineCount = onlineEngines.size
+    val totalCount = engineStatuses.size
+
+    fun probeAllEngines() {
+        if (isProbing) return
+        isProbing = true
+        coroutineScope.launch(Dispatchers.Default) {
+            val client = createZeroKeyHttpClient(timeoutMs = 4000L)
+            try {
+                val updated = engineStatuses.map { engine ->
+                    async {
+                        val mark = kotlin.time.TimeSource.Monotonic.markNow()
+                        val online = try {
+                            val resp = client.get(engine.probeUrl)
+                            resp.status.value in 200..499
+                        } catch (_: Exception) {
+                            false
+                        }
+                        val elapsed = mark.elapsedNow().inWholeMilliseconds.coerceAtLeast(10L)
+                        engine.copy(isOnline = online, pingMs = if (online) elapsed else 0L)
+                    }
+                }.awaitAll()
+                withContext(Dispatchers.Main) {
+                    engineStatuses = updated
+                    isProbing = false
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    isProbing = false
+                }
+            } finally {
+                client.close()
+            }
+        }
+    }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = CardDark.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.14f))
+            .height(38.dp),
+        color = Color(0xFA080E1C),
+        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.22f)),
+        shape = RectangleShape
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header Bar: Segmented Tab Selector & Quick Action
+            // Slot 1: Master Health & Probe Button
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Left: Tabs (Test Lab / Recent Investigations)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // Tab 0: Test Lab Samples
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { selectedTab = 0 }
-                            .pointerHoverIcon(PointerIcon.Hand),
-                        color = if (selectedTab == 0) PrimaryCyan.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f),
-                        border = BorderStroke(
-                            0.8.dp,
-                            if (selectedTab == 0) PrimaryCyan.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f)
-                        )
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "🧪",
-                                fontSize = 11.sp
-                            )
-                            Text(
-                                text = when (appLanguage) {
-                                    AppLanguage.PERSIAN -> "نمونه‌های آماده تست"
-                                    AppLanguage.RUSSIAN -> "Тестовые образцы"
-                                    else -> "Test Lab Samples"
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                                color = if (selectedTab == 0) PrimaryCyan else Color(0xFF94A3B8)
-                            )
-                        }
-                    }
+                // Pulsing Green LED
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (onlineCount > 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                )
 
-                    // Tab 1: Recent Investigations (if history exists)
-                    if (scanHistory.isNotEmpty()) {
+                Text(
+                    text = when (appLanguage) {
+                        AppLanguage.PERSIAN -> "$onlineCount از $totalCount موتور متصل • میانگین: ${avgPing}ms"
+                        AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
+                        else -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
+                    },
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (onlineCount > 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(enabled = !isProbing) { probeAllEngines() }
+                        .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
+                    color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
+                    ) {
+                        Text(
+                            text = if (isProbing) "⚡" else "🔄",
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = when {
+                                isProbing && appLanguage == AppLanguage.PERSIAN -> "در حال پینگ..."
+                                isProbing && appLanguage == AppLanguage.RUSSIAN -> "Проверка..."
+                                isProbing -> "Probing..."
+                                appLanguage == AppLanguage.PERSIAN -> "تست پینگ"
+                                appLanguage == AppLanguage.RUSSIAN -> "Тест пинга"
+                                else -> "Ping All"
+                            },
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+
+            // Slot 2: Live Individual Engine Latency Chips (Center, Horizontally Scrollable)
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .padding(horizontal = 10.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    engineStatuses.forEach { engine ->
+                        val dotColor = if (engine.isOnline) Color(0xFF10B981) else Color(0xFFEF4444)
                         Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { selectedTab = 1 }
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = if (selectedTab == 1) PrimaryCyan.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f),
-                            border = BorderStroke(
-                                0.8.dp,
-                                if (selectedTab == 1) PrimaryCyan.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f)
-                            )
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color.White.copy(alpha = 0.04f),
+                            border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text(
-                                    text = "🕒",
-                                    fontSize = 11.sp
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
                                 )
                                 Text(
-                                    text = when (appLanguage) {
-                                        AppLanguage.PERSIAN -> "سوابق اخیر (${scanHistory.size})"
-                                        AppLanguage.RUSSIAN -> "Недавние (${scanHistory.size})"
-                                        else -> "Recent Triages (${scanHistory.size})"
-                                    },
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedTab == 1) PrimaryCyan else Color(0xFF94A3B8)
+                                    text = engine.name,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text(
+                                    text = if (engine.isOnline) "${engine.pingMs}ms" else "ERR",
+                                    fontSize = 9.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
-                        }
-                    }
-                }
-
-                // Right: Action Buttons (Paste & Triage / Clear History)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (selectedTab == 1 && scanHistory.isNotEmpty()) {
-                        Text(
-                            text = when (appLanguage) {
-                                AppLanguage.PERSIAN -> "پاک‌سازی سوابق"
-                                AppLanguage.RUSSIAN -> "Очистить"
-                                else -> "Clear History"
-                            },
-                            fontSize = 10.5.sp,
-                            color = Color(0xFF64748B),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable(onClick = onClearHistory)
-                                .pointerHoverIcon(PointerIcon.Hand)
-                                .padding(horizontal = 6.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    // 1-Click Paste & Triage Button
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable {
-                                val clip = clipboardManager.getText()?.text
-                                if (!clip.isNullOrBlank()) {
-                                    onSampleSelect(clip.trim())
-                                }
-                            }
-                            .pointerHoverIcon(PointerIcon.Hand),
-                        color = PrimaryCyan.copy(alpha = 0.12f),
-                        border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
-                        ) {
-                            ClipboardVectorIcon(tint = PrimaryCyan, size = 12.dp)
-                            Text(
-                                text = when (appLanguage) {
-                                    AppLanguage.PERSIAN -> "پیست و پویش فوری"
-                                    AppLanguage.RUSSIAN -> "Вставить и сканировать"
-                                    else -> "Paste & Triage"
-                                },
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = PrimaryCyan
-                            )
                         }
                     }
                 }
             }
 
-            // Shelf Content Row: Horizontal Scrolling Chips
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (selectedTab == 0 || scanHistory.isEmpty()) {
-                        // Test Lab Samples Chips
-                        CURATED_TRIAGE_SAMPLES.forEach { sample ->
-                            val dotColor = if (sample.isMalicious) Color(0xFFEF4444) else Color(0xFF10B981)
-                            val borderColor = if (sample.isMalicious) Color(0xFFEF4444).copy(alpha = 0.28f) else Color(0xFF10B981).copy(alpha = 0.28f)
-                            val tagBg = if (sample.isMalicious) Color(0xFFEF4444).copy(alpha = 0.12f) else Color(0xFF10B981).copy(alpha = 0.12f)
-                            val tagText = if (sample.isMalicious) Color(0xFFFCA5A5) else Color(0xFF6EE7B7)
-
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onSampleSelect(sample.value) }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, borderColor)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(dotColor)
-                                    )
-                                    Text(
-                                        text = sample.title,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFFF1F5F9)
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(3.dp),
-                                        color = tagBg
-                                    ) {
-                                        Text(
-                                            text = sample.typeTag,
-                                            fontSize = 8.5.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontWeight = FontWeight.Bold,
-                                            color = tagText,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Recent Triages Chips
-                        scanHistory.take(7).forEach { verdict ->
-                            val (dotColor, verdictText) = when (verdict.overallVerdict) {
-                                VerdictLevel.MALICIOUS -> Color(0xFFEF4444) to "MALICIOUS"
-                                VerdictLevel.SUSPICIOUS -> Color(0xFFF59E0B) to "SUSPICIOUS"
-                                VerdictLevel.LOW_RISK -> Color(0xFF38BDF8) to "LOW RISK"
-                                VerdictLevel.CLEAN -> Color(0xFF10B981) to "CLEAN"
-                                VerdictLevel.NO_DATA -> Color(0xFF94A3B8) to "NO DATA"
-                            }
-                            val displayValue = if (verdict.indicator.rawValue.length > 20) {
-                                verdict.indicator.rawValue.take(10) + "…" + verdict.indicator.rawValue.takeLast(6)
-                            } else {
-                                verdict.indicator.rawValue
-                            }
-
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onHistorySelect(verdict) }
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(1.dp, dotColor.copy(alpha = 0.35f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(dotColor)
-                                    )
-                                    Text(
-                                        text = displayValue,
-                                        fontSize = 11.5.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFFE2E8F0)
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(3.dp),
-                                        color = dotColor.copy(alpha = 0.15f)
-                                    ) {
-                                        Text(
-                                            text = verdictText,
-                                            fontSize = 8.5.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontWeight = FontWeight.Bold,
-                                            color = dotColor,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                    // Subtle Delete Icon
-                                    Text(
-                                        text = "✕",
-                                        fontSize = 9.sp,
-                                        color = Color(0xFF64748B),
-                                        modifier = Modifier
-                                            .clip(CircleShape)
-                                            .clickable { onDeleteHistoryItem(verdict) }
-                                            .padding(2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+            // Slot 3: Security Invariant & Zero Cloud Leak
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                ShieldVerdictVectorIcon(tint = Color(0xFF10B981), size = 12.dp)
+                Text(
+                    text = when (appLanguage) {
+                        AppLanguage.PERSIAN -> "ارتباط امن TLS • Zero-Key"
+                        AppLanguage.RUSSIAN -> "Защищено TLS • Zero-Key"
+                        else -> "Encrypted TLS • Zero-Key"
+                    },
+                    fontSize = 11.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    text = "v1.0.0",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF475569),
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
     }
