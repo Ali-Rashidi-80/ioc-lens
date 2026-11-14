@@ -54,6 +54,7 @@ fastlane/test_output/
 *.rpm
 *.AppImage
 /dist/
+/release/
 
 # ---------- Secrets & signing (NEVER commit) ----------
 *.jks
