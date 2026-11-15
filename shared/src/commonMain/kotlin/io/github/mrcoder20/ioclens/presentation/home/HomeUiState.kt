@@ -6,6 +6,26 @@ import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.getSystemLanguage
 
+enum class QueueItemStatus {
+    QUEUED,
+    HASHING,
+    TRIAGING,
+    DONE,
+    ERROR
+}
+
+data class FileQueueItem(
+    val id: String,
+    val filePath: String,
+    val fileName: String,
+    val fileSizeBytes: Long = 0L,
+    val sha256: String? = null,
+    val status: QueueItemStatus = QueueItemStatus.QUEUED,
+    val verdict: TriageVerdict? = null,
+    val errorMessage: String? = null,
+    val isTemporary: Boolean = false
+)
+
 data class HomeUiState(
     val queryInput: String = "",
     val isLoading: Boolean = false,
@@ -22,5 +42,8 @@ data class HomeUiState(
     val scanTotalEngines: Int = 10,
     val errorMessage: String? = null,
     val appTheme: AppTheme = AppTheme.DARK,
-    val appLanguage: AppLanguage = AppLanguage.ENGLISH
+    val appLanguage: AppLanguage = AppLanguage.ENGLISH,
+    val fileQueue: List<FileQueueItem> = emptyList(),
+    val isProcessingQueue: Boolean = false,
+    val activeQueueItemId: String? = null
 )

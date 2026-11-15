@@ -1,5 +1,6 @@
 package io.github.mrcoder20.ioclens.presentation.home
 
+import io.github.mrcoder20.ioclens.core.components.PickedFile
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppTheme
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
@@ -9,6 +10,10 @@ sealed interface HomeEvent {
     data class ThemeChanged(val theme: AppTheme) : HomeEvent
     data class LanguageChanged(val language: AppLanguage) : HomeEvent
     data class FileDropped(val filePath: String, val fileName: String, val isTemporary: Boolean = false) : HomeEvent
+    data class BatchFilesSelected(val files: List<PickedFile>, val isTemporary: Boolean = false) : HomeEvent
+    data object ClearFileQueue : HomeEvent
+    data class SelectQueueItemVerdict(val item: FileQueueItem) : HomeEvent
+    data class ScanVisualPayload(val rawPayload: String) : HomeEvent
     data class HistoryItemClicked(val verdict: TriageVerdict) : HomeEvent
     data object AnalyzeClicked : HomeEvent
     data object CancelScan : HomeEvent

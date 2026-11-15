@@ -9,3 +9,9 @@ actual fun rememberFilePickerLauncher(
     return {}
 }
 
+@Composable
+actual fun rememberBatchFilePickerLauncher(
+    onFilesSelected: (List<PickedFile>) -> Unit
+): () -> Unit {
+    return {}
+}

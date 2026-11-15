@@ -1,5 +1,6 @@
 package io.github.mrcoder20.ioclens.domain.security
 
+import io.github.mrcoder20.ioclens.core.components.PickedFile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -8,6 +9,7 @@ data class SharedPayload(
     val textOrUrl: String? = null,
     val filePath: String? = null,
     val fileName: String? = null,
+    val batchFiles: List<PickedFile>? = null,
     val isTemporary: Boolean = false,
     val errorMessage: String? = null
 )

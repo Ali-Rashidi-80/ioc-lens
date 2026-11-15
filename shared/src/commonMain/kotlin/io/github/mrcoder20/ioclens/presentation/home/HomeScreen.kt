@@ -1,4 +1,8 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import io.github.mrcoder20.ioclens.core.components.CameraController
+import io.github.mrcoder20.ioclens.core.components.rememberCameraLauncher
+import io.github.mrcoder20.ioclens.core.components.rememberBatchFilePickerLauncher
+import io.github.mrcoder20.ioclens.core.components.PickedFile
 import io.github.mrcoder20.ioclens.domain.model.EngineProbeStatus
 import io.github.mrcoder20.ioclens.domain.model.DEFAULT_PROBE_ENGINES
 import io.github.mrcoder20.ioclens.domain.model.probeAllEnginesConcurrently
@@ -194,13 +198,24 @@ fun HomeScreen(
     val filePickerLauncher = rememberFilePickerLauncher { path, name ->
         viewModel.onEvent(HomeEvent.FileDropped(path, name))
     }
+    val batchFilePickerLauncher = rememberBatchFilePickerLauncher { files ->
+        viewModel.onEvent(HomeEvent.BatchFilesSelected(files))
+    }
 
     var showThreatIntelDialog by remember { mutableStateOf(false) }
+    var showCameraScannerDialog by remember { mutableStateOf(false) }
+
+    val cameraController = rememberCameraLauncher { scannedText, imagePath ->
+        if (!scannedText.isNullOrBlank()) {
+            viewModel.onEvent(HomeEvent.ScanVisualPayload(scannedText))
+        }
+    }
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
+    val isAnySheetOpen = showCameraScannerDialog || showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
+            showCameraScannerDialog -> showCameraScannerDialog = false
             showThreatIntelDialog -> showThreatIntelDialog = false
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
@@ -568,36 +583,49 @@ fun HomeScreen(
                                     .padding(top = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                // 1. Dual-Input Scanner Hub (Side-by-side with balanced heights)
+                                // 1. Multi-Modal Threat Triage Grid (Left: Payload Analysis + Camera Vision, Right: File Triage & Queue)
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(IntrinsicSize.Max),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    SearchCard(
-                                        uiState = uiState,
-                                        strings = strings,
-                                        isCompact = false,
-                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                        onOpenFilePicker = filePickerLauncher,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                    )
+                                    // Column 1: Left Column (IOC Text Analysis + Live Camera Scanner in the requested slot)
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        SearchCard(
+                                            uiState = uiState,
+                                            strings = strings,
+                                            isCompact = false,
+                                            onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                            onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                            onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                            onOpenFilePicker = batchFilePickerLauncher
+                                        )
 
-                                    FileScannerCard(
-                                        uiState = uiState,
-                                        strings = strings,
-                                        onOpenFilePicker = filePickerLauncher,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight(),
-                                        isCompact = false
-                                    )
+                                        CameraScannerCard(
+                                            cameraController = cameraController,
+                                            appLanguage = uiState.appLanguage,
+                                            onOpenScanner = { showCameraScannerDialog = true },
+                                            isCompact = false
+                                        )
+                                    }
+
+                                    // Column 2: Right Column (File Triage & SHA-256 Batch Queue)
+                                    Column(
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        FileScannerCard(
+                                            uiState = uiState,
+                                            strings = strings,
+                                            onOpenFilePicker = batchFilePickerLauncher,
+                                            onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
+                                            onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            isCompact = false
+                                        )
+                                    }
                                 }
 
                                 // 2. File Hashing Progress Banner (Full Width)
@@ -666,14 +694,23 @@ fun HomeScreen(
                                         onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                         onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                         onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                        onOpenFilePicker = filePickerLauncher
+                                        onOpenFilePicker = batchFilePickerLauncher
                                     )
 
                                     FileScannerCard(
                                         uiState = uiState,
                                         strings = strings,
-                                        onOpenFilePicker = filePickerLauncher,
+                                        onOpenFilePicker = batchFilePickerLauncher,
+                                        onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
+                                        onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
                                         modifier = Modifier.fillMaxWidth(),
+                                        isCompact = true
+                                    )
+
+                                    CameraScannerCard(
+                                        cameraController = cameraController,
+                                        appLanguage = uiState.appLanguage,
+                                        onOpenScanner = { showCameraScannerDialog = true },
                                         isCompact = true
                                     )
 
@@ -796,6 +833,18 @@ fun HomeScreen(
                     strings = strings,
                     isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
                     onDismiss = { showThreatIntelDialog = false }
+                )
+            }
+
+            // Modal Live Camera & Visual IOC Scanner Dialog
+            if (showCameraScannerDialog) {
+                CameraScannerDialog(
+                    cameraController = cameraController,
+                    appLanguage = uiState.appLanguage,
+                    onPayloadDetected = { payload ->
+                        viewModel.onEvent(HomeEvent.ScanVisualPayload(payload))
+                    },
+                    onDismiss = { showCameraScannerDialog = false }
                 )
             }
 
@@ -1425,12 +1474,22 @@ private fun FileScannerCard(
     uiState: HomeUiState,
     strings: AppStrings,
     onOpenFilePicker: () -> Unit,
+    onClearQueue: () -> Unit = {},
+    onSelectQueueItem: (FileQueueItem) -> Unit = {},
     modifier: Modifier = Modifier,
     isCompact: Boolean = false
 ) {
+    val isRtl = uiState.appLanguage.isRtl
     var isCardHovered by remember { mutableStateOf(false) }
     val dropInteractionSource = remember { MutableInteractionSource() }
     val isDropHovered by dropInteractionSource.collectIsHoveredAsState()
+    val queueScrollState = rememberScrollState()
+
+    val totalQueueCount = uiState.fileQueue.size
+    val doneQueueCount = remember(uiState.fileQueue) {
+        uiState.fileQueue.count { it.status == QueueItemStatus.DONE || it.status == QueueItemStatus.ERROR }
+    }
+    val progressFraction = if (totalQueueCount > 0) doneQueueCount.toFloat() / totalQueueCount.toFloat() else 0f
 
     Surface(
         modifier = modifier
@@ -1453,119 +1512,314 @@ private fun FileScannerCard(
         shadowElevation = if (isCardHovered) 8.dp else 4.dp
     ) {
         Column(
-            modifier = if (isCompact) Modifier.fillMaxWidth().padding(18.dp) else Modifier.fillMaxSize().padding(18.dp)
+            modifier = Modifier.fillMaxWidth().padding(18.dp)
         ) {
             // Header: Icon + Title
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(PrimaryCyan.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    FileDocumentVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(PrimaryCyan.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        FileDocumentVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                    }
+                    Column {
+                        Text(
+                            text = when (uiState.appLanguage) {
+                                AppLanguage.PERSIAN -> "پویش و تریاژ فایل (SHA-256)"
+                                AppLanguage.RUSSIAN -> "Анализ файлов (SHA-256)"
+                                else -> "File Triage & SHA-256 Scanner"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = when (uiState.appLanguage) {
+                                AppLanguage.PERSIAN -> "محاسبه کاملاً آفلاین هش با پشتیبانی از صف چندتایی"
+                                AppLanguage.RUSSIAN -> "Клиентское хеширование с очередью файлов"
+                                else -> "100% Client-side local hashing with multi-file queue"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                 }
-                Column {
-                    Text(
-                        text = when (uiState.appLanguage) {
-                            AppLanguage.PERSIAN -> "پویش و تحلیل فایل (SHA-256)"
-                            AppLanguage.RUSSIAN -> "Анализ файла (SHA-256)"
-                            else -> "File Triage & SHA-256 Scanner"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = when (uiState.appLanguage) {
-                            AppLanguage.PERSIAN -> "محاسبه کاملاً آفلاین هش بدون آپلود فایل"
-                            AppLanguage.RUSSIAN -> "Локальное вычисление хеша без загрузки файла"
-                            else -> "100% Client-side local hashing, zero cloud upload"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8)
-                    )
+
+                if (totalQueueCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = PrimaryCyan.copy(alpha = 0.12f),
+                        border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.35f))
+                    ) {
+                        Text(
+                            text = if (isRtl) "$doneQueueCount/$totalQueueCount پردازش" else "$doneQueueCount/$totalQueueCount Done",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Interactive Drop / Select Box Area (Fills remaining height harmoniously on desktop, solid minimum height on mobile)
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (isCompact) {
-                            Modifier.heightIn(min = 125.dp)
-                        } else {
-                            Modifier.weight(1f).defaultMinSize(minHeight = 110.dp)
-                        }
-                    )
-                    .clip(RoundedCornerShape(12.dp))
-                    .springPress(interactionSource = dropInteractionSource)
-                    .clickable(
-                        interactionSource = dropInteractionSource,
-                        indication = null,
-                        onClick = onOpenFilePicker
-                    )
-                    .pointerHoverIcon(PointerIcon.Hand),
-                shape = RoundedCornerShape(12.dp),
-                color = if (isDropHovered) PrimaryCyan.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                border = BorderStroke(1.5.dp, if (isDropHovered) PrimaryCyan else PrimaryCyan.copy(alpha = 0.4f))
-            ) {
+            // Content Area: Interactive Queue List OR Drag-and-Drop Ingestion Target
+            if (totalQueueCount > 0) {
+                // Batch Queue Active View
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp, horizontal = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(PrimaryCyan.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                    // Progress & Quick Queue Controls Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        UploadCloudVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isRtl) "صف فایل‌ها:" else "Triage Queue:",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFCBD5E1)
+                            )
+                            if (uiState.isProcessingQueue) {
+                                Text(
+                                    text = if (isRtl) "در حال پردازش..." else "Processing...",
+                                    fontSize = 10.5.sp,
+                                    color = PrimaryCyan,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(onClick = onOpenFilePicker)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f))
+                            ) {
+                                Text(
+                                    text = if (isRtl) "+ افزودن فایل" else "+ Add More",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(onClick = onClearQueue)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color(0xFFEF4444).copy(alpha = 0.12f),
+                                border = BorderStroke(0.7.dp, Color(0xFFEF4444).copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = if (isRtl) "پاکسازی صف" else "Clear",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEF4444)
+                                )
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = strings.dropFileHint,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
+                    // Linear Progress Bar
+                    LinearProgressIndicator(
+                        progress = { progressFraction.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
                         color = PrimaryCyan,
-                        textAlign = TextAlign.Center
+                        trackColor = Color.White.copy(alpha = 0.08f)
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    // Scrollable List of Queued Files
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(queueScrollState),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        uiState.fileQueue.forEach { item ->
+                            val isSelected = uiState.activeVerdict != null && uiState.activeVerdict == item.verdict
+                            val statusColor = when (item.status) {
+                                QueueItemStatus.QUEUED -> Color(0xFF94A3B8)
+                                QueueItemStatus.HASHING -> PrimaryCyan
+                                QueueItemStatus.TRIAGING -> Color(0xFFF59E0B)
+                                QueueItemStatus.DONE -> when (item.verdict?.overallVerdict) {
+                                    VerdictLevel.MALICIOUS -> Color(0xFFEF4444)
+                                    VerdictLevel.CLEAN -> Color(0xFF10B981)
+                                    VerdictLevel.SUSPICIOUS -> Color(0xFFF97316)
+                                    else -> Color(0xFF94A3B8)
+                                }
+                                QueueItemStatus.ERROR -> Color(0xFFEF4444)
+                            }
 
-                    Text(
-                        text = when (uiState.appLanguage) {
-                            AppLanguage.PERSIAN -> "پشتیبانی از انواع فایل‌ها: اجرایی (EXE/DLL)، اسناد (PDF/Office)، فشرده (ZIP/RAR) و..."
-                            AppLanguage.RUSSIAN -> "Поддержка любых файлов: исполняемые, документы, архивы и др."
-                            else -> "Supports all formats: Executables, Documents, Archives, Scripts"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF94A3B8),
-                        textAlign = TextAlign.Center,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = item.verdict != null) { onSelectQueueItem(item) }
+                                    .pointerHoverIcon(if (item.verdict != null) PointerIcon.Hand else PointerIcon.Default),
+                                color = if (isSelected) PrimaryCyan.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                                border = BorderStroke(
+                                    0.8.dp,
+                                    if (isSelected) PrimaryCyan else statusColor.copy(alpha = 0.30f)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(text = "📄", fontSize = 12.sp)
+                                        Column {
+                                            Text(
+                                                text = item.fileName,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 1
+                                            )
+                                            if (!item.sha256.isNullOrBlank()) {
+                                                Text(
+                                                    text = item.sha256.take(16) + "..." + item.sha256.takeLast(8),
+                                                    fontSize = 9.5.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF94A3B8)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Item Status Tag
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = statusColor.copy(alpha = 0.12f),
+                                        border = BorderStroke(0.6.dp, statusColor.copy(alpha = 0.40f))
+                                    ) {
+                                        Text(
+                                            text = when (item.status) {
+                                                QueueItemStatus.QUEUED -> if (isRtl) "در صف" else "Queued"
+                                                QueueItemStatus.HASHING -> if (isRtl) "محاسبه هش..." else "Hashing..."
+                                                QueueItemStatus.TRIAGING -> if (isRtl) "تریاژ موتورها..." else "Triaging..."
+                                                QueueItemStatus.DONE -> item.verdict?.overallVerdict?.name ?: "DONE"
+                                                QueueItemStatus.ERROR -> if (isRtl) "خطا" else "ERROR"
+                                            },
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = statusColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Drop Target Area (When queue is empty)
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (isCompact) {
+                                Modifier.heightIn(min = 125.dp)
+                            } else {
+                                Modifier.defaultMinSize(minHeight = 110.dp)
+                            }
+                        )
+                        .clip(RoundedCornerShape(12.dp))
+                        .springPress(interactionSource = dropInteractionSource)
+                        .clickable(
+                            interactionSource = dropInteractionSource,
+                            indication = null,
+                            onClick = onOpenFilePicker
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDropHovered) PrimaryCyan.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                    border = BorderStroke(1.5.dp, if (isDropHovered) PrimaryCyan else PrimaryCyan.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp, horizontal = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryCyan.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            UploadCloudVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = when (uiState.appLanguage) {
+                                AppLanguage.PERSIAN -> "انتخاب فایل‌ها برای اسکن (تکی یا گروهی)"
+                                AppLanguage.RUSSIAN -> "Выбрать файлы для сканирования (один или несколько)"
+                                else -> "Select File(s) to Scan"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryCyan,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = when (uiState.appLanguage) {
+                                AppLanguage.PERSIAN -> "پشتیبانی از انواع فایل‌ها با صف‌بندی هوشمند و پردازش گروهی بدون آپلود"
+                                AppLanguage.RUSSIAN -> "Поддержка любых форматов с очередью пакетной обработки без загрузки"
+                                else -> "Supports all formats: Executables, Documents, Archives • Multi-file queue"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
     }
 }
-
 @Composable
 private fun ErrorMessageBanner(errorMessage: String?) {
     AnimatedVisibility(

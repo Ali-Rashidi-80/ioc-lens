@@ -1,4 +1,8 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import kotlinx.coroutines.isActive
+import io.github.mrcoder20.ioclens.core.components.PickedFile
+import io.github.mrcoder20.ioclens.domain.model.Indicator
+import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -112,6 +116,10 @@ class HomeViewModel(
             setTimedErrorMessage(payload.errorMessage)
             return
         }
+        if (!payload.batchFiles.isNullOrEmpty()) {
+            onEvent(HomeEvent.BatchFilesSelected(payload.batchFiles, payload.isTemporary))
+            return
+        }
         if (!payload.filePath.isNullOrBlank()) {
             onEvent(HomeEvent.FileDropped(payload.filePath, payload.fileName ?: "payload.bin", payload.isTemporary))
         } else if (!payload.textOrUrl.isNullOrBlank()) {
@@ -137,6 +145,27 @@ class HomeViewModel(
             }
             is HomeEvent.FileDropped -> {
                 hashAndAnalyzeFile(event.filePath, event.fileName, event.isTemporary)
+            }
+            is HomeEvent.BatchFilesSelected -> {
+                handleBatchFilesSelected(event.files, event.isTemporary)
+            }
+            HomeEvent.ClearFileQueue -> {
+                clearFileQueue()
+            }
+            is HomeEvent.SelectQueueItemVerdict -> {
+                event.item.verdict?.let { verdict ->
+                    _uiState.update {
+                        it.copy(
+                            activeVerdict = verdict,
+                            targetIndicator = verdict.indicator,
+                            queryInput = event.item.sha256 ?: verdict.indicator.rawValue,
+                            selectedBottomNavTab = 0
+                        )
+                    }
+                }
+            }
+            is HomeEvent.ScanVisualPayload -> {
+                handleVisualPayloadScanned(event.rawPayload)
             }
             is HomeEvent.HistoryItemClicked -> {
                 _uiState.update {
@@ -361,4 +390,153 @@ class HomeViewModel(
             }
         }
     }
+
+    private var queueJob: Job? = null
+
+    private fun handleBatchFilesSelected(files: List<PickedFile>, isTemporary: Boolean = false) {
+        if (files.isEmpty()) return
+        if (files.size == 1) {
+            val first = files.first()
+            hashAndAnalyzeFile(first.path, first.name, isTemporary)
+            val queueItem = FileQueueItem(
+                id = "${System.currentTimeMillis()}_0",
+                filePath = first.path,
+                fileName = first.name,
+                fileSizeBytes = first.sizeBytes,
+                status = QueueItemStatus.HASHING,
+                isTemporary = isTemporary
+            )
+            _uiState.update { it.copy(fileQueue = listOf(queueItem)) }
+            return
+        }
+
+        val newQueueItems = files.mapIndexed { index, file ->
+            FileQueueItem(
+                id = "${System.currentTimeMillis()}_$index",
+                filePath = file.path,
+                fileName = file.name,
+                fileSizeBytes = file.sizeBytes,
+                status = QueueItemStatus.QUEUED,
+                isTemporary = isTemporary
+            )
+        }
+
+        _uiState.update {
+            it.copy(
+                fileQueue = it.fileQueue + newQueueItems,
+                isProcessingQueue = true
+            )
+        }
+
+        startQueueProcessing()
+    }
+
+    private fun startQueueProcessing() {
+        if (queueJob?.isActive == true) return
+        queueJob = viewModelScope.launch(Dispatchers.Default) {
+            _uiState.update { it.copy(isProcessingQueue = true) }
+
+            while (isActive) {
+                val nextItem = _uiState.value.fileQueue.firstOrNull { it.status == QueueItemStatus.QUEUED }
+                if (nextItem == null) break
+
+                _uiState.update { state ->
+                    state.copy(
+                        activeQueueItemId = nextItem.id,
+                        fileQueue = state.fileQueue.map {
+                            if (it.id == nextItem.id) it.copy(status = QueueItemStatus.HASHING) else it
+                        }
+                    )
+                }
+
+                val hash = try {
+                    val res = streamHasher.hashFile(nextItem.filePath)
+                    res.sha256
+                } catch (_: Exception) {
+                    null
+                }
+
+                if (hash == null) {
+                    _uiState.update { state ->
+                        state.copy(
+                            fileQueue = state.fileQueue.map {
+                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.ERROR, errorMessage = "Failed to calculate SHA-256") else it
+                            }
+                        )
+                    }
+                    if (nextItem.isTemporary) {
+                        temporaryFileCleaner.cleanIfTemporary(nextItem.filePath)
+                    }
+                    continue
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        fileQueue = state.fileQueue.map {
+                            if (it.id == nextItem.id) it.copy(sha256 = hash, status = QueueItemStatus.TRIAGING) else it
+                        }
+                    )
+                }
+
+                val verdict = try {
+                    val indicator = Indicator(hash, hash, IndicatorType.FILE_HASH)
+                    analyzeIndicatorUseCase(indicator)
+                } catch (_: Exception) {
+                    null
+                }
+
+                if (verdict != null) {
+                    _uiState.update { state ->
+                        val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
+                            it.indicator.normalizedValue == verdict.indicator.normalizedValue
+                        }).take(20)
+                        settingsRepository.saveScanHistory(updatedHistory)
+                        state.copy(
+                            scanHistory = updatedHistory,
+                            activeVerdict = if (state.activeVerdict == null) verdict else state.activeVerdict,
+                            targetIndicator = if (state.targetIndicator == null) verdict.indicator else state.targetIndicator,
+                            fileQueue = state.fileQueue.map {
+                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.DONE, verdict = verdict) else it
+                            }
+                        )
+                    }
+                } else {
+                    _uiState.update { state ->
+                        state.copy(
+                            fileQueue = state.fileQueue.map {
+                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.ERROR, errorMessage = "Triage engines unreachable") else it
+                            }
+                        )
+                    }
+                }
+
+                if (nextItem.isTemporary) {
+                    temporaryFileCleaner.cleanIfTemporary(nextItem.filePath)
+                }
+            }
+
+            _uiState.update { it.copy(isProcessingQueue = false, activeQueueItemId = null) }
+        }
+    }
+
+    private fun clearFileQueue() {
+        queueJob?.cancel()
+        queueJob = null
+        _uiState.update {
+            it.copy(
+                fileQueue = emptyList(),
+                isProcessingQueue = false,
+                activeQueueItemId = null
+            )
+        }
+    }
+
+    private fun handleVisualPayloadScanned(rawPayload: String) {
+        val iocParser = io.github.mrcoder20.ioclens.domain.parser.IOCParser()
+        val extracted = iocParser.extractFirstIoc(rawPayload)
+        val queryText = extracted?.rawValue ?: rawPayload.trim()
+        _uiState.update { it.copy(queryInput = queryText) }
+        analyzeQuery()
+    }
+
 }

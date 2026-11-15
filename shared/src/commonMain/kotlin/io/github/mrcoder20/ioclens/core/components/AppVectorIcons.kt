@@ -455,3 +455,125 @@ fun ShieldVerdictVectorIcon(
 }
 
 
+
+@Composable
+fun CameraVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.8.dp.toPx()
+
+        val bodyPath = Path().apply {
+            moveTo(w * 0.12f, h * 0.32f)
+            lineTo(w * 0.32f, h * 0.32f)
+            lineTo(w * 0.38f, h * 0.20f)
+            lineTo(w * 0.62f, h * 0.20f)
+            lineTo(w * 0.68f, h * 0.32f)
+            lineTo(w * 0.88f, h * 0.32f)
+            cubicTo(w * 0.94f, h * 0.32f, w * 0.94f, h * 0.38f, w * 0.94f, h * 0.44f)
+            lineTo(w * 0.94f, h * 0.80f)
+            cubicTo(w * 0.94f, h * 0.86f, w * 0.88f, h * 0.86f, w * 0.88f, h * 0.86f)
+            lineTo(w * 0.12f, h * 0.86f)
+            cubicTo(w * 0.06f, h * 0.86f, w * 0.06f, h * 0.80f, w * 0.06f, h * 0.80f)
+            lineTo(w * 0.06f, h * 0.44f)
+            cubicTo(w * 0.06f, h * 0.38f, w * 0.12f, h * 0.32f, w * 0.12f, h * 0.32f)
+            close()
+        }
+
+        drawPath(
+            path = bodyPath,
+            color = tint,
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        drawCircle(
+            color = tint,
+            radius = w * 0.19f,
+            center = Offset(w * 0.5f, h * 0.57f),
+            style = Stroke(width = stroke)
+        )
+
+        drawCircle(
+            color = tint,
+            radius = stroke * 0.6f,
+            center = Offset(w * 0.80f, h * 0.42f)
+        )
+    }
+}
+
+@Composable
+fun QrCodeVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.6.dp.toPx()
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.12f, h * 0.12f),
+            size = Size(w * 0.30f, h * 0.30f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.20f, h * 0.20f),
+            size = Size(w * 0.14f, h * 0.14f)
+        )
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.58f, h * 0.12f),
+            size = Size(w * 0.30f, h * 0.30f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.66f, h * 0.20f),
+            size = Size(w * 0.14f, h * 0.14f)
+        )
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.12f, h * 0.58f),
+            size = Size(w * 0.30f, h * 0.30f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.20f, h * 0.66f),
+            size = Size(w * 0.14f, h * 0.14f)
+        )
+
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.58f, h * 0.58f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.76f, h * 0.58f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.58f, h * 0.76f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.76f, h * 0.76f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+    }
+}

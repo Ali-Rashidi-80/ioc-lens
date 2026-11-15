@@ -15,14 +15,12 @@ actual fun rememberFilePickerLauncher(
     return {
         SwingUtilities.invokeLater {
             try {
-                // Find active Compose Window Frame to act as proper modal parent
                 val activeFrame = Frame.getFrames().firstOrNull { it.isShowing && it.isFocused }
                     ?: Frame.getFrames().firstOrNull { it.isShowing }
 
                 var pickedPath: String? = null
                 var pickedName: String? = null
 
-                // Try native AWT FileDialog first with proper parent Frame
                 if (activeFrame != null) {
                     try {
                         val dialog = FileDialog(activeFrame, "Select File to Scan", FileDialog.LOAD)
@@ -38,7 +36,6 @@ actual fun rememberFilePickerLauncher(
                     }
                 }
 
-                // If FileDialog was not used or failed, fallback gracefully to Swing JFileChooser
                 if (pickedPath == null && pickedName == null) {
                     try {
                         runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
@@ -65,4 +62,64 @@ actual fun rememberFilePickerLauncher(
     }
 }
 
+@Composable
+actual fun rememberBatchFilePickerLauncher(
+    onFilesSelected: (List<PickedFile>) -> Unit
+): () -> Unit {
+    return {
+        SwingUtilities.invokeLater {
+            try {
+                val activeFrame = Frame.getFrames().firstOrNull { it.isShowing && it.isFocused }
+                    ?: Frame.getFrames().firstOrNull { it.isShowing }
 
+                val picked = mutableListOf<PickedFile>()
+
+                // Try native AWT FileDialog in multiple mode
+                if (activeFrame != null) {
+                    try {
+                        val dialog = FileDialog(activeFrame, "Select Files to Scan", FileDialog.LOAD)
+                        dialog.isMultipleMode = true
+                        dialog.isVisible = true
+                        val files = dialog.files
+                        if (!files.isNullOrEmpty()) {
+                            files.forEach { file ->
+                                if (file.isFile && file.exists()) {
+                                    picked.add(PickedFile(file.absolutePath, file.name, file.length()))
+                                }
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        System.err.println("Native FileDialog multi-mode failed: ${t.message}")
+                    }
+                }
+
+                // Fallback to JFileChooser with multi-selection enabled
+                if (picked.isEmpty()) {
+                    try {
+                        runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
+                        val chooser = JFileChooser()
+                        chooser.dialogTitle = "Select Files to Scan"
+                        chooser.isMultiSelectionEnabled = true
+                        chooser.fileSelectionMode = JFileChooser.FILES_ONLY
+                        val result = chooser.showOpenDialog(activeFrame)
+                        if (result == JFileChooser.APPROVE_OPTION && !chooser.selectedFiles.isNullOrEmpty()) {
+                            chooser.selectedFiles.forEach { file ->
+                                if (file.isFile && file.exists()) {
+                                    picked.add(PickedFile(file.absolutePath, file.name, file.length()))
+                                }
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        System.err.println("Swing JFileChooser multi-selection failed: ${t.message}")
+                    }
+                }
+
+                if (picked.isNotEmpty()) {
+                    onFilesSelected(picked)
+                }
+            } catch (t: Throwable) {
+                System.err.println("Batch FilePicker error: ${t.message}")
+            }
+        }
+    }
+}
