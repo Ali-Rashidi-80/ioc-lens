@@ -1,5 +1,17 @@
 package io.github.mrcoder20.ioclens.presentation.settings
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.text.font.FontFamily
+import io.github.mrcoder20.ioclens.domain.model.EngineProbeStatus
+import io.github.mrcoder20.ioclens.domain.model.DEFAULT_PROBE_ENGINES
+import io.github.mrcoder20.ioclens.domain.model.probeAllEnginesConcurrently
+import io.github.mrcoder20.ioclens.data.remote.createZeroKeyHttpClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -382,24 +394,38 @@ private fun ThreatIntelEnginesCard(
  * Beautiful Glassmorphic Modal Dialog displaying all 10 Zero-Key Community Threat Intelligence Engines.
  */
 @Composable
-private fun ThreatIntelEnginesDialog(
+internal fun ThreatIntelEnginesDialog(
     strings: AppStrings,
     isRtl: Boolean,
     onDismiss: () -> Unit
 ) {
-    val engines = remember {
-        listOf(
-            Triple("URLhaus (abuse.ch)", "URL", "Real-time malware distribution URLs, payload tracking & Emotet/QakBot C2 detection"),
-            Triple("MalwareBazaar (abuse.ch)", "FILE_HASH", "Cryptographic malware sample hunting, signature analysis & binary verification"),
-            Triple("ThreatFox (abuse.ch)", "IP / DOMAIN / HASH / URL", "Curated IOC feeds, Botnet C2 servers & Indicators of Compromise"),
-            Triple("RDAP Authority", "DOMAIN / IP", "Authoritative ICANN & RIR domain registrar identity and IP network ownership"),
-            Triple("Cloudflare DoH", "DOMAIN", "Encrypted DNS-over-HTTPS resolution, DNSSEC validation & authoritative A/AAAA records"),
-            Triple("Shodan InternetDB", "IP", "Port scanning, service banners, CVE vulnerabilities & global honeypot indicators"),
-            Triple("AlienVault OTX", "IP / DOMAIN / URL / HASH", "AT&T Cybersecurity crowd-sourced threat intelligence pulses & malicious campaigns"),
-            Triple("RIPE Stat / BGPView", "IP", "BGP routing tables, Autonomous System Numbers (ASN), prefix propagation & geolocation"),
-            Triple("crt.sh Transparency", "DOMAIN", "Sectigo certificate transparency logs, sub-domains & historical SSL/TLS telemetry"),
-            Triple("Feodo Tracker", "IP", "Active Dridex, Emotet, TrickBot & QakBot command-and-control server blocklist")
-        )
+    var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
+    var isProbing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val scroll = rememberScrollState()
+
+    val onlineCount = remember(engineStatuses) { engineStatuses.count { it.isOnline } }
+    val totalCount = engineStatuses.size
+
+    fun probeEngines() {
+        if (isProbing) return
+        isProbing = true
+        coroutineScope.launch(Dispatchers.Default) {
+            val client = createZeroKeyHttpClient(timeoutMs = 4000L)
+            try {
+                val updated = probeAllEnginesConcurrently(client, engineStatuses)
+                withContext(Dispatchers.Main) {
+                    engineStatuses = updated
+                    isProbing = false
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    isProbing = false
+                }
+            } finally {
+                client.close()
+            }
+        }
     }
 
     Dialog(
@@ -409,9 +435,10 @@ private fun ThreatIntelEnginesDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .heightIn(max = 680.dp)
+                .widthIn(max = 700.dp)
+                .fillMaxHeight(0.86f)
                 .clip(RoundedCornerShape(20.dp)),
-            color = SurfaceDark.copy(alpha = 0.98f),
+            color = Color(0xFA0B1120),
             border = BorderStroke(1.2.dp, topBorderHighlightBrush(PrimaryNeon, isDark = true)),
             shadowElevation = 24.dp
         ) {
@@ -420,106 +447,255 @@ private fun ThreatIntelEnginesDialog(
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                // Dialog Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    EnginesCpuVectorIcon(tint = PrimaryCyan, size = 22.dp)
-                    Text(
-                        text = strings.threatIntelProvidersTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryCyan
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Engine items list in scrollable column
-                val scroll = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(scroll),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    engines.forEach { (name, scope, desc) ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = CardDark.copy(alpha = 0.85f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(0.8.dp, GlassBorder.copy(alpha = 0.35f))
+                // Dialog Header: Title + Status on Physical Left, Probe Button + Physical Top-Right 'X' Close Button on Physical Right
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            EnginesCpuVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                            Text(
+                                text = strings.threatIntelProvidersTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryCyan
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = PrimaryCyan.copy(alpha = 0.12f),
+                                border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    text = if (isRtl) "$onlineCount/$totalCount فعال" else "$onlineCount/$totalCount Online",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = PrimaryCyan
                                 )
+                            }
+                        }
 
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Interactive Probe / Ping All Button in Dialog Header
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !isProbing) { probeEngines() }
+                                    .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
+                                color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                            ) {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "${strings.indicatorTypeLabel}:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF94A3B8),
+                                        text = if (isProbing) "⚡" else "🔄",
                                         fontSize = 11.sp
                                     )
-                                    Surface(
-                                        color = PrimaryCyan.copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = scope,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = PrimaryCyan,
-                                            fontSize = 10.sp
-                                        )
-                                    }
+                                    Text(
+                                        text = when {
+                                            isProbing && isRtl -> "در حال پینگ..."
+                                            isProbing -> "Probing..."
+                                            isRtl -> "تست پینگ"
+                                            else -> "Ping All"
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryCyan
+                                    )
                                 }
+                            }
 
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF94A3B8),
-                                    lineHeight = 16.sp
-                                )
+                            // Physical Top-Right 'X' Close Button (HIG / Apple Style)
+                            Surface(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .springPress()
+                                    .clickable(onClick = onDismiss)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                shape = CircleShape
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "✕",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Bottom Close Action
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp)
-                        .springPress(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryCyan.copy(alpha = 0.15f),
-                        contentColor = PrimaryCyan
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = strings.closeButton,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                // Engine items list with custom responsive scrollbar pinned to the physical right edge
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(end = if (scroll.maxValue > 0) 14.dp else 0.dp)
+                                .verticalScroll(scroll),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            engineStatuses.forEach { engine ->
+                                val dotColor = if (engine.isOnline) Color(0xFF10B981) else Color(0xFFEF4444)
+                                CompositionLocalProvider(
+                                    LocalLayoutDirection provides if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = CardDark.copy(alpha = 0.85f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(0.8.dp, GlassBorder.copy(alpha = 0.35f))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = engine.fullName,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+
+                                                // Live Latency Status Tag
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color.White.copy(alpha = 0.05f),
+                                                    border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.35f))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(6.dp)
+                                                                .clip(CircleShape)
+                                                                .background(dotColor)
+                                                        )
+                                                        Text(
+                                                            text = if (engine.isOnline) "${engine.pingMs}ms" else "Offline",
+                                                            fontSize = 11.sp,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${strings.indicatorTypeLabel}:",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF94A3B8),
+                                                    fontSize = 11.sp
+                                                )
+                                                Surface(
+                                                    color = PrimaryCyan.copy(alpha = 0.12f),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = engine.indicatorScope,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.5.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = PrimaryCyan,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                            }
+
+                                            Text(
+                                                text = if (isRtl) engine.descriptionFa else engine.descriptionEn,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color(0xFF94A3B8),
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Sleek Desktop Reactive Scrollbar pinned to the physical right edge
+                        if (scroll.maxValue > 0) {
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight()
+                                    .width(8.dp)
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .pointerHoverIcon(PointerIcon.Hand)
+                                    .pointerInput(scroll.maxValue) {
+                                        detectVerticalDragGestures { change, dragAmount ->
+                                            change.consume()
+                                            val trackPx = size.height.toFloat()
+                                            if (trackPx > 0f) {
+                                                val scrollDelta = dragAmount * (scroll.maxValue.toFloat() / trackPx) * 1.5f
+                                                coroutineScope.launch {
+                                                    scroll.dispatchRawDelta(scrollDelta)
+                                                }
+                                            }
+                                        }
+                                    }
+                            ) {
+                                val trackH = maxHeight
+                                val thumbFraction = (maxHeight.value / (maxHeight.value + scroll.maxValue.toFloat())).coerceIn(0.12f, 0.80f)
+                                val scrollFraction = if (scroll.maxValue > 0) (scroll.value.toFloat() / scroll.maxValue.toFloat()).coerceIn(0f, 1f) else 0f
+                                val thumbOffset = (trackH * (1f - thumbFraction)) * scrollFraction
+
+                                Box(
+                                    modifier = Modifier
+                                        .offset(y = thumbOffset)
+                                        .fillMaxWidth()
+                                        .height(trackH * thumbFraction)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    PrimaryCyan,
+                                                    PrimaryCyan.copy(alpha = 0.55f)
+                                                )
+                                            )
+                                        )
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -1,4 +1,8 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import io.github.mrcoder20.ioclens.domain.model.EngineProbeStatus
+import io.github.mrcoder20.ioclens.domain.model.DEFAULT_PROBE_ENGINES
+import io.github.mrcoder20.ioclens.domain.model.probeAllEnginesConcurrently
+import io.github.mrcoder20.ioclens.presentation.settings.ThreatIntelEnginesDialog
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.runtime.derivedStateOf
@@ -191,10 +195,13 @@ fun HomeScreen(
         viewModel.onEvent(HomeEvent.FileDropped(path, name))
     }
 
+    var showThreatIntelDialog by remember { mutableStateOf(false) }
+
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
+    val isAnySheetOpen = showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
+            showThreatIntelDialog -> showThreatIntelDialog = false
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
             drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
@@ -775,10 +782,20 @@ fun HomeScreen(
             if (!isMobileOrTablet && uiState.selectedBottomNavTab != 2) {
                 DesktopEngineConnectivityStatusBar(
                     appLanguage = uiState.appLanguage,
+                    onOpenEnginesDialog = { showThreatIntelDialog = true },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .navigationBarsPadding()
+                )
+            }
+
+            // Modal Threat Intel Engines Dialog (shared between Desktop Footer & Settings)
+            if (showThreatIntelDialog) {
+                ThreatIntelEnginesDialog(
+                    strings = strings,
+                    isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
+                    onDismiss = { showThreatIntelDialog = false }
                 )
             }
 
@@ -2771,27 +2788,6 @@ private fun RecentTriageFeedHUD(
     }
 }
 
-private data class EngineProbeStatus(
-    val id: String,
-    val name: String,
-    val probeUrl: String,
-    val isOnline: Boolean = true,
-    val pingMs: Long = 32L
-)
-
-private val DEFAULT_PROBE_ENGINES = listOf(
-    EngineProbeStatus("urlhaus", "URLhaus", "https://urlhaus-api.abuse.ch/v1/url/", true, 32),
-    EngineProbeStatus("mb", "MalwareBazaar", "https://mb-api.abuse.ch/api/v1/", true, 42),
-    EngineProbeStatus("tf", "ThreatFox", "https://threatfox-api.abuse.ch/api/v1/", true, 38),
-    EngineProbeStatus("feodo", "Feodo Tracker", "https://feodotracker.abuse.ch/downloads/ipblocklist.json", true, 35),
-    EngineProbeStatus("shodan", "Shodan DB", "https://internetdb.shodan.io/1.1.1.1", true, 44),
-    EngineProbeStatus("otx", "AlienVault", "https://otx.alienvault.com/", true, 58),
-    EngineProbeStatus("cf", "Cloudflare DoH", "https://cloudflare-dns.com/dns-query", true, 14),
-    EngineProbeStatus("rdap", "RDAP", "https://rdap.org/ip/1.1.1.1", true, 46),
-    EngineProbeStatus("ripe", "RIPE Stat", "https://stat.ripe.net/data/routing-status/data.json?resource=1.1.1.1", true, 52),
-    EngineProbeStatus("crt", "crt.sh", "https://crt.sh/?q=github.com&output=json", true, 65)
-)
-
 /**
  * Desktop Live Threat Intel Engines Ping & Connectivity Status Bar.
  *
@@ -2889,6 +2885,7 @@ private fun StatusBarNavChevron(
 @Composable
 private fun DesktopEngineConnectivityStatusBar(
     appLanguage: AppLanguage,
+    onOpenEnginesDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
@@ -2910,25 +2907,33 @@ private fun DesktopEngineConnectivityStatusBar(
     val canScrollLeft by remember { derivedStateOf { chipsScrollState.value > 0 } }
     val canScrollRight by remember { derivedStateOf { chipsScrollState.value < chipsScrollState.maxValue } }
 
+    val infiniteTransition = rememberInfiniteTransition(label = "StatusBarAnimations")
+    val beaconPulse by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "beaconPulse"
+    )
+    val probeSpin by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "probeSpin"
+    )
+
     fun probeAllEngines() {
         if (isProbing) return
         isProbing = true
         coroutineScope.launch(Dispatchers.Default) {
             val client = createZeroKeyHttpClient(timeoutMs = 4000L)
             try {
-                val updated = engineStatuses.map { engine ->
-                    async {
-                        val mark = kotlin.time.TimeSource.Monotonic.markNow()
-                        val online = try {
-                            val resp = client.get(engine.probeUrl)
-                            resp.status.value in 200..499
-                        } catch (_: Exception) {
-                            false
-                        }
-                        val elapsed = mark.elapsedNow().inWholeMilliseconds.coerceAtLeast(10L)
-                        engine.copy(isOnline = online, pingMs = if (online) elapsed else 0L)
-                    }
-                }.awaitAll()
+                val updated = probeAllEnginesConcurrently(client, engineStatuses)
                 withContext(Dispatchers.Main) {
                     engineStatuses = updated
                     isProbing = false
@@ -2947,8 +2952,19 @@ private fun DesktopEngineConnectivityStatusBar(
         modifier = modifier
             .fillMaxWidth()
             .height(38.dp),
-        color = Color(0xFA080E1C),
-        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.22f)),
+        color = Color(0xFA070D1B),
+        border = BorderStroke(
+            1.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    PrimaryCyan.copy(alpha = 0.15f),
+                    PrimaryCyan.copy(alpha = 0.45f),
+                    PrimaryNeon.copy(alpha = 0.60f),
+                    PrimaryCyan.copy(alpha = 0.45f),
+                    PrimaryCyan.copy(alpha = 0.15f)
+                )
+            )
+        ),
         shape = RectangleShape
     ) {
         Row(
@@ -2962,32 +2978,51 @@ private fun DesktopEngineConnectivityStatusBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Pulsing Green LED
-                Box(
+                // Interactive Master Status Chip (Click to open full Threat Intel Providers modal)
+                Surface(
                     modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (onlineCount > 0) Color(0xFF10B981) else Color(0xFFEF4444))
-                )
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onOpenEnginesDialog)
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    color = Color.White.copy(alpha = 0.04f),
+                    border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f)),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    ) {
+                        // Pulsing Beacon LED
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .graphicsLayer { alpha = if (onlineCount > 0) beaconPulse else 1.0f }
+                                .background(if (onlineCount > 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                        )
 
-                Text(
-                    text = when (appLanguage) {
-                        AppLanguage.PERSIAN -> {
-                            val onlineFmt = LocalizationProvider.formatNumber(onlineCount, appLanguage)
-                            val totalFmt = LocalizationProvider.formatNumber(totalCount, appLanguage)
-                            val pingFmt = LocalizationProvider.formatNumber(avgPing.toInt(), appLanguage)
-                            "$onlineFmt از $totalFmt موتور فعال • میانگین: ${pingFmt}ms"
-                        }
-                        AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
-                        else -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
-                    },
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (onlineCount > 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
-                    maxLines = 1,
-                    softWrap = false
-                )
+                        Text(
+                            text = when (appLanguage) {
+                                AppLanguage.PERSIAN -> {
+                                    val onlineFmt = LocalizationProvider.formatNumber(onlineCount, appLanguage)
+                                    val totalFmt = LocalizationProvider.formatNumber(totalCount, appLanguage)
+                                    val pingFmt = LocalizationProvider.formatNumber(avgPing.toInt(), appLanguage)
+                                    "$onlineFmt از $totalFmt موتور فعال • میانگین: ${pingFmt}ms"
+                                }
+                                AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
+                                else -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (onlineCount > 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
 
+                // Interactive Probe / Ping All Button
                 Surface(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
@@ -3003,7 +3038,8 @@ private fun DesktopEngineConnectivityStatusBar(
                     ) {
                         Text(
                             text = if (isProbing) "⚡" else "🔄",
-                            fontSize = 10.sp
+                            fontSize = 10.sp,
+                            modifier = if (isProbing) Modifier.graphicsLayer { rotationZ = probeSpin } else Modifier
                         )
                         Text(
                             text = when {
@@ -3064,13 +3100,13 @@ private fun DesktopEngineConnectivityStatusBar(
                                 .height(26.dp)
                                 .background(
                                     Brush.horizontalGradient(
-                                        colors = listOf(Color(0xFA080E1C), Color.Transparent)
+                                        colors = listOf(Color(0xFA070D1B), Color.Transparent)
                                     )
                                 )
                         )
                     }
 
-                    // Chips list with Mouse Wheel Scroll + Mouse/Touch Drag-to-Scroll
+                    // Chips list with Mouse Wheel Scroll + Mouse/Touch Drag-to-Scroll + Click to inspect
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -3109,7 +3145,10 @@ private fun DesktopEngineConnectivityStatusBar(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f))
+                                border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable(onClick = onOpenEnginesDialog)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -3153,7 +3192,7 @@ private fun DesktopEngineConnectivityStatusBar(
                                 .height(26.dp)
                                 .background(
                                     Brush.horizontalGradient(
-                                        colors = listOf(Color.Transparent, Color(0xFA080E1C))
+                                        colors = listOf(Color.Transparent, Color(0xFA070D1B))
                                     )
                                 )
                         )
