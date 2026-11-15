@@ -204,7 +204,6 @@ fun HomeScreen(
     }
 
     var showThreatIntelDialog by remember { mutableStateOf(false) }
-    var showCameraScannerDialog by remember { mutableStateOf(false) }
 
     val cameraController = rememberCameraLauncher { scannedText, imagePath ->
         if (!scannedText.isNullOrBlank()) {
@@ -213,10 +212,9 @@ fun HomeScreen(
     }
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = showCameraScannerDialog || showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
+    val isAnySheetOpen = showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
-            showCameraScannerDialog -> showCameraScannerDialog = false
             showThreatIntelDialog -> showThreatIntelDialog = false
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
@@ -598,20 +596,24 @@ fun HomeScreen(
                                             uiState = uiState,
                                             strings = strings,
                                             isCompact = false,
+                                            isCameraSupported = cameraController.isCameraSupported,
                                             onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
                                             onOpenFilePicker = batchFilePickerLauncher,
-                                            onOpenScanner = { showCameraScannerDialog = true }
+                                            onOpenScanner = { cameraController.launchCamera() }
                                         )
 
-                                        CameraScannerCard(
-                                            cameraController = cameraController,
-                                            appLanguage = uiState.appLanguage,
-                                            onOpenScanner = { showCameraScannerDialog = true },
-                                            isCompact = false
-                                        )
+                                        if (cameraController.isCameraSupported) {
+                                            CameraScannerCard(
+                                                cameraController = cameraController,
+                                                appLanguage = uiState.appLanguage,
+                                                onLaunchCamera = { cameraController.launchCamera() },
+                                                onLaunchScreenSnip = { cameraController.launchScreenSnip() },
+                                                isCompact = false
+                                            )
+                                        }
                                     }
 
                                     // Column 2: Right Column (File Triage & SHA-256 Batch Queue)
@@ -705,8 +707,7 @@ fun HomeScreen(
                                             val triageModes = listOf(
                                                 Triple(0, if (isRtl) "همه بخش‌ها" else "All", "🌐"),
                                                 Triple(1, if (isRtl) "تحلیل شاخص" else "IOC Text", "🔍"),
-                                                Triple(2, if (isRtl) "صف فایل‌ها" else "Files", "📁"),
-                                                Triple(3, if (isRtl) "دوربین زنده" else "Camera Lens", "📷")
+                                                Triple(2, if (isRtl) "صف فایل‌ها" else "Files", "📁")
                                             )
                                             triageModes.forEach { (idx, title, icon) ->
                                                 val isSelected = activeTriageTab == idx
@@ -746,12 +747,13 @@ fun HomeScreen(
                                             uiState = uiState,
                                             strings = strings,
                                             isCompact = isCompactScreen,
+                                            isCameraSupported = cameraController.isCameraSupported,
                                             onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
                                             onOpenFilePicker = batchFilePickerLauncher,
-                                            onOpenScanner = { showCameraScannerDialog = true }
+                                            onOpenScanner = { cameraController.launchCamera() }
                                         )
                                     }
 
@@ -763,15 +765,6 @@ fun HomeScreen(
                                             onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
                                             onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
                                             modifier = Modifier.fillMaxWidth(),
-                                            isCompact = true
-                                        )
-                                    }
-
-                                    if (activeTriageTab == 0 || activeTriageTab == 3) {
-                                        CameraScannerCard(
-                                            cameraController = cameraController,
-                                            appLanguage = uiState.appLanguage,
-                                            onOpenScanner = { showCameraScannerDialog = true },
                                             isCompact = true
                                         )
                                     }
@@ -895,18 +888,6 @@ fun HomeScreen(
                     strings = strings,
                     isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
                     onDismiss = { showThreatIntelDialog = false }
-                )
-            }
-
-            // Modal Live Camera & Visual IOC Scanner Dialog
-            if (showCameraScannerDialog) {
-                CameraScannerDialog(
-                    cameraController = cameraController,
-                    appLanguage = uiState.appLanguage,
-                    onPayloadDetected = { payload ->
-                        viewModel.onEvent(HomeEvent.ScanVisualPayload(payload))
-                    },
-                    onDismiss = { showCameraScannerDialog = false }
                 )
             }
 
@@ -1307,6 +1288,7 @@ private fun SearchCard(
     uiState: HomeUiState,
     strings: io.github.mrcoder20.ioclens.core.localization.AppStrings,
     isCompact: Boolean,
+    isCameraSupported: Boolean = true,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onCancel: () -> Unit,
@@ -1483,21 +1465,23 @@ private fun SearchCard(
                         }
                     }
 
-                    TextButton(
-                        onClick = onOpenScanner,
-                        modifier = Modifier.springPress(),
-                        colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    if (isCameraSupported) {
+                        TextButton(
+                            onClick = onOpenScanner,
+                            modifier = Modifier.springPress(),
+                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
                         ) {
-                            CameraVectorIcon(tint = PrimaryCyan, size = 15.dp)
-                            Text(
-                                text = if (uiState.appLanguage.isRtl) "پویش تصویری" else "Camera Lens",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CameraVectorIcon(tint = PrimaryCyan, size = 15.dp)
+                                Text(
+                                    text = if (uiState.appLanguage.isRtl) "پویش تصویری" else "Camera Lens",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }

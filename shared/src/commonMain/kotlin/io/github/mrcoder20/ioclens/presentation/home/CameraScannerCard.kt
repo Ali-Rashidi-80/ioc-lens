@@ -65,7 +65,8 @@ import io.github.mrcoder20.ioclens.core.theme.topBorderHighlightBrush
 fun CameraScannerCard(
     cameraController: CameraController,
     appLanguage: AppLanguage,
-    onOpenScanner: () -> Unit,
+    onLaunchCamera: () -> Unit = { cameraController.launchCamera() },
+    onLaunchScreenSnip: () -> Unit = { cameraController.launchScreenSnip() },
     modifier: Modifier = Modifier,
     isCompact: Boolean = false
 ) {
@@ -73,6 +74,7 @@ fun CameraScannerCard(
     var isCardHovered by remember { mutableStateOf(false) }
     val viewfinderInteractionSource = remember { MutableInteractionSource() }
     val isViewfinderHovered by viewfinderInteractionSource.collectIsHoveredAsState()
+    val isCameraReady = cameraController.isCameraSupported
 
     val infiniteTransition = rememberInfiniteTransition(label = "CameraCardPulse")
     val laserFraction by infiniteTransition.animateFloat(
@@ -150,11 +152,11 @@ fun CameraScannerCard(
                     }
                 }
 
-                // Device Ready Pill
+                // Device Status Pill
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF10B981).copy(alpha = 0.12f),
-                    border = BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.35f))
+                    color = if (isCameraReady) Color(0xFF10B981).copy(alpha = 0.12f) else Color(0xFFF59E0B).copy(alpha = 0.12f),
+                    border = BorderStroke(0.6.dp, if (isCameraReady) Color(0xFF10B981).copy(alpha = 0.35f) else Color(0xFFF59E0B).copy(alpha = 0.35f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
@@ -165,13 +167,13 @@ fun CameraScannerCard(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981))
+                                .background(if (isCameraReady) Color(0xFF10B981) else Color(0xFFF59E0B))
                         )
                         Text(
-                            text = if (isRtl) "آماده" else "Ready",
+                            text = if (isCameraReady) (if (isRtl) "آماده" else "Ready") else (if (isRtl) "فاقد وب‌کم" else "No Camera"),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981)
+                            color = if (isCameraReady) Color(0xFF10B981) else Color(0xFFF59E0B)
                         )
                     }
                 }
@@ -179,7 +181,7 @@ fun CameraScannerCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Interactive Viewfinder Card (Click to open camera scanner modal)
+            // Interactive Viewfinder Card (Click directly launches native camera)
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,7 +194,7 @@ fun CameraScannerCard(
                     .clickable(
                         interactionSource = viewfinderInteractionSource,
                         indication = null,
-                        onClick = onOpenScanner
+                        onClick = onLaunchCamera
                     )
                     .pointerHoverIcon(PointerIcon.Hand),
                 shape = RoundedCornerShape(12.dp),
@@ -252,9 +254,9 @@ fun CameraScannerCard(
 
                         Text(
                             text = when (appLanguage) {
-                                AppLanguage.PERSIAN -> "بازکردن دوربین و اسکنر هوشمند"
-                                AppLanguage.RUSSIAN -> "Открыть камеру для сканирования"
-                                else -> "Open Camera & Visual Scanner"
+                                AppLanguage.PERSIAN -> "بازکردن دوربین نیتیو دستگاه"
+                                AppLanguage.RUSSIAN -> "Открыть камеру устройства"
+                                else -> "Launch Device Camera"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
@@ -264,14 +266,58 @@ fun CameraScannerCard(
 
                         Text(
                             text = when (appLanguage) {
-                                AppLanguage.PERSIAN -> "پشتیبانی از وب‌کم ویندوز، دوربین گوشی و اسکرین‌شات"
-                                AppLanguage.RUSSIAN -> "Поддержка веб-камер Windows, мобильных камер и снимков"
-                                else -> "Compatible with Windows webcams, mobile cameras & screenshots"
+                                AppLanguage.PERSIAN -> "کلیک جهت باز کردن مستقیم دوربین سیستم یا وب‌کم بدون هیچ واسطه"
+                                AppLanguage.RUSSIAN -> "Прямой запуск камеры системы без промежуточных окон"
+                                else -> "Directly triggers native OS camera or webcam"
                             },
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF94A3B8),
                             textAlign = TextAlign.Center
                         )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Quick Direct Actions (Launch Camera & Screen Snip)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onLaunchCamera)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = PrimaryCyan.copy(alpha = 0.18f),
+                                border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isRtl) "📷 بازکردن دوربین" else "📷 Open Camera",
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryCyan
+                                )
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onLaunchScreenSnip)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.20f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isRtl) "✂️ اسکرین‌شات / برش" else "✂️ Screen Snip",
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE2E8F0)
+                                )
+                            }
+                        }
                     }
                 }
             }
