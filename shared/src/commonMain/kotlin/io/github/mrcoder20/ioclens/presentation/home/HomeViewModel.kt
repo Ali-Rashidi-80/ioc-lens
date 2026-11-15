@@ -164,9 +164,6 @@ class HomeViewModel(
                     }
                 }
             }
-            is HomeEvent.ScanVisualPayload -> {
-                handleVisualPayloadScanned(event.rawPayload)
-            }
             is HomeEvent.HistoryItemClicked -> {
                 _uiState.update {
                     it.copy(
@@ -530,13 +527,4 @@ class HomeViewModel(
             )
         }
     }
-
-    private fun handleVisualPayloadScanned(rawPayload: String) {
-        val iocParser = io.github.mrcoder20.ioclens.domain.parser.IOCParser()
-        val extracted = iocParser.extractFirstIoc(rawPayload)
-        val queryText = extracted?.rawValue ?: rawPayload.trim()
-        _uiState.update { it.copy(queryInput = queryText) }
-        analyzeQuery()
-    }
-
 }

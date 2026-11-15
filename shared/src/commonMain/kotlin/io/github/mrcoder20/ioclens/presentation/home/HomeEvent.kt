@@ -13,7 +13,6 @@ sealed interface HomeEvent {
     data class BatchFilesSelected(val files: List<PickedFile>, val isTemporary: Boolean = false) : HomeEvent
     data object ClearFileQueue : HomeEvent
     data class SelectQueueItemVerdict(val item: FileQueueItem) : HomeEvent
-    data class ScanVisualPayload(val rawPayload: String) : HomeEvent
     data class HistoryItemClicked(val verdict: TriageVerdict) : HomeEvent
     data object AnalyzeClicked : HomeEvent
     data object CancelScan : HomeEvent

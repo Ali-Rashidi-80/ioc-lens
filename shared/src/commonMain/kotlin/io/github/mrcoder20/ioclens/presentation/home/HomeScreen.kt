@@ -1,7 +1,5 @@
 package io.github.mrcoder20.ioclens.presentation.home
-import io.github.mrcoder20.ioclens.core.components.CameraVectorIcon
-import io.github.mrcoder20.ioclens.core.components.CameraController
-import io.github.mrcoder20.ioclens.core.components.rememberCameraLauncher
+
 import io.github.mrcoder20.ioclens.core.components.rememberBatchFilePickerLauncher
 import io.github.mrcoder20.ioclens.core.components.PickedFile
 import io.github.mrcoder20.ioclens.domain.model.EngineProbeStatus
@@ -204,12 +202,6 @@ fun HomeScreen(
     }
 
     var showThreatIntelDialog by remember { mutableStateOf(false) }
-
-    val cameraController = rememberCameraLauncher { scannedText, imagePath ->
-        if (!scannedText.isNullOrBlank()) {
-            viewModel.onEvent(HomeEvent.ScanVisualPayload(scannedText))
-        }
-    }
 
     // Android Back Button / Gesture Interceptor
     val isAnySheetOpen = showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
@@ -582,54 +574,40 @@ fun HomeScreen(
                                     .padding(top = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                // 1. Multi-Modal Threat Triage Grid (Left: Payload Analysis + Camera Vision, Right: File Triage & Queue)
+                                // 1. Dual-Input Threat Triage Grid (Left: IOC Text & Payload Analysis, Right: File Triage & SHA-256 Queue)
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(IntrinsicSize.Max),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    // Column 1: Left Column (IOC Text Analysis + Live Camera Scanner in the requested slot)
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        SearchCard(
-                                            uiState = uiState,
-                                            strings = strings,
-                                            isCompact = false,
-                                            isCameraSupported = cameraController.isCameraSupported,
-                                            onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                            onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                            onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                            onOpenFilePicker = batchFilePickerLauncher,
-                                            onOpenScanner = { cameraController.launchCamera() }
-                                        )
+                                    // Column 1: Left (IOC & Payload Analysis)
+                                    SearchCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        isCompact = false,
+                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        onOpenFilePicker = batchFilePickerLauncher,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                    )
 
-                                        if (cameraController.isCameraSupported) {
-                                            CameraScannerCard(
-                                                cameraController = cameraController,
-                                                appLanguage = uiState.appLanguage,
-                                                onLaunchCamera = { cameraController.launchCamera() },
-                                                onLaunchScreenSnip = { cameraController.launchScreenSnip() },
-                                                isCompact = false
-                                            )
-                                        }
-                                    }
-
-                                    // Column 2: Right Column (File Triage & SHA-256 Batch Queue)
-                                    Column(
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        FileScannerCard(
-                                            uiState = uiState,
-                                            strings = strings,
-                                            onOpenFilePicker = batchFilePickerLauncher,
-                                            onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
-                                            onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            isCompact = false
-                                        )
-                                    }
+                                    // Column 2: Right (File Triage & SHA-256 Batch Queue)
+                                    FileScannerCard(
+                                        uiState = uiState,
+                                        strings = strings,
+                                        onOpenFilePicker = batchFilePickerLauncher,
+                                        onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
+                                        onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(),
+                                        isCompact = false
+                                    )
                                 }
 
                                 // 2. File Hashing Progress Banner (Full Width)
@@ -693,7 +671,7 @@ fun HomeScreen(
                                 ) {
                                     var activeTriageTab by remember { mutableStateOf(0) }
 
-                                    // Compact / Mobile Triage Segmented Selector (All, IOC Text, File Queue, Camera Lens)
+                                    // Compact / Mobile Triage Segmented Selector (All, IOC Text, File Queue)
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
@@ -747,13 +725,11 @@ fun HomeScreen(
                                             uiState = uiState,
                                             strings = strings,
                                             isCompact = isCompactScreen,
-                                            isCameraSupported = cameraController.isCameraSupported,
                                             onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                            onOpenFilePicker = batchFilePickerLauncher,
-                                            onOpenScanner = { cameraController.launchCamera() }
+                                            onOpenFilePicker = batchFilePickerLauncher
                                         )
                                     }
 
@@ -1288,13 +1264,11 @@ private fun SearchCard(
     uiState: HomeUiState,
     strings: io.github.mrcoder20.ioclens.core.localization.AppStrings,
     isCompact: Boolean,
-    isCameraSupported: Boolean = true,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onCancel: () -> Unit,
     onAnalyze: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
-    onOpenScanner: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -1464,26 +1438,6 @@ private fun SearchCard(
                             )
                         }
                     }
-
-                    if (isCameraSupported) {
-                        TextButton(
-                            onClick = onOpenScanner,
-                            modifier = Modifier.springPress(),
-                            colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                CameraVectorIcon(tint = PrimaryCyan, size = 15.dp)
-                                Text(
-                                    text = if (uiState.appLanguage.isRtl) "پویش تصویری" else "Camera Lens",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
                 }
 
                 if (uiState.isLoading) {
@@ -1491,7 +1445,7 @@ private fun SearchCard(
                         onClick = onCancel,
                         colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(38.dp).springPress()
+                        modifier = Modifier.height(38.dp).defaultMinSize(minWidth = 110.dp).springPress()
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(14.dp),
@@ -1503,7 +1457,9 @@ private fun SearchCard(
                             text = strings.cancelScan,
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 } else {
@@ -1512,18 +1468,24 @@ private fun SearchCard(
                         enabled = uiState.queryInput.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = PrimaryCyan,
-                            contentColor = Color.Black,
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            disabledContentColor = Color.White.copy(alpha = 0.35f)
+                            contentColor = Color(0xFF070B14),
+                            disabledContainerColor = Color(0xFF131D31),
+                            disabledContentColor = Color(0xFF64748B)
                         ),
                         shape = RoundedCornerShape(10.dp),
-                        border = if (uiState.queryInput.isNotBlank()) BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlowState?.value ?: 0.35f)) else null,
-                        modifier = Modifier.height(38.dp).springPress()
+                        border = if (uiState.queryInput.isNotBlank()) {
+                            BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlowState?.value ?: 0.35f))
+                        } else {
+                            BorderStroke(1.dp, Color(0xFF1E293B))
+                        },
+                        modifier = Modifier.height(38.dp).defaultMinSize(minWidth = 110.dp).springPress()
                     ) {
                         Text(
                             text = strings.scanPayload,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
