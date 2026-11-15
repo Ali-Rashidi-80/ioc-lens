@@ -144,15 +144,25 @@ suspend fun probeAllEnginesConcurrently(
 ): List<EngineProbeStatus> = coroutineScope {
     engines.map { engine ->
         async {
-            val mark = TimeSource.Monotonic.markNow()
-            val online = try {
-                val resp = client.get(engine.probeUrl)
-                resp.status.value in 200..499
-            } catch (_: Exception) {
-                false
-            }
-            val elapsed = mark.elapsedNow().inWholeMilliseconds.coerceAtLeast(10L)
-            engine.copy(isOnline = online, pingMs = if (online) elapsed else 0L)
+            probeSingleEngine(client, engine)
         }
     }.awaitAll()
+}
+
+/**
+ * Probe a single engine using the provided HTTP client and measure its latency.
+ */
+suspend fun probeSingleEngine(
+    client: HttpClient,
+    engine: EngineProbeStatus
+): EngineProbeStatus {
+    val mark = TimeSource.Monotonic.markNow()
+    val online = try {
+        val resp = client.get(engine.probeUrl)
+        resp.status.value in 200..499
+    } catch (_: Exception) {
+        false
+    }
+    val elapsed = mark.elapsedNow().inWholeMilliseconds.coerceAtLeast(10L)
+    return engine.copy(isOnline = online, pingMs = if (online) elapsed else 0L)
 }

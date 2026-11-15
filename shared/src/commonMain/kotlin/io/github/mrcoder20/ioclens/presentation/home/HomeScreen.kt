@@ -1,4 +1,5 @@
 package io.github.mrcoder20.ioclens.presentation.home
+import io.github.mrcoder20.ioclens.core.components.CameraVectorIcon
 import io.github.mrcoder20.ioclens.core.components.CameraController
 import io.github.mrcoder20.ioclens.core.components.rememberCameraLauncher
 import io.github.mrcoder20.ioclens.core.components.rememberBatchFilePickerLauncher
@@ -601,7 +602,8 @@ fun HomeScreen(
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                            onOpenFilePicker = batchFilePickerLauncher
+                                            onOpenFilePicker = batchFilePickerLauncher,
+                                            onOpenScanner = { showCameraScannerDialog = true }
                                         )
 
                                         CameraScannerCard(
@@ -682,37 +684,97 @@ fun HomeScreen(
                     ) { targetTab ->
                         when (targetTab) {
                             0 -> {
+                                val isRtl = uiState.appLanguage.isRtl
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    SearchCard(
-                                        uiState = uiState,
-                                        strings = strings,
-                                        isCompact = isCompactScreen,
-                                        onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
-                                        onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
-                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
-                                        onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                        onOpenFilePicker = batchFilePickerLauncher
-                                    )
+                                    var activeTriageTab by remember { mutableStateOf(0) }
 
-                                    FileScannerCard(
-                                        uiState = uiState,
-                                        strings = strings,
-                                        onOpenFilePicker = batchFilePickerLauncher,
-                                        onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
-                                        onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                    // Compact / Mobile Triage Segmented Selector (All, IOC Text, File Queue, Camera Lens)
+                                    Surface(
                                         modifier = Modifier.fillMaxWidth(),
-                                        isCompact = true
-                                    )
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF0F172A).copy(alpha = 0.90f),
+                                        border = BorderStroke(0.8.dp, Color(0xFF1E293B))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(3.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            val triageModes = listOf(
+                                                Triple(0, if (isRtl) "همه بخش‌ها" else "All", "🌐"),
+                                                Triple(1, if (isRtl) "تحلیل شاخص" else "IOC Text", "🔍"),
+                                                Triple(2, if (isRtl) "صف فایل‌ها" else "Files", "📁"),
+                                                Triple(3, if (isRtl) "دوربین زنده" else "Camera Lens", "📷")
+                                            )
+                                            triageModes.forEach { (idx, title, icon) ->
+                                                val isSelected = activeTriageTab == idx
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(36.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable { activeTriageTab = idx }
+                                                        .pointerHoverIcon(PointerIcon.Hand),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (isSelected) PrimaryCyan.copy(alpha = 0.18f) else Color.Transparent,
+                                                    border = if (isSelected) BorderStroke(0.9.dp, PrimaryCyan.copy(alpha = 0.40f)) else null
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Text(text = icon, fontSize = 11.5.sp)
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(
+                                                            text = title,
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                            color = if (isSelected) PrimaryCyan else Color(0xFFCBD5E1),
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
 
-                                    CameraScannerCard(
-                                        cameraController = cameraController,
-                                        appLanguage = uiState.appLanguage,
-                                        onOpenScanner = { showCameraScannerDialog = true },
-                                        isCompact = true
-                                    )
+                                    if (activeTriageTab == 0 || activeTriageTab == 1) {
+                                        SearchCard(
+                                            uiState = uiState,
+                                            strings = strings,
+                                            isCompact = isCompactScreen,
+                                            onQueryChange = { viewModel.onEvent(HomeEvent.QueryChanged(it)) },
+                                            onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
+                                            onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
+                                            onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                            onOpenFilePicker = batchFilePickerLauncher,
+                                            onOpenScanner = { showCameraScannerDialog = true }
+                                        )
+                                    }
+
+                                    if (activeTriageTab == 0 || activeTriageTab == 2) {
+                                        FileScannerCard(
+                                            uiState = uiState,
+                                            strings = strings,
+                                            onOpenFilePicker = batchFilePickerLauncher,
+                                            onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
+                                            onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            isCompact = true
+                                        )
+                                    }
+
+                                    if (activeTriageTab == 0 || activeTriageTab == 3) {
+                                        CameraScannerCard(
+                                            cameraController = cameraController,
+                                            appLanguage = uiState.appLanguage,
+                                            onOpenScanner = { showCameraScannerDialog = true },
+                                            isCompact = true
+                                        )
+                                    }
 
                                     FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
 
@@ -1250,6 +1312,7 @@ private fun SearchCard(
     onCancel: () -> Unit,
     onAnalyze: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
+    onOpenScanner: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -1396,26 +1459,46 @@ private fun SearchCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = {
-                        val clipText = clipboardManager.getText()?.text
-                        if (!clipText.isNullOrBlank()) {
-                            onQueryChange(clipText.trim())
-                        }
-                    },
-                    modifier = Modifier.springPress(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            val clipText = clipboardManager.getText()?.text
+                            if (!clipText.isNullOrBlank()) {
+                                onQueryChange(clipText.trim())
+                            }
+                        },
+                        modifier = Modifier.springPress(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
                     ) {
-                        ClipboardVectorIcon(tint = PrimaryCyan, size = 15.dp)
-                        Text(
-                            text = strings.pasteFromClipboard,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            ClipboardVectorIcon(tint = PrimaryCyan, size = 15.dp)
+                            Text(
+                                text = strings.pasteFromClipboard,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onOpenScanner,
+                        modifier = Modifier.springPress(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CameraVectorIcon(tint = PrimaryCyan, size = 15.dp)
+                            Text(
+                                text = if (uiState.appLanguage.isRtl) "پویش تصویری" else "Camera Lens",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 

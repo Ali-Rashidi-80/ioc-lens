@@ -1,5 +1,6 @@
 package io.github.mrcoder20.ioclens.presentation.settings
 
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.offset
@@ -8,6 +9,7 @@ import androidx.compose.ui.text.font.FontFamily
 import io.github.mrcoder20.ioclens.domain.model.EngineProbeStatus
 import io.github.mrcoder20.ioclens.domain.model.DEFAULT_PROBE_ENGINES
 import io.github.mrcoder20.ioclens.domain.model.probeAllEnginesConcurrently
+import io.github.mrcoder20.ioclens.domain.model.probeSingleEngine
 import io.github.mrcoder20.ioclens.data.remote.createZeroKeyHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -401,6 +403,7 @@ internal fun ThreatIntelEnginesDialog(
 ) {
     var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
     var isProbing by remember { mutableStateOf(false) }
+    var probingEngineIds by remember { mutableStateOf(setOf<String>()) }
     val coroutineScope = rememberCoroutineScope()
     val scroll = rememberScrollState()
 
@@ -428,26 +431,47 @@ internal fun ThreatIntelEnginesDialog(
         }
     }
 
+    fun probeOneEngine(engine: EngineProbeStatus) {
+        if (engine.id in probingEngineIds) return
+        probingEngineIds = probingEngineIds + engine.id
+        coroutineScope.launch(Dispatchers.Default) {
+            val client = createZeroKeyHttpClient(timeoutMs = 4000L)
+            try {
+                val updated = probeSingleEngine(client, engine)
+                withContext(Dispatchers.Main) {
+                    engineStatuses = engineStatuses.map { if (it.id == engine.id) updated else it }
+                    probingEngineIds = probingEngineIds - engine.id
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    probingEngineIds = probingEngineIds - engine.id
+                }
+            } finally {
+                client.close()
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .widthIn(max = 700.dp)
-                .fillMaxHeight(0.86f)
+                .fillMaxWidth(0.94f)
+                .widthIn(max = 680.dp)
+                .fillMaxHeight(0.88f)
                 .clip(RoundedCornerShape(20.dp)),
-            color = Color(0xFA0B1120),
+            color = Color(0xFF070B14),
             border = BorderStroke(1.2.dp, topBorderHighlightBrush(PrimaryNeon, isDark = true)),
-            shadowElevation = 24.dp
+            shadowElevation = 28.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(18.dp)
             ) {
-                // Dialog Header: Title + Status on Physical Left, Probe Button + Physical Top-Right 'X' Close Button on Physical Right
+                // Dialog Header Line 1: Icon + Title + Status on Left, ALWAYS-PINNED 'X' on Physical Right
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -455,93 +479,108 @@ internal fun ThreatIntelEnginesDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f, fill = false),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            EnginesCpuVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                            EnginesCpuVectorIcon(tint = PrimaryCyan, size = 20.dp)
                             Text(
                                 text = strings.threatIntelProvidersTitle,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = PrimaryCyan
+                                color = PrimaryCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 color = PrimaryCyan.copy(alpha = 0.12f),
                                 border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Text(
                                     text = if (isRtl) "$onlineCount/$totalCount فعال" else "$onlineCount/$totalCount Online",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                    fontSize = 10.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = PrimaryCyan
                                 )
                             }
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        // Physical Top-Right 'X' Close Button (Always visible on any screen width!)
+                        Surface(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .springPress()
+                                .clickable(onClick = onDismiss)
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                            shape = CircleShape
                         ) {
-                            // Interactive Probe / Ping All Button in Dialog Header
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(enabled = !isProbing) { probeEngines() }
-                                    .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
-                                color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (isProbing) "⚡" else "🔄",
-                                        fontSize = 11.sp
-                                    )
-                                    Text(
-                                        text = when {
-                                            isProbing && isRtl -> "در حال پینگ..."
-                                            isProbing -> "Probing..."
-                                            isRtl -> "تست پینگ"
-                                            else -> "Ping All"
-                                        },
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = PrimaryCyan
-                                    )
-                                }
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "✕",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE2E8F0)
+                                )
                             }
+                        }
+                    }
 
-                            // Physical Top-Right 'X' Close Button (HIG / Apple Style)
-                            Surface(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .springPress()
-                                    .clickable(onClick = onDismiss)
-                                    .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                                shape = CircleShape
+                    // Dialog Header Line 2: Subtitle on Left, Probe / Ping All Button on Right
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.apiKeysZeroKeyBanner,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        )
+
+                        // Interactive Probe / Ping All Button
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = !isProbing) { probeEngines() }
+                                .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
+                            color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "✕",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFE2E8F0)
-                                    )
-                                }
+                                Text(
+                                    text = if (isProbing) "⚡" else "🔄",
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = when {
+                                        isProbing && isRtl -> "در حال پینگ..."
+                                        isProbing -> "Probing..."
+                                        isRtl -> "تست پینگ"
+                                        else -> "Ping All"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryCyan
+                                )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Engine items list with custom responsive scrollbar pinned to the physical right edge
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -584,30 +623,57 @@ internal fun ThreatIntelEnginesDialog(
                                                     color = Color.White
                                                 )
 
-                                                // Live Latency Status Tag
+                                                // Live Latency Status Tag with Individual Re-test / Ping capability
+                                                val isEngineProbing = engine.id in probingEngineIds
                                                 Surface(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .clickable(enabled = !isEngineProbing) {
+                                                            probeOneEngine(engine)
+                                                        }
+                                                        .pointerHoverIcon(if (isEngineProbing) PointerIcon.Default else PointerIcon.Hand),
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = Color.White.copy(alpha = 0.05f),
-                                                    border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.35f))
+                                                    color = if (isEngineProbing) PrimaryCyan.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f),
+                                                    border = BorderStroke(0.7.dp, if (isEngineProbing) PrimaryCyan else dotColor.copy(alpha = 0.35f))
                                                 ) {
                                                     Row(
                                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                                                     ) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(6.dp)
-                                                                .clip(CircleShape)
-                                                                .background(dotColor)
-                                                        )
-                                                        Text(
-                                                            text = if (engine.isOnline) "${engine.pingMs}ms" else "Offline",
-                                                            fontSize = 11.sp,
-                                                            fontFamily = FontFamily.Monospace,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444)
-                                                        )
+                                                        if (isEngineProbing) {
+                                                            Text(
+                                                                text = "⚡",
+                                                                fontSize = 10.sp,
+                                                                color = PrimaryCyan
+                                                            )
+                                                            Text(
+                                                                text = if (isRtl) "تست..." else "Ping...",
+                                                                fontSize = 10.5.sp,
+                                                                fontFamily = FontFamily.Monospace,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = PrimaryCyan
+                                                            )
+                                                        } else {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(6.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(dotColor)
+                                                            )
+                                                            Text(
+                                                                text = if (engine.isOnline) "${engine.pingMs}ms" else "Offline",
+                                                                fontSize = 11.sp,
+                                                                fontFamily = FontFamily.Monospace,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444)
+                                                            )
+                                                            Text(
+                                                                text = "🔄",
+                                                                fontSize = 9.sp,
+                                                                color = PrimaryCyan.copy(alpha = 0.8f)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -649,16 +715,16 @@ internal fun ThreatIntelEnginesDialog(
                             }
                         }
 
-                        // Sleek Desktop Reactive Scrollbar pinned to the physical right edge
+                        // Subtle Minimal Scrollbar
                         if (scroll.maxValue > 0) {
                             BoxWithConstraints(
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
                                     .fillMaxHeight()
-                                    .width(8.dp)
+                                    .width(4.dp)
                                     .padding(vertical = 4.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .background(Color.White.copy(alpha = 0.05f))
                                     .pointerHoverIcon(PointerIcon.Hand)
                                     .pointerInput(scroll.maxValue) {
                                         detectVerticalDragGestures { change, dragAmount ->
@@ -684,14 +750,7 @@ internal fun ThreatIntelEnginesDialog(
                                         .fillMaxWidth()
                                         .height(trackH * thumbFraction)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(
-                                                    PrimaryCyan,
-                                                    PrimaryCyan.copy(alpha = 0.55f)
-                                                )
-                                            )
-                                        )
+                                        .background(PrimaryCyan.copy(alpha = 0.45f))
                                 )
                             }
                         }
