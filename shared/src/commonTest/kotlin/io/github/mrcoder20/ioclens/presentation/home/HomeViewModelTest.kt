@@ -17,6 +17,9 @@ import io.github.mrcoder20.ioclens.domain.security.StreamHasher
 import io.github.mrcoder20.ioclens.domain.security.TemporaryFileCleaner
 import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
+import io.github.mrcoder20.ioclens.domain.vision.BarcodePayload
+import io.github.mrcoder20.ioclens.domain.vision.BarcodeType
+import io.github.mrcoder20.ioclens.domain.vision.QuishingRisk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -600,5 +603,90 @@ class HomeViewModelTest {
 
         viewModel.onEvent(HomeEvent.QueryChanged("8.8.8.8"))
         assertNull(viewModel.uiState.value.errorMessage, "Typing must clear error immediately")
+    }
+
+    @Test
+    fun testOpenAndCloseVisionLens() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        assertFalse(viewModel.uiState.value.isVisionLensOpen)
+
+        viewModel.onEvent(HomeEvent.OpenVisionLens)
+        assertTrue(viewModel.uiState.value.isVisionLensOpen)
+
+        viewModel.onEvent(HomeEvent.CloseVisionLens)
+        assertFalse(viewModel.uiState.value.isVisionLensOpen)
+    }
+
+    @Test
+    fun testVisionPayloadScannedSetsDefangedInputAndLaunchesTriage() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        viewModel.onEvent(HomeEvent.OpenVisionLens)
+        assertTrue(viewModel.uiState.value.isVisionLensOpen)
+
+        val payload = BarcodePayload(
+            rawText = "https://185.220.101.5/malware.exe",
+            defangedText = "hxxps[://]185[.]220[.]101[.]5/malware.exe",
+            type = BarcodeType.QR_CODE,
+            detectedIocType = "URL",
+            quishingRisk = QuishingRisk.HIGH_RISK,
+            riskReason = "Direct executable",
+            unmaskedTargetUrl = null
+        )
+
+        viewModel.onEvent(HomeEvent.VisionPayloadScanned(payload))
+
+        // Vision dialog must be closed
+        assertFalse(viewModel.uiState.value.isVisionLensOpen)
+        // Search bar query input must display defanged text for safe viewing
+        assertEquals("hxxps[://]185[.]220[.]101[.]5/malware.exe", viewModel.uiState.value.queryInput)
+        // Active payload must be recorded
+        assertEquals(payload, viewModel.uiState.value.activeVisionPayload)
+
+        advanceUntilIdle()
+
+        // Threat intel triage must be finished and verdict active
+        assertNotNull(viewModel.uiState.value.activeVerdict)
+        assertEquals("https://185.220.101.5/malware.exe", viewModel.uiState.value.activeVerdict?.indicator?.normalizedValue)
+    }
+
+    @Test
+    fun testVisionPayloadScannedWithUnmaskedTargetTriagesUnmaskedUrl() = runTest {
+        val settingsRepo = FakeSettingsRepository()
+        val threatRepo = FakeThreatIntelRepository()
+        val analyzeUseCase = AnalyzeIndicatorUseCase(threatRepo)
+        val introUseCase = SetIntroCompletedUseCase(settingsRepo)
+        val viewModel = HomeViewModel(analyzeUseCase, introUseCase, settingsRepo)
+
+        val payload = BarcodePayload(
+            rawText = "https://login.live.com/auth?dest=aHR0cHM6Ly9ldmlsLnh5ei9wd24=",
+            defangedText = "hxxps[://]login[.]live[.]com/auth?dest=aHR0cHM6Ly9ldmlsLnh5ei9wd24=",
+            type = BarcodeType.QR_CODE,
+            detectedIocType = "URL",
+            quishingRisk = QuishingRisk.HIGH_RISK,
+            riskReason = "Nested Base64 redirection",
+            unmaskedTargetUrl = "https://evil.xyz/pwn"
+        )
+
+        viewModel.onEvent(HomeEvent.VisionPayloadScanned(payload))
+
+        assertFalse(viewModel.uiState.value.isVisionLensOpen)
+        assertEquals("hxxps[://]login[.]live[.]com/auth?dest=aHR0cHM6Ly9ldmlsLnh5ei9wd24=", viewModel.uiState.value.queryInput)
+
+        advanceUntilIdle()
+
+        // Verdict must triage the unmasked destination target
+        assertNotNull(viewModel.uiState.value.activeVerdict)
+        assertEquals("https://evil.xyz/pwn", viewModel.uiState.value.activeVerdict?.indicator?.normalizedValue)
+        assertEquals(VerdictLevel.MALICIOUS, viewModel.uiState.value.activeVerdict?.overallVerdict)
     }
 }
