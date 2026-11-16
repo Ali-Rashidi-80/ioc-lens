@@ -45,5 +45,7 @@ data class HomeUiState(
     val appLanguage: AppLanguage = AppLanguage.ENGLISH,
     val fileQueue: List<FileQueueItem> = emptyList(),
     val isProcessingQueue: Boolean = false,
-    val activeQueueItemId: String? = null
+    val activeQueueItemId: String? = null,
+    val isVisionLensOpen: Boolean = false,
+    val activeVisionPayload: io.github.mrcoder20.ioclens.domain.vision.BarcodePayload? = null
 )

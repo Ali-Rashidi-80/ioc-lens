@@ -453,3 +453,206 @@ fun ShieldVerdictVectorIcon(
         )
     }
 }
+
+@Composable
+fun CameraLensVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.6.dp.toPx()
+
+        // Outer camera body
+        val bodyPath = Path().apply {
+            moveTo(w * 0.15f, h * 0.32f)
+            lineTo(w * 0.32f, h * 0.32f)
+            lineTo(w * 0.38f, h * 0.22f)
+            lineTo(w * 0.62f, h * 0.22f)
+            lineTo(w * 0.68f, h * 0.32f)
+            lineTo(w * 0.85f, h * 0.32f)
+            quadraticTo(w * 0.92f, h * 0.32f, w * 0.92f, h * 0.40f)
+            lineTo(w * 0.92f, h * 0.82f)
+            quadraticTo(w * 0.92f, h * 0.90f, w * 0.85f, h * 0.90f)
+            lineTo(w * 0.15f, h * 0.90f)
+            quadraticTo(w * 0.08f, h * 0.90f, w * 0.08f, h * 0.82f)
+            lineTo(w * 0.08f, h * 0.40f)
+            quadraticTo(w * 0.08f, h * 0.32f, w * 0.15f, h * 0.32f)
+            close()
+        }
+
+        drawPath(
+            path = bodyPath,
+            color = tint,
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        // Central lens aperture
+        drawCircle(
+            color = tint,
+            radius = w * 0.20f,
+            center = Offset(w * 0.50f, h * 0.61f),
+            style = Stroke(width = stroke)
+        )
+
+        // Flash dot
+        drawCircle(
+            color = tint,
+            radius = w * 0.04f,
+            center = Offset(w * 0.80f, h * 0.42f)
+        )
+    }
+}
+
+@Composable
+fun QrMatrixVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.5.dp.toPx()
+
+        // Top-Left Finder
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.10f, h * 0.10f),
+            size = Size(w * 0.32f, h * 0.32f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.18f, h * 0.18f),
+            size = Size(w * 0.16f, h * 0.16f)
+        )
+
+        // Top-Right Finder
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.58f, h * 0.10f),
+            size = Size(w * 0.32f, h * 0.32f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.66f, h * 0.18f),
+            size = Size(w * 0.16f, h * 0.16f)
+        )
+
+        // Bottom-Left Finder
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.10f, h * 0.58f),
+            size = Size(w * 0.32f, h * 0.32f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(width = stroke)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.18f, h * 0.66f),
+            size = Size(w * 0.16f, h * 0.16f)
+        )
+
+        // Bottom-Right Data Bits
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.58f, h * 0.58f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.78f, h * 0.58f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(w * 0.68f, h * 0.78f),
+            size = Size(w * 0.12f, h * 0.12f)
+        )
+    }
+}
+
+@Composable
+fun TorchVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.6.dp.toPx()
+
+        // Flashlight head and handle
+        val path = Path().apply {
+            moveTo(w * 0.35f, h * 0.15f)
+            lineTo(w * 0.65f, h * 0.15f)
+            lineTo(w * 0.60f, h * 0.35f)
+            lineTo(w * 0.56f, h * 0.85f)
+            quadraticTo(w * 0.56f, h * 0.90f, w * 0.50f, h * 0.90f)
+            quadraticTo(w * 0.44f, h * 0.90f, w * 0.44f, h * 0.85f)
+            lineTo(w * 0.40f, h * 0.35f)
+            close()
+        }
+
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+
+        // Light beam ray lines
+        drawLine(color = tint, start = Offset(w * 0.20f, h * 0.08f), end = Offset(w * 0.28f, h * 0.14f), strokeWidth = stroke)
+        drawLine(color = tint, start = Offset(w * 0.50f, h * 0.04f), end = Offset(w * 0.50f, h * 0.11f), strokeWidth = stroke)
+        drawLine(color = tint, start = Offset(w * 0.80f, h * 0.08f), end = Offset(w * 0.72f, h * 0.14f), strokeWidth = stroke)
+    }
+}
+
+@Composable
+fun CameraFlipVectorIcon(
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = 1.6.dp.toPx()
+
+        // Upper arrow arc
+        val topArc = Path().apply {
+            moveTo(w * 0.25f, h * 0.40f)
+            cubicTo(w * 0.25f, h * 0.22f, w * 0.75f, h * 0.22f, w * 0.75f, h * 0.40f)
+        }
+        drawPath(path = topArc, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
+
+        // Upper arrow head
+        val topArrow = Path().apply {
+            moveTo(w * 0.68f, h * 0.32f)
+            lineTo(w * 0.76f, h * 0.40f)
+            lineTo(w * 0.84f, h * 0.32f)
+        }
+        drawPath(path = topArrow, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+        // Lower arrow arc
+        val bottomArc = Path().apply {
+            moveTo(w * 0.75f, h * 0.60f)
+            cubicTo(w * 0.75f, h * 0.78f, w * 0.25f, h * 0.78f, w * 0.25f, h * 0.60f)
+        }
+        drawPath(path = bottomArc, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
+
+        // Lower arrow head
+        val bottomArrow = Path().apply {
+            moveTo(w * 0.32f, h * 0.68f)
+            lineTo(w * 0.24f, h * 0.60f)
+            lineTo(w * 0.16f, h * 0.68f)
+        }
+        drawPath(path = bottomArrow, color = tint, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}

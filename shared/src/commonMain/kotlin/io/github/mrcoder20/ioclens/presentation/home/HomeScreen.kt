@@ -144,7 +144,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
+import io.github.mrcoder20.ioclens.core.components.CameraLensVectorIcon
 import io.github.mrcoder20.ioclens.core.components.ClipboardVectorIcon
+import io.github.mrcoder20.ioclens.presentation.vision.CyberLensDialog
 import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
 import io.github.mrcoder20.ioclens.core.components.FileDocumentVectorIcon
@@ -204,9 +206,10 @@ fun HomeScreen(
     var showThreatIntelDialog by remember { mutableStateOf(false) }
 
     // Android Back Button / Gesture Interceptor
-    val isAnySheetOpen = showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
+    val isAnySheetOpen = uiState.isVisionLensOpen || showThreatIntelDialog || uiState.isSettingsSheetOpen || uiState.isHistorySheetOpen || drawerState.isOpen || uiState.isLoading || uiState.activeVerdict != null || uiState.selectedBottomNavTab != 0
     AppBackHandler(enabled = isAnySheetOpen) {
         when {
+            uiState.isVisionLensOpen -> viewModel.onEvent(HomeEvent.CloseVisionLens)
             showThreatIntelDialog -> showThreatIntelDialog = false
             uiState.isSettingsSheetOpen -> viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
             uiState.isHistorySheetOpen -> viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false))
@@ -591,6 +594,7 @@ fun HomeScreen(
                                         onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                         onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
                                         onOpenFilePicker = batchFilePickerLauncher,
+                                        onOpenVisionLens = { viewModel.onEvent(HomeEvent.OpenVisionLens) },
                                         modifier = Modifier
                                             .weight(1f)
                                             .fillMaxHeight()
@@ -729,7 +733,8 @@ fun HomeScreen(
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
-                                            onOpenFilePicker = batchFilePickerLauncher
+                                            onOpenFilePicker = batchFilePickerLauncher,
+                                            onOpenVisionLens = { viewModel.onEvent(HomeEvent.OpenVisionLens) }
                                         )
                                     }
 
@@ -866,6 +871,16 @@ fun HomeScreen(
                     onDismiss = { showThreatIntelDialog = false }
                 )
             }
+
+            // Cyber Vision Lens & Quishing Triage Modal Dialog
+            CyberLensDialog(
+                isOpen = uiState.isVisionLensOpen,
+                strings = strings,
+                onDismiss = { viewModel.onEvent(HomeEvent.CloseVisionLens) },
+                onTriagePayload = { payload ->
+                    viewModel.onEvent(HomeEvent.VisionPayloadScanned(payload))
+                }
+            )
 
         }
     }
@@ -1269,6 +1284,7 @@ private fun SearchCard(
     onCancel: () -> Unit,
     onAnalyze: () -> Unit,
     onOpenFilePicker: () -> Unit = {},
+    onOpenVisionLens: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -1370,25 +1386,53 @@ private fun SearchCard(
                     )
                 },
                 trailingIcon = {
-                    if (uiState.queryInput.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        // Vision Lens Trigger Button [ 📷 ]
                         IconButton(
-                            onClick = onClear,
+                            onClick = onOpenVisionLens,
                             modifier = Modifier
                                 .size(34.dp)
                                 .springPress()
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                                modifier = Modifier.size(24.dp)
+                                color = PrimaryCyan.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
+                                modifier = Modifier.size(26.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "✕",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                    CameraLensVectorIcon(
+                                        tint = PrimaryCyan,
+                                        size = 14.dp
                                     )
+                                }
+                            }
+                        }
+
+                        if (uiState.queryInput.isNotEmpty()) {
+                            IconButton(
+                                onClick = onClear,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .springPress()
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "✕",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }

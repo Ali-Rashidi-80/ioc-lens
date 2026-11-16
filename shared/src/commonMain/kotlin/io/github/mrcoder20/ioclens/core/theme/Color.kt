@@ -31,6 +31,8 @@ val SurfaceInsetLight = Color(0xFFF8FAFC) // Slate 50 for inset wells, code bloc
 val GlassLight = Color(0xFFFFFFFF)        // Crisp Pure White
 val BorderLight = Color(0xFFE2E8F0)       // Solid Crisp Slate 200 Border
 val GlassBorderLight = Color(0xFFCBD5E1)  // Defined Slate 300 Border
+val BorderDark = Color(0xFF334155)        // Slate 700 Border for Dark Canvas
+val SlateBorder = Color(0xFF334155)       // Explicit Slate Border token
 
 // Glassmorphism Colors
 val GlassBackground = Color(0x1422D3EE)   // Subtle Electric Cyan Tint

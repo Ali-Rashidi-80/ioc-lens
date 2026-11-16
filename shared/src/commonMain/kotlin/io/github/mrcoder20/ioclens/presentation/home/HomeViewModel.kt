@@ -227,6 +227,22 @@ class HomeViewModel(
                 settingsRepository.clearScanHistory()
                 _uiState.update { it.copy(scanHistory = emptyList()) }
             }
+            HomeEvent.OpenVisionLens -> {
+                _uiState.update { it.copy(isVisionLensOpen = true) }
+            }
+            HomeEvent.CloseVisionLens -> {
+                _uiState.update { it.copy(isVisionLensOpen = false) }
+            }
+            is HomeEvent.VisionPayloadScanned -> {
+                _uiState.update {
+                    it.copy(
+                        queryInput = event.payload.defangedText,
+                        isVisionLensOpen = false,
+                        activeVisionPayload = event.payload
+                    )
+                }
+                analyzeQuery()
+            }
         }
     }
 

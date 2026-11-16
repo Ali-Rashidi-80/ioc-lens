@@ -23,4 +23,7 @@ sealed interface HomeEvent {
     data class SelectBottomNavTab(val tabIndex: Int) : HomeEvent
     data class DeleteHistoryItem(val verdict: TriageVerdict) : HomeEvent
     data object ClearHistory : HomeEvent
+    data object OpenVisionLens : HomeEvent
+    data object CloseVisionLens : HomeEvent
+    data class VisionPayloadScanned(val payload: io.github.mrcoder20.ioclens.domain.vision.BarcodePayload) : HomeEvent
 }
