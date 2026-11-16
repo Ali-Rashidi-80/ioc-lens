@@ -1,5 +1,11 @@
 package io.github.mrcoder20.ioclens.presentation.vision
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -55,15 +62,22 @@ import io.github.mrcoder20.ioclens.core.theme.SlateBorder
 import io.github.mrcoder20.ioclens.domain.vision.BarcodePayload
 import io.github.mrcoder20.ioclens.domain.vision.PlatformVisualDecoder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.Component
+import java.awt.Container
 import java.awt.Window
 import java.awt.datatransfer.DataFlavor
 import java.awt.dnd.DnDConstants
 import java.awt.dnd.DropTarget
+import java.awt.dnd.DropTargetDragEvent
 import java.awt.dnd.DropTargetDropEvent
 import java.awt.image.BufferedImage
 import java.io.File
+import javax.swing.RootPaneContainer
 
 @Composable
 actual fun PlatformCameraScanner(
@@ -76,11 +90,23 @@ actual fun PlatformCameraScanner(
 
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isDecoding by remember { mutableStateOf(false) }
+    var dismissJob by remember { mutableStateOf<Job?>(null) }
 
-    fun processClipboard() {
+    fun showSnackbar(msg: String, durationMs: Long = 3500L) {
+        statusMessage = msg
+        dismissJob?.cancel()
+        dismissJob = scope.launch {
+            delay(durationMs)
+            statusMessage = null
+        }
+    }
+
+    fun processClipboard(silent: Boolean = false) {
         if (isDecoding) return
         isDecoding = true
-        statusMessage = "Analyzing clipboard screenshot..."
+        if (!silent) {
+            showSnackbar("Analyzing clipboard screenshot...", 2000L)
+        }
         scope.launch(Dispatchers.IO) {
             val payloads = decoder.decodeFromClipboard()
             withContext(Dispatchers.Main) {
@@ -88,8 +114,8 @@ actual fun PlatformCameraScanner(
                 if (payloads.isNotEmpty()) {
                     statusMessage = null
                     onPayloadsDetected(payloads)
-                } else {
-                    statusMessage = "No valid 1D/2D barcode found in clipboard image."
+                } else if (!silent) {
+                    showSnackbar("No valid 1D/2D barcode found in clipboard image.")
                 }
             }
         }
@@ -98,7 +124,7 @@ actual fun PlatformCameraScanner(
     val filePickerLauncher = rememberFilePickerLauncher { filePath, _ ->
         if (filePath.isNotBlank()) {
             isDecoding = true
-            statusMessage = "Analyzing selected image file..."
+            showSnackbar("Analyzing selected image file...", 2000L)
             scope.launch(Dispatchers.IO) {
                 val file = File(filePath)
                 val payloads = if (file.exists() && file.isFile) {
@@ -113,86 +139,152 @@ actual fun PlatformCameraScanner(
                         statusMessage = null
                         onPayloadsDetected(payloads)
                     } else {
-                        statusMessage = "No barcode detected in selected image."
+                        showSnackbar("No barcode detected in selected image.")
                     }
                 }
             }
         }
     }
 
-    // Attach native AWT DropTarget to the active dialog window
-    DisposableEffect(Unit) {
-        val activeWindow = Window.getWindows().lastOrNull { it.isShowing && it.isVisible }
-        val oldDropTarget = activeWindow?.dropTarget
+    // Unified AWT DropTarget supporting files and images with copy cursor negotiation
+    val dropTarget = remember {
+        object : DropTarget() {
+            override fun dragEnter(dtde: DropTargetDragEvent) {
+                if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ||
+                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor)
+                ) {
+                    dtde.acceptDrag(DnDConstants.ACTION_COPY)
+                } else {
+                    dtde.rejectDrag()
+                }
+            }
 
-        if (activeWindow != null) {
-            activeWindow.dropTarget = object : DropTarget() {
-                override fun drop(evt: DropTargetDropEvent) {
-                    try {
-                        evt.acceptDrop(DnDConstants.ACTION_COPY)
-                        val transferable = evt.transferable
-                        if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                            val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<*>
-                            val validFile = files?.filterIsInstance<File>()?.firstOrNull { it.isFile && it.exists() }
-                            if (validFile != null) {
-                                isDecoding = true
-                                statusMessage = "Decoding ${validFile.name}..."
-                                scope.launch(Dispatchers.IO) {
-                                    val bytes = runCatching { validFile.readBytes() }.getOrDefault(byteArrayOf())
-                                    val payloads = decoder.decodeBarcodeFromBytes(bytes)
-                                    withContext(Dispatchers.Main) {
-                                        isDecoding = false
-                                        if (payloads.isNotEmpty()) {
-                                            statusMessage = null
-                                            onPayloadsDetected(payloads)
-                                        } else {
-                                            statusMessage = "No barcode detected in ${validFile.name}"
-                                        }
+            override fun dragOver(dtde: DropTargetDragEvent) {
+                if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ||
+                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor)
+                ) {
+                    dtde.acceptDrag(DnDConstants.ACTION_COPY)
+                } else {
+                    dtde.rejectDrag()
+                }
+            }
+
+            override fun drop(evt: DropTargetDropEvent) {
+                try {
+                    evt.acceptDrop(DnDConstants.ACTION_COPY)
+                    val transferable = evt.transferable
+                    if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<*>
+                        val validFile = files?.filterIsInstance<File>()?.firstOrNull { it.isFile && it.exists() }
+                        if (validFile != null) {
+                            isDecoding = true
+                            showSnackbar("Decoding ${validFile.name}...", 2000L)
+                            scope.launch(Dispatchers.IO) {
+                                val bytes = runCatching { validFile.readBytes() }.getOrDefault(byteArrayOf())
+                                val payloads = decoder.decodeBarcodeFromBytes(bytes)
+                                withContext(Dispatchers.Main) {
+                                    isDecoding = false
+                                    if (payloads.isNotEmpty()) {
+                                        statusMessage = null
+                                        onPayloadsDetected(payloads)
+                                    } else {
+                                        showSnackbar("No barcode detected in ${validFile.name}")
                                     }
                                 }
-                                evt.dropComplete(true)
-                                return
                             }
-                        } else if (transferable.isDataFlavorSupported(DataFlavor.imageFlavor)) {
-                            val img = transferable.getTransferData(DataFlavor.imageFlavor) as? java.awt.Image
-                            if (img is BufferedImage) {
-                                isDecoding = true
-                                statusMessage = "Decoding dropped image..."
-                                scope.launch(Dispatchers.IO) {
-                                    val payloads = decoder.decodeBufferedImage(img)
-                                    withContext(Dispatchers.Main) {
-                                        isDecoding = false
-                                        if (payloads.isNotEmpty()) {
-                                            statusMessage = null
-                                            onPayloadsDetected(payloads)
-                                        } else {
-                                            statusMessage = "No barcode detected in dropped image."
-                                        }
-                                    }
-                                }
-                                evt.dropComplete(true)
-                                return
+                            evt.dropComplete(true)
+                            return
+                        }
+                    } else if (transferable.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                        val img = transferable.getTransferData(DataFlavor.imageFlavor) as? java.awt.Image
+                        val bufferedImg: BufferedImage? = when (img) {
+                            is BufferedImage -> img
+                            null -> null
+                            else -> {
+                                val w = img.getWidth(null).coerceAtLeast(1)
+                                val h = img.getHeight(null).coerceAtLeast(1)
+                                val b = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+                                val g = b.createGraphics()
+                                g.drawImage(img, 0, 0, null)
+                                g.dispose()
+                                b
                             }
                         }
-                        evt.dropComplete(false)
-                    } catch (_: Exception) {
-                        evt.dropComplete(false)
+                        if (bufferedImg != null) {
+                            isDecoding = true
+                            showSnackbar("Decoding dropped image...", 2000L)
+                            scope.launch(Dispatchers.IO) {
+                                val payloads = decoder.decodeBufferedImage(bufferedImg)
+                                withContext(Dispatchers.Main) {
+                                    isDecoding = false
+                                    if (payloads.isNotEmpty()) {
+                                        statusMessage = null
+                                        onPayloadsDetected(payloads)
+                                    } else {
+                                        showSnackbar("No barcode detected in dropped image.")
+                                    }
+                                }
+                            }
+                            evt.dropComplete(true)
+                            return
+                        }
                     }
+                    evt.dropComplete(false)
+                } catch (_: Exception) {
+                    evt.dropComplete(false)
                 }
             }
         }
+    }
 
-        onDispose {
-            if (activeWindow != null && oldDropTarget != null) {
-                activeWindow.dropTarget = oldDropTarget
+    val trackedComponents = remember { mutableMapOf<Component, DropTarget?>() }
+
+    fun attachRecursively(comp: Component) {
+        if (!trackedComponents.containsKey(comp)) {
+            trackedComponents[comp] = comp.dropTarget
+        }
+        comp.dropTarget = dropTarget
+        if (comp is Container) {
+            for (child in comp.components) {
+                attachRecursively(child)
             }
+        }
+        if (comp is RootPaneContainer) {
+            comp.rootPane?.let { attachRecursively(it) }
+            comp.contentPane?.let { attachRecursively(it) }
+            comp.glassPane?.let { attachRecursively(it) }
+            comp.layeredPane?.let { attachRecursively(it) }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            dismissJob?.cancel()
+            // Restore original drop targets
+            trackedComponents.forEach { (comp, oldDt) ->
+                try {
+                    comp.dropTarget = oldDt
+                } catch (_: Exception) {}
+            }
+            trackedComponents.clear()
         }
     }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
-        // Automatically attempt reading clipboard once on open
-        processClipboard()
+
+        // Silent clipboard check on open: if user already has a QR code in clipboard, decode it!
+        // If not, DO NOT display any error message (remain silent).
+        processClipboard(silent = true)
+
+        // Continuously attach drop target to all showing windows, dialogs, and component hierarchies
+        while (isActive) {
+            val visibleWindows = Window.getWindows().filter { it.isShowing && it.isVisible }
+            for (win in visibleWindows) {
+                attachRecursively(win)
+            }
+            delay(300)
+        }
     }
 
     Box(
@@ -201,7 +293,7 @@ actual fun PlatformCameraScanner(
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 if ((event.isCtrlPressed || event.isMetaPressed) && event.key == Key.V) {
-                    processClipboard()
+                    processClipboard(silent = false)
                     true
                 } else {
                     false
@@ -269,32 +361,14 @@ actual fun PlatformCameraScanner(
                 textAlign = TextAlign.Center
             )
 
-            if (statusMessage != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f))
-                ) {
-                    Text(
-                        text = statusMessage!!,
-                        color = Color(0xFFFCA5A5),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { processClipboard() },
+                    onClick = { processClipboard(silent = false) },
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.height(38.dp)
@@ -331,6 +405,48 @@ actual fun PlatformCameraScanner(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                }
+            }
+        }
+
+        // Floating Cyber Snackbar / Notification Toast (Never shifts or squishes layout)
+        AnimatedVisibility(
+            visible = statusMessage != null,
+            enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { it },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(250)) { it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF1E1B2E).copy(alpha = 0.96f),
+                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.65f)),
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("⚠️", fontSize = 12.sp)
+                    Text(
+                        text = statusMessage.orEmpty(),
+                        color = Color(0xFFFCA5A5),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "✕",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { statusMessage = null }
+                            .padding(2.dp)
+                    )
                 }
             }
         }
