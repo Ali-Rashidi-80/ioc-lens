@@ -129,20 +129,6 @@ fun CyberLensDialog(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            // Offline badge
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                            ) {
-                                Text(
-                                    text = "Offline",
-                                    color = Color(0xFF34D399),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
                         }
 
                         // Close button
@@ -174,7 +160,7 @@ fun CyberLensDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (isCompact) 220.dp else 280.dp)
+                                .height(if (isCompact) 260.dp else 370.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
                                 .clipToBounds()

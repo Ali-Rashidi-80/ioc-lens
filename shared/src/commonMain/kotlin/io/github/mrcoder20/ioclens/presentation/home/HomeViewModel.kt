@@ -234,6 +234,7 @@ class HomeViewModel(
                 _uiState.update { it.copy(isVisionLensOpen = false) }
             }
             is HomeEvent.VisionPayloadScanned -> {
+                val targetToTriage = event.payload.unmaskedTargetUrl ?: event.payload.rawText
                 _uiState.update {
                     it.copy(
                         queryInput = event.payload.defangedText,
@@ -241,7 +242,8 @@ class HomeViewModel(
                         activeVisionPayload = event.payload
                     )
                 }
-                analyzeQuery()
+                cancelScan()
+                executeAnalyzeQuery(targetToTriage, currentGeneration)
             }
         }
     }

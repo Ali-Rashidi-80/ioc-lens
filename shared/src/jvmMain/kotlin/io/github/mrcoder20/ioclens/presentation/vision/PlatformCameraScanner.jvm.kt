@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,12 @@ import io.github.mrcoder20.ioclens.domain.vision.PlatformVisualDecoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.Window
+import java.awt.datatransfer.DataFlavor
+import java.awt.dnd.DnDConstants
+import java.awt.dnd.DropTarget
+import java.awt.dnd.DropTargetDropEvent
+import java.awt.image.BufferedImage
 import java.io.File
 
 @Composable
@@ -113,6 +120,75 @@ actual fun PlatformCameraScanner(
         }
     }
 
+    // Attach native AWT DropTarget to the active dialog window
+    DisposableEffect(Unit) {
+        val activeWindow = Window.getWindows().lastOrNull { it.isShowing && it.isVisible }
+        val oldDropTarget = activeWindow?.dropTarget
+
+        if (activeWindow != null) {
+            activeWindow.dropTarget = object : DropTarget() {
+                override fun drop(evt: DropTargetDropEvent) {
+                    try {
+                        evt.acceptDrop(DnDConstants.ACTION_COPY)
+                        val transferable = evt.transferable
+                        if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                            val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<*>
+                            val validFile = files?.filterIsInstance<File>()?.firstOrNull { it.isFile && it.exists() }
+                            if (validFile != null) {
+                                isDecoding = true
+                                statusMessage = "Decoding ${validFile.name}..."
+                                scope.launch(Dispatchers.IO) {
+                                    val bytes = runCatching { validFile.readBytes() }.getOrDefault(byteArrayOf())
+                                    val payloads = decoder.decodeBarcodeFromBytes(bytes)
+                                    withContext(Dispatchers.Main) {
+                                        isDecoding = false
+                                        if (payloads.isNotEmpty()) {
+                                            statusMessage = null
+                                            onPayloadsDetected(payloads)
+                                        } else {
+                                            statusMessage = "No barcode detected in ${validFile.name}"
+                                        }
+                                    }
+                                }
+                                evt.dropComplete(true)
+                                return
+                            }
+                        } else if (transferable.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                            val img = transferable.getTransferData(DataFlavor.imageFlavor) as? java.awt.Image
+                            if (img is BufferedImage) {
+                                isDecoding = true
+                                statusMessage = "Decoding dropped image..."
+                                scope.launch(Dispatchers.IO) {
+                                    val payloads = decoder.decodeBufferedImage(img)
+                                    withContext(Dispatchers.Main) {
+                                        isDecoding = false
+                                        if (payloads.isNotEmpty()) {
+                                            statusMessage = null
+                                            onPayloadsDetected(payloads)
+                                        } else {
+                                            statusMessage = "No barcode detected in dropped image."
+                                        }
+                                    }
+                                }
+                                evt.dropComplete(true)
+                                return
+                            }
+                        }
+                        evt.dropComplete(false)
+                    } catch (_: Exception) {
+                        evt.dropComplete(false)
+                    }
+                }
+            }
+        }
+
+        onDispose {
+            if (activeWindow != null && oldDropTarget != null) {
+                activeWindow.dropTarget = oldDropTarget
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
         // Automatically attempt reading clipboard once on open
@@ -136,20 +212,21 @@ actual fun PlatformCameraScanner(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Cyber Scanner Graphic Box
+            // Cyber Scanner Graphic Box - Click opens file picker or pastes
             Surface(
                 modifier = Modifier
-                    .size(160.dp)
+                    .width(170.dp)
+                    .height(115.dp)
                     .border(
                         BorderStroke(1.5.dp, Brush.linearGradient(listOf(PrimaryCyan, PrimaryNeon.copy(alpha = 0.5f)))),
-                        RoundedCornerShape(20.dp)
+                        RoundedCornerShape(16.dp)
                     )
-                    .clickable { processClipboard() },
-                shape = RoundedCornerShape(20.dp),
+                    .clickable { filePickerLauncher() },
+                shape = RoundedCornerShape(16.dp),
                 color = Color(0xFF0F172A).copy(alpha = 0.85f)
             ) {
                 Box(
@@ -160,10 +237,10 @@ actual fun PlatformCameraScanner(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        QrMatrixVectorIcon(tint = PrimaryCyan, size = 48.dp)
-                        Spacer(modifier = Modifier.height(10.dp))
+                        QrMatrixVectorIcon(tint = PrimaryCyan, size = 42.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "DROP / PASTE",
+                            text = "DROP / BROWSE",
                             color = PrimaryCyan,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -173,27 +250,27 @@ actual fun PlatformCameraScanner(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Snip any QR with Win+Shift+S and Paste here",
-                color = Color.White.copy(alpha = 0.9f),
+                text = "Drag & Drop QR image or Snip with Win+Shift+S",
+                color = Color.White.copy(alpha = 0.95f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = "Supports QR, Data Matrix, Aztec, PDF417 & 1D Barcodes",
-                color = Color.Gray,
+                color = Color(0xFF94A3B8),
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
 
             if (statusMessage != null) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     color = Color(0xFFEF4444).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp),
@@ -204,13 +281,13 @@ actual fun PlatformCameraScanner(
                         color = Color(0xFFFCA5A5),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                         textAlign = TextAlign.Center
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),

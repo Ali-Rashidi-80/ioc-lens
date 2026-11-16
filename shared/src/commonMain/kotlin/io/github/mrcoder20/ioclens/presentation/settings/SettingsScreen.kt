@@ -79,6 +79,7 @@ import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
 import io.github.mrcoder20.ioclens.core.theme.CardDark
+import io.github.mrcoder20.ioclens.core.theme.CyberAmber
 import io.github.mrcoder20.ioclens.core.theme.GlassBorder
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.core.theme.PrimaryNeon
@@ -471,110 +472,121 @@ internal fun ThreatIntelEnginesDialog(
                     .fillMaxSize()
                     .padding(18.dp)
             ) {
-                // Dialog Header Line 1: Icon + Title + Status on Left, ALWAYS-PINNED 'X' on Physical Right
+                // Dialog Header: Clean, balanced, non-sloppy design with zero text-wrapping glitches
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Header Row 1: Title on Left, Physical Close '✕' on Right
                         Row(
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            EnginesCpuVectorIcon(tint = PrimaryCyan, size = 20.dp)
-                            Text(
-                                text = strings.threatIntelProvidersTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryCyan,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = PrimaryCyan.copy(alpha = 0.12f),
-                                border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.35f))
-                            ) {
-                                Text(
-                                    text = if (isRtl) "$onlineCount/$totalCount فعال" else "$onlineCount/$totalCount Online",
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = PrimaryCyan
-                                )
-                            }
-                        }
-
-                        // Physical Top-Right 'X' Close Button (Always visible on any screen width!)
-                        Surface(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .springPress()
-                                .clickable(onClick = onDismiss)
-                                .pointerHoverIcon(PointerIcon.Hand),
-                            color = Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
-                            shape = CircleShape
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "✕",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE2E8F0)
-                                )
-                            }
-                        }
-                    }
-
-                    // Dialog Header Line 2: Subtitle on Left, Probe / Ping All Button on Right
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = strings.apiKeysZeroKeyBanner,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF94A3B8),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(end = 8.dp)
-                        )
-
-                        // Interactive Probe / Ping All Button
-                        Surface(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable(enabled = !isProbing) { probeEngines() }
-                                .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
-                            color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
-                            border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
+                                modifier = Modifier.weight(1f),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                EnginesCpuVectorIcon(tint = PrimaryCyan, size = 20.dp)
                                 Text(
-                                    text = if (isProbing) "⚡" else "🔄",
-                                    fontSize = 11.sp
-                                )
-                                Text(
-                                    text = when {
-                                        isProbing && isRtl -> "در حال پینگ..."
-                                        isProbing -> "Probing..."
-                                        isRtl -> "تست پینگ"
-                                        else -> "Ping All"
-                                    },
-                                    fontSize = 11.sp,
+                                    text = strings.threatIntelProvidersTitle,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryCyan
+                                    color = PrimaryCyan,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                            }
+
+                            // Physical Top-Right 'X' Close Button (Always visible on any screen width!)
+                            Surface(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .springPress()
+                                    .clickable(onClick = onDismiss)
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+                                shape = CircleShape
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "✕",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Header Row 2: Status Indicator Badge on Left, Ping All Button on Right
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (onlineCount == totalCount) PrimaryCyan.copy(alpha = 0.12f) else CyberAmber.copy(alpha = 0.12f),
+                                border = BorderStroke(0.8.dp, if (onlineCount == totalCount) PrimaryCyan.copy(alpha = 0.35f) else CyberAmber.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(if (onlineCount == totalCount) PrimaryCyan else CyberAmber)
+                                    )
+                                    Text(
+                                        text = if (isRtl) "$onlineCount/$totalCount فعال" else "$onlineCount/$totalCount Online",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (onlineCount == totalCount) PrimaryCyan else CyberAmber,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+
+                            // Interactive Probe / Ping All Button
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !isProbing) { probeEngines() }
+                                    .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
+                                color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                                border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = if (isProbing) "⚡" else "🔄",
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = when {
+                                            isProbing && isRtl -> "در حال پینگ..."
+                                            isProbing -> "Probing..."
+                                            isRtl -> "تست پینگ"
+                                            else -> "Ping All"
+                                        },
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryCyan,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                     }
