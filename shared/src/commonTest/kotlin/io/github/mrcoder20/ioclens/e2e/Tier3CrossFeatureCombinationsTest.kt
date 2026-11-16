@@ -58,12 +58,13 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class Tier3CrossFeatureCombinationsTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private var testDispatcher = StandardTestDispatcher()
     private val parser = IOCParser()
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
 
     @BeforeTest
     fun setUp() {
+        testDispatcher = StandardTestDispatcher()
         Dispatchers.setMain(testDispatcher)
     }
 

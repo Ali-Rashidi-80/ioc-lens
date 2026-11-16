@@ -43,7 +43,7 @@ import kotlin.test.assertTrue
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private var testDispatcher = StandardTestDispatcher()
 
     class FakeSettingsRepository(initialSettings: AppSettings = AppSettings()) : SettingsRepository {
         private val _settings = MutableStateFlow(initialSettings)
@@ -86,6 +86,7 @@ class HomeViewModelTest {
 
     @BeforeTest
     fun setUp() {
+        testDispatcher = StandardTestDispatcher()
         Dispatchers.setMain(testDispatcher)
         SharePayloadReceiver.consume()
     }

@@ -160,7 +160,7 @@ fun CyberLensDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(if (isCompact) 260.dp else 370.dp)
+                                .height(if (isCompact) 330.dp else 360.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
                                 .clipToBounds()

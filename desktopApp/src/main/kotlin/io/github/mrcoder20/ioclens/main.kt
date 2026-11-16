@@ -59,15 +59,27 @@ import io.github.mrcoder20.ioclens.core.theme.IOCLensTheme
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
 import io.github.mrcoder20.ioclens.domain.security.SharePayloadReceiver
 import io.github.mrcoder20.ioclens.domain.security.SharedPayload
+import io.github.mrcoder20.ioclens.presentation.vision.DesktopDragAndDropCoordinator
 import java.awt.AWTEvent
+import java.awt.Component
+import java.awt.Container
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.EventQueue
 import java.awt.Rectangle
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
+import java.awt.dnd.DnDConstants
+import java.awt.dnd.DropTarget
+import java.awt.dnd.DropTargetDragEvent
+import java.awt.dnd.DropTargetDropEvent
+import java.awt.dnd.DropTargetEvent
+import java.awt.dnd.DropTargetListener
 import java.awt.event.WindowEvent
 import java.awt.event.WindowFocusListener
 import java.io.File
+import javax.swing.RootPaneContainer
+import kotlinx.coroutines.delay
 
 /**
  * Intercepts all unhandled exceptions on the AWT Event Dispatch Thread (EDT).
@@ -200,57 +212,44 @@ fun main(args: Array<String>) {
             }
 
             LaunchedEffect(window) {
-                val windowDropTarget = object : java.awt.dnd.DropTarget() {
-                    override fun dragEnter(dtde: java.awt.dnd.DropTargetDragEvent) {
-                        if (dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor) ||
-                            dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)
-                        ) {
-                            dtde.acceptDrag(java.awt.dnd.DnDConstants.ACTION_COPY)
+                val mainWindowDropListener = DesktopDragAndDropCoordinator.createSafeDropListener(
+                    onFilesDropped = { files ->
+                        if (DesktopDragAndDropCoordinator.isVisionActive() && files.size == 1 && DesktopDragAndDropCoordinator.isImageFile(files.first())) {
+                            DesktopDragAndDropCoordinator.visionDropHandler?.invoke(files.first())
                         } else {
-                            dtde.rejectDrag()
-                        }
-                    }
-
-                    override fun dragOver(dtde: java.awt.dnd.DropTargetDragEvent) {
-                        if (dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor) ||
-                            dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)
-                        ) {
-                            dtde.acceptDrag(java.awt.dnd.DnDConstants.ACTION_COPY)
-                        } else {
-                            dtde.rejectDrag()
-                        }
-                    }
-
-                    override fun drop(evt: java.awt.dnd.DropTargetDropEvent) {
-                        try {
-                            evt.acceptDrop(java.awt.dnd.DnDConstants.ACTION_COPY)
-                            val transferable = evt.transferable
-                            if (transferable.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor)) {
-                                val files = transferable.getTransferData(java.awt.datatransfer.DataFlavor.javaFileListFlavor) as? List<*>
-                                val handled = DesktopDropHandler.processDroppedFiles(files) { payload ->
-                                    SharePayloadReceiver.dispatch(payload)
-                                }
-                                if (handled) {
-                                    evt.dropComplete(true)
-                                    return
-                                }
-                            } else if (transferable.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)) {
-                                val text = transferable.getTransferData(java.awt.datatransfer.DataFlavor.stringFlavor) as? String
-                                if (!text.isNullOrBlank()) {
-                                    SharePayloadReceiver.dispatch(SharedPayload(textOrUrl = text.trim()))
-                                    evt.dropComplete(true)
-                                    return
-                                }
+                            DesktopDropHandler.processDroppedFiles(files) { payload ->
+                                SharePayloadReceiver.dispatch(payload)
                             }
-                            evt.dropComplete(false)
-                        } catch (_: Exception) {
-                            evt.dropComplete(false)
                         }
+                    },
+                    onImageDropped = { img ->
+                        if (DesktopDragAndDropCoordinator.isVisionActive()) {
+                            DesktopDragAndDropCoordinator.visionImageDropHandler?.invoke(img)
+                        }
+                    },
+                    onTextDropped = { text ->
+                        SharePayloadReceiver.dispatch(SharedPayload(textOrUrl = text.trim()))
                     }
+                )
+
+                // Attach safe DropTarget only to window contentPane to eliminate COM/OLE thread deadlocks
+                try {
+                    window.contentPane.dropTarget = DropTarget(
+                        window.contentPane,
+                        DnDConstants.ACTION_COPY_OR_MOVE,
+                        mainWindowDropListener,
+                        true
+                    )
+                } catch (_: Throwable) {
+                    try {
+                        window.dropTarget = DropTarget(
+                            window,
+                            DnDConstants.ACTION_COPY_OR_MOVE,
+                            mainWindowDropListener,
+                            true
+                        )
+                    } catch (_: Throwable) {}
                 }
-                window.dropTarget = windowDropTarget
-                window.rootPane?.dropTarget = windowDropTarget
-                window.contentPane?.dropTarget = windowDropTarget
             }
 
             IOCLensTheme {
