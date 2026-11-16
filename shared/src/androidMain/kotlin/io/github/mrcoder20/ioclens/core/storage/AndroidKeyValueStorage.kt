@@ -45,7 +45,20 @@ class PersistentFileKeyValueStorage(
 }
 
 actual fun createPersistentKeyValueStorage(): KeyValueStorage {
-    val dir = File(System.getProperty("java.io.tmpdir") ?: ".", "ioclens")
-    dir.mkdirs()
-    return PersistentFileKeyValueStorage(File(dir, "settings.properties"))
+    val context = runCatching {
+        val activityThreadClass = Class.forName("android.app.ActivityThread")
+        val currentAppMethod = activityThreadClass.getMethod("currentApplication")
+        currentAppMethod.invoke(null) as? android.content.Context
+    }.getOrNull()
+
+    val storageFile = if (context != null) {
+        val dir = File(context.filesDir, "ioclens")
+        dir.mkdirs()
+        File(dir, "settings.properties")
+    } else {
+        val dir = File(System.getProperty("java.io.tmpdir") ?: ".", "ioclens")
+        dir.mkdirs()
+        File(dir, "settings.properties")
+    }
+    return PersistentFileKeyValueStorage(storageFile)
 }

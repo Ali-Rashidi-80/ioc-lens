@@ -122,7 +122,7 @@ class AdversarialStressTest {
             )
         )
 
-        val progressUpdates = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, Int>>())
+        val progressUpdates = mutableListOf<Pair<Int, Int>>()
         val indicator = Indicator("198.51.100.50", "198.51.100.50", IndicatorType.IP_ADDRESS)
 
         val verdict = repository.analyze(indicator) { completed, total ->

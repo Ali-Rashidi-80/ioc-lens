@@ -52,6 +52,12 @@ class HomeViewModel(
     private var hashJob: Job? = null
     private var currentGeneration: Long = 0L
     private var errorDismissJob: Job? = null
+    private var queueIdSequence: Long = 0L
+
+    private fun nextQueueId(index: Int = 0): String {
+        queueIdSequence++
+        return "queue_${queueIdSequence}_$index"
+    }
 
     private fun setTimedErrorMessage(message: String?, autoDismissDelayMs: Long = 4000L) {
         errorDismissJob?.cancel()
@@ -414,7 +420,7 @@ class HomeViewModel(
             val first = files.first()
             hashAndAnalyzeFile(first.path, first.name, isTemporary)
             val queueItem = FileQueueItem(
-                id = "${System.currentTimeMillis()}_0",
+                id = nextQueueId(0),
                 filePath = first.path,
                 fileName = first.name,
                 fileSizeBytes = first.sizeBytes,
@@ -427,7 +433,7 @@ class HomeViewModel(
 
         val newQueueItems = files.mapIndexed { index, file ->
             FileQueueItem(
-                id = "${System.currentTimeMillis()}_$index",
+                id = nextQueueId(index),
                 filePath = file.path,
                 fileName = file.name,
                 fileSizeBytes = file.sizeBytes,

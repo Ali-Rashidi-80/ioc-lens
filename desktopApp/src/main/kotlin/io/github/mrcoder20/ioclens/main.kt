@@ -200,7 +200,27 @@ fun main(args: Array<String>) {
             }
 
             LaunchedEffect(window) {
-                window.dropTarget = object : java.awt.dnd.DropTarget() {
+                val windowDropTarget = object : java.awt.dnd.DropTarget() {
+                    override fun dragEnter(dtde: java.awt.dnd.DropTargetDragEvent) {
+                        if (dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor) ||
+                            dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)
+                        ) {
+                            dtde.acceptDrag(java.awt.dnd.DnDConstants.ACTION_COPY)
+                        } else {
+                            dtde.rejectDrag()
+                        }
+                    }
+
+                    override fun dragOver(dtde: java.awt.dnd.DropTargetDragEvent) {
+                        if (dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor) ||
+                            dtde.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)
+                        ) {
+                            dtde.acceptDrag(java.awt.dnd.DnDConstants.ACTION_COPY)
+                        } else {
+                            dtde.rejectDrag()
+                        }
+                    }
+
                     override fun drop(evt: java.awt.dnd.DropTargetDropEvent) {
                         try {
                             evt.acceptDrop(java.awt.dnd.DnDConstants.ACTION_COPY)
@@ -228,6 +248,9 @@ fun main(args: Array<String>) {
                         }
                     }
                 }
+                window.dropTarget = windowDropTarget
+                window.rootPane?.dropTarget = windowDropTarget
+                window.contentPane?.dropTarget = windowDropTarget
             }
 
             IOCLensTheme {

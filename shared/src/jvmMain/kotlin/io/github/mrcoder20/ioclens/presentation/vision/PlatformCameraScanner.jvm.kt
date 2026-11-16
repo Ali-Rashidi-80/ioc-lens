@@ -151,7 +151,8 @@ actual fun PlatformCameraScanner(
         object : DropTarget() {
             override fun dragEnter(dtde: DropTargetDragEvent) {
                 if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ||
-                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor)
+                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor) ||
+                    dtde.isDataFlavorSupported(DataFlavor.stringFlavor)
                 ) {
                     dtde.acceptDrag(DnDConstants.ACTION_COPY)
                 } else {
@@ -161,7 +162,8 @@ actual fun PlatformCameraScanner(
 
             override fun dragOver(dtde: DropTargetDragEvent) {
                 if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor) ||
-                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor)
+                    dtde.isDataFlavorSupported(DataFlavor.imageFlavor) ||
+                    dtde.isDataFlavorSupported(DataFlavor.stringFlavor)
                 ) {
                     dtde.acceptDrag(DnDConstants.ACTION_COPY)
                 } else {
@@ -227,6 +229,31 @@ actual fun PlatformCameraScanner(
                             }
                             evt.dropComplete(true)
                             return
+                        }
+                    } else if (transferable.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                        val text = (transferable.getTransferData(DataFlavor.stringFlavor) as? String)?.trim().orEmpty()
+                        if (text.isNotBlank()) {
+                            val cleanPath = text.removePrefix("file://").removePrefix("file:///").trim()
+                            val candidateFile = File(cleanPath)
+                            if (candidateFile.isFile && candidateFile.exists()) {
+                                isDecoding = true
+                                showSnackbar("Decoding ${candidateFile.name}...", 2000L)
+                                scope.launch(Dispatchers.IO) {
+                                    val bytes = runCatching { candidateFile.readBytes() }.getOrDefault(byteArrayOf())
+                                    val payloads = decoder.decodeBarcodeFromBytes(bytes)
+                                    withContext(Dispatchers.Main) {
+                                        isDecoding = false
+                                        if (payloads.isNotEmpty()) {
+                                            statusMessage = null
+                                            onPayloadsDetected(payloads)
+                                        } else {
+                                            showSnackbar("No barcode detected in ${candidateFile.name}")
+                                        }
+                                    }
+                                }
+                                evt.dropComplete(true)
+                                return
+                            }
                         }
                     }
                     evt.dropComplete(false)

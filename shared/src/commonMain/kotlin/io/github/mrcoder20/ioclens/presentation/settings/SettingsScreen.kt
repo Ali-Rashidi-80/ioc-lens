@@ -163,7 +163,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Beautiful Modal Dialog for 10 Threat Intelligence Engines
+            // Modal Dialog for 10 Threat Intelligence Engines
             if (showEnginesDialog) {
                 ThreatIntelEnginesDialog(
                     strings = strings,
@@ -394,7 +394,7 @@ private fun ThreatIntelEnginesCard(
 }
 
 /**
- * Beautiful Glassmorphic Modal Dialog displaying all 10 Zero-Key Community Threat Intelligence Engines.
+ * Modal dialog displaying all 10 Zero-Key Community Threat Intelligence Engines.
  */
 @Composable
 internal fun ThreatIntelEnginesDialog(
