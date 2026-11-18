@@ -188,22 +188,26 @@ class HomeNavigationTest {
         val history = listOf(v1, v2, v3)
 
         // 1. Filter by Query: "evil"
-        val queryFiltered = history.filter { it.indicator.rawValue.contains("evil", ignoreCase = true) }
+        val queryFiltered = filterScanHistory(history = history, searchQuery = "evil")
         assertEquals(1, queryFiltered.size)
         assertEquals("evil.com", queryFiltered[0].indicator.rawValue)
 
         // 2. Filter by Type: IP_ADDRESS
-        val ipFiltered = history.filter { it.indicator.type == IndicatorType.IP_ADDRESS }
+        val ipFiltered = filterScanHistory(history = history, selectedTypeFilter = IndicatorType.IP_ADDRESS)
         assertEquals(1, ipFiltered.size)
         assertEquals("8.8.8.8", ipFiltered[0].indicator.rawValue)
 
-        // 3. Filter by Type: FILE_HASH
-        val hashFiltered = history.filter { it.indicator.type == IndicatorType.FILE_HASH }
-        assertEquals(1, hashFiltered.size)
-        assertEquals("44d88612fea8a8f36de82e1278abb02f", hashFiltered[0].indicator.rawValue)
+        // 3. Filter by VerdictLevel: SUSPICIOUS
+        val verdictFiltered = filterScanHistory(history = history, selectedVerdictFilter = VerdictLevel.SUSPICIOUS)
+        assertEquals(1, verdictFiltered.size)
+        assertEquals("44d88612fea8a8f36de82e1278abb02f", verdictFiltered[0].indicator.rawValue)
 
-        // 4. Filter by Non-matching query
-        val emptyFiltered = history.filter { it.indicator.rawValue.contains("non-existent") }
+        // 4. Exclude pending-deleted rawValue
+        val excludedFiltered = filterScanHistory(history = history, excludedRawValues = setOf("evil.com"))
+        assertEquals(2, excludedFiltered.size)
+
+        // 5. Filter by Non-matching query
+        val emptyFiltered = filterScanHistory(history = history, searchQuery = "non-existent")
         assertTrue(emptyFiltered.isEmpty(), "Should return empty list for non-matching query")
     }
 }

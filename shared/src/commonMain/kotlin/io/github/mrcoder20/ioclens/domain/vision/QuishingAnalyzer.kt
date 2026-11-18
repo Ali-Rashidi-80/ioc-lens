@@ -1,5 +1,6 @@
 package io.github.mrcoder20.ioclens.domain.vision
 
+import io.github.mrcoder20.ioclens.currentTimeMillis
 import io.github.mrcoder20.ioclens.domain.model.ParsedIoc
 import io.github.mrcoder20.ioclens.domain.parser.IOCParser
 import kotlin.io.encoding.Base64
@@ -11,6 +12,7 @@ object QuishingAnalyzer {
 
     private val ZERO_WIDTH_REGEX = Regex("[\u200B\u200C\u200D\uFEFF\u200E\u200F\u2060\u00A0]")
     private val BIDI_RLO_REGEX = Regex("[\u202A-\u202E\u2066-\u2069]")
+    private val CONTROL_CHAR_REGEX = Regex("[\\u0000-\\u001F\\u007F]")
 
     private val DANGEROUS_SCHEMES = setOf(
         "javascript", "data", "intent", "itms-services", "blob", "file", "vbscript", "about"
@@ -83,6 +85,7 @@ object QuishingAnalyzer {
         val sanitized = bounded
             .replace(BIDI_RLO_REGEX, "")
             .replace(ZERO_WIDTH_REGEX, "")
+            .replace(CONTROL_CHAR_REGEX, "")
             .trim()
 
         val lower = sanitized.lowercase()
@@ -110,10 +113,10 @@ object QuishingAnalyzer {
             val urlRisk = evaluateUrlRisk(sanitized)
             if (urlRisk.first == QuishingRisk.HIGH_RISK) {
                 risk = QuishingRisk.HIGH_RISK
-                if (urlRisk.second != null) riskReason = appendReason(riskReason, urlRisk.second!!)
+                urlRisk.second?.let { reason -> riskReason = appendReason(riskReason, reason) }
             } else if (urlRisk.first == QuishingRisk.SUSPICIOUS && risk == QuishingRisk.SAFE) {
                 risk = QuishingRisk.SUSPICIOUS
-                if (urlRisk.second != null) riskReason = appendReason(riskReason, urlRisk.second!!)
+                urlRisk.second?.let { reason -> riskReason = appendReason(riskReason, reason) }
             }
 
             // Extract nested redirects
@@ -166,7 +169,7 @@ object QuishingAnalyzer {
             riskReason = riskReason,
             unmaskedTargetUrl = unmaskedTarget,
             punycodeHost = punycodeHost,
-            timestamp = 0L
+            timestamp = currentTimeMillis()
         )
     }
 
@@ -184,16 +187,30 @@ object QuishingAnalyzer {
         val lowerHost = host.lowercase()
         val lowerUrl = url.lowercase()
 
-        // Authority Userinfo spoofing: http://trusted.com@evil.com
-        val authorityPart = url.substringAfter("://").substringBefore('/')
+        // Authority Userinfo spoofing: http://trusted.com@evil.com or http://a@b@evil.com
+        val authorityPart = url.substringAfter("://")
+            .substringBefore('/')
+            .substringBefore('?')
+            .substringBefore('#')
+            .substringBefore('\\')
         if (authorityPart.contains('@')) {
-            val userinfo = authorityPart.substringBefore('@')
-            val actualHost = authorityPart.substringAfter('@').substringBefore(':')
+            val userinfo = authorityPart.substringBeforeLast('@')
+            val actualHostSegment = authorityPart.substringAfterLast('@')
+            val actualHost = if (actualHostSegment.startsWith("[")) {
+                actualHostSegment.substringBefore(']') + "]"
+            } else {
+                actualHostSegment.substringBefore(':')
+            }
             return Pair(QuishingRisk.HIGH_RISK, "Authority userinfo spoofing detected: masquerading as $userinfo -> $actualHost")
         }
 
+        // Raw IPv6 host literal: http://[2001:db8::1]/payload
+        if (lowerHost.startsWith("[") && lowerHost.contains(']')) {
+            return Pair(QuishingRisk.HIGH_RISK, "Raw IPv6 host literal ($lowerHost)")
+        }
+
         // Numeric IP Host obfuscation
-        val hostWithoutPort = lowerHost.substringBefore(':')
+        val hostWithoutPort = lowerHost.substringBefore(':').trimEnd('.')
         if (HEX_IP_REGEX.matches(hostWithoutPort) || DWORD_IP_REGEX.matches(hostWithoutPort) || OCTAL_IP_REGEX.matches(hostWithoutPort)) {
             return Pair(QuishingRisk.HIGH_RISK, "Hex/DWORD/Octal numeric IP literal obfuscation")
         }
@@ -205,12 +222,12 @@ object QuishingAnalyzer {
         }
 
         // URL Shortener
-        if (URL_SHORTENERS.any { lowerHost == it || lowerHost.endsWith(".$it") }) {
-            return Pair(QuishingRisk.SUSPICIOUS, "URL Shortener: destination target is masked ($lowerHost)")
+        if (URL_SHORTENERS.any { hostWithoutPort == it || hostWithoutPort.endsWith(".$it") }) {
+            return Pair(QuishingRisk.SUSPICIOUS, "URL Shortener: destination target is masked ($hostWithoutPort)")
         }
 
         // Suspicious TLD + Phishing keywords
-        val hasSuspiciousTld = HIGH_RISK_TLDS.any { lowerHost.endsWith(it) }
+        val hasSuspiciousTld = HIGH_RISK_TLDS.any { hostWithoutPort.endsWith(it) }
         val hasPhishingKeyword = PHISHING_KEYWORDS.any { lowerUrl.contains(it) }
 
         if (hasSuspiciousTld && hasPhishingKeyword) {
@@ -218,7 +235,7 @@ object QuishingAnalyzer {
         }
 
         if (hasSuspiciousTld) {
-            return Pair(QuishingRisk.HIGH_RISK, "High-risk TLD detected in host ($lowerHost)")
+            return Pair(QuishingRisk.HIGH_RISK, "High-risk TLD detected in host ($hostWithoutPort)")
         }
 
         return Pair(QuishingRisk.SAFE, null)
@@ -236,16 +253,21 @@ object QuishingAnalyzer {
             if (value.isBlank()) continue
 
             if (key in REDIRECT_PARAMS) {
-                // Check if value is already a plain URL
-                if (value.startsWith("http%3A", ignoreCase = true) || value.startsWith("https%3A", ignoreCase = true)) {
-                    val decoded = runCatching { decodeUrlComponent(value) }.getOrNull()
-                    if (decoded != null && (decoded.startsWith("http://", ignoreCase = true) || decoded.startsWith("https://", ignoreCase = true))) {
-                        return decoded
+                // Check unencoded or single/double percent-encoded http(s) redirect target
+                var decodedCandidate = value
+                repeat(2) {
+                    if (decodedCandidate.contains('%')) {
+                        decodedCandidate = decodeUrlComponent(decodedCandidate)
                     }
+                }
+                if (decodedCandidate.startsWith("http://", ignoreCase = true) ||
+                    decodedCandidate.startsWith("https://", ignoreCase = true)
+                ) {
+                    return decodedCandidate
                 }
 
                 // Check Base64 encoded URL
-                if (value.length >= 8 && value.length <= 512) {
+                if (value.length in 8..512) {
                     val decoded = runCatching {
                         val cleanVal = value.replace("%3D", "=").replace("%3d", "=")
                         val bytes = try {
@@ -267,6 +289,7 @@ object QuishingAnalyzer {
 
     private fun decodeUrlComponent(encoded: String): String {
         return encoded
+            .replace("%25", "%", ignoreCase = true)
             .replace("%3A", ":", ignoreCase = true)
             .replace("%2F", "/", ignoreCase = true)
             .replace("%3F", "?", ignoreCase = true)
@@ -277,23 +300,35 @@ object QuishingAnalyzer {
 
     private fun extractHost(url: String): String {
         val afterScheme = url.substringAfter("://", url)
-        val authority = afterScheme.substringBefore('/').substringBefore('?').substringBefore('#')
-        return authority.substringAfter('@').substringBefore(':')
+        val authority = afterScheme
+            .substringBefore('/')
+            .substringBefore('?')
+            .substringBefore('#')
+            .substringBefore('\\')
+        val hostPort = authority.substringAfterLast('@')
+        return if (hostPort.startsWith("[") && hostPort.contains(']')) {
+            hostPort.substringBefore(']') + "]"
+        } else {
+            hostPort.substringBefore(':')
+        }
     }
 
     private fun containsMixedScripts(host: String): Boolean {
         var hasLatin = false
-        var hasCyrillicOrGreek = false
+        var hasConfusableScript = false
 
         for (ch in host) {
             val code = ch.code
-            if ((code in 0x0041..0x005A) || (code in 0x0061..0x007A)) {
-                hasLatin = true
-            } else if ((code in 0x0400..0x04FF) || (code in 0x0370..0x03FF)) {
-                hasCyrillicOrGreek = true
+            when {
+                (code in 0x0041..0x005A) || (code in 0x0061..0x007A) -> hasLatin = true
+                (code in 0x0400..0x052F) || // Cyrillic + Cyrillic Supplement
+                    (code in 0x0370..0x03FF) || // Greek
+                    (code in 0x0530..0x058F) || // Armenian
+                    (code in 0xFF01..0xFF5E) || // Fullwidth ASCII lookalikes
+                    (code in 0x0100..0x024F) -> hasConfusableScript = true // Latin Extended-A/B lookalikes
             }
         }
-        return hasLatin && hasCyrillicOrGreek
+        return hasLatin && hasConfusableScript
     }
 
     private fun appendReason(current: String?, newReason: String): String {

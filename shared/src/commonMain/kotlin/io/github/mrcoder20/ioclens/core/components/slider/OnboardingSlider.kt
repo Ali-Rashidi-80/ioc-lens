@@ -24,7 +24,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,9 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.springPress
-import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
-import io.github.mrcoder20.ioclens.core.theme.SurfaceDark
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -105,7 +105,7 @@ fun <T> OnboardingSlider(
     pagerState: PagerState,
     modifier: Modifier = Modifier,
     transitionStyle: PageTransitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
-    containerBackgroundColor: Color = Color(0xFF06080D).copy(alpha = 0.82f),
+    containerBackgroundColor: Color = Color.Unspecified,
     topBarContent: @Composable (() -> Unit)? = null,
     onFinishClicked: () -> Unit,
     onSkipClicked: (() -> Unit)? = null,
@@ -114,10 +114,20 @@ fun <T> OnboardingSlider(
     skipText: String? = null,
     pageContent: @Composable (item: T, page: Int) -> Unit
 ) {
+    val palette = LocalIocColors.current
+    val resolvedBg = if (containerBackgroundColor == Color.Unspecified) {
+        palette.backgroundCanvas.copy(alpha = 0.88f)
+    } else {
+        containerBackgroundColor
+    }
     val coroutineScope = rememberCoroutineScope()
     val isLastPage = pagerState.currentPage == items.size - 1
     val focusRequester = remember { FocusRequester() }
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    LaunchedEffect(Unit) {
+        runCatching { focusRequester.requestFocus() }
+    }
 
     var isClosing by remember { mutableStateOf(false) }
 
@@ -133,7 +143,7 @@ fun <T> OnboardingSlider(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(containerBackgroundColor)
+            .background(resolvedBg)
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
@@ -184,7 +194,7 @@ fun <T> OnboardingSlider(
                 } else false
             }
     ) {
-        // Top Mesh Glow Gradient matching Header #041C24
+        // Top Mesh Glow Gradient
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -193,8 +203,8 @@ fun <T> OnboardingSlider(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            BackgroundDark.copy(alpha = 0.55f),
-                            SurfaceDark.copy(alpha = 0.25f),
+                            palette.backgroundCanvas.copy(alpha = 0.55f),
+                            palette.surfaceCard.copy(alpha = 0.25f),
                             Color.Transparent
                         )
                     )
@@ -314,37 +324,59 @@ fun <T> OnboardingSlider(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Side 1: Pagination Indicator Dots (Worm Dots)
-                    WormDotsIndicator(
-                        pageCount = items.size,
-                        currentPage = pagerState.currentPage,
-                        currentPageOffsetFraction = pagerState.currentPageOffsetFraction,
-                        onDotClick = { targetPage ->
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(targetPage, animationSpec = animSpec)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        WormDotsIndicator(
+                            pageCount = items.size,
+                            currentPage = pagerState.currentPage,
+                            currentPageOffsetFraction = pagerState.currentPageOffsetFraction,
+                            onDotClick = { targetPage ->
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(targetPage, animationSpec = animSpec)
+                                }
+                            }
+                        )
+                        if (shouldShowOnboardingSkip(pagerState.currentPage, items.size) && onSkipClicked != null && !skipText.isNullOrBlank()) {
+                            TextButton(
+                                onClick = {
+                                    if (!isClosing) {
+                                        isClosing = true
+                                        onSkipClicked()
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = skipText,
+                                    color = palette.textSecondary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
                             }
                         }
-                    )
+                    }
 
                     // Side 2: Next (Slides 1-3) or DONE Button (Slide 4)
                     if (isLastPage) {
                         Button(
                             onClick = safeFinishClicked,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = PrimaryCyan,
-                                contentColor = Color(0xFF041019)
+                                containerColor = palette.accentPrimary,
+                                contentColor = palette.onAccentPrimary
                             ),
                             shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 26.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .height(44.dp)
-                                .border(1.2.dp, PrimaryCyan, RoundedCornerShape(50))
+                                .border(1.2.dp, palette.accentPrimary, RoundedCornerShape(50))
                                 .springPress()
                         ) {
                             Text(
                                 text = doneText,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp,
-                                color = Color(0xFF041019),
+                                color = palette.onAccentPrimary,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 softWrap = false
@@ -358,14 +390,14 @@ fun <T> OnboardingSlider(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF131C30).copy(alpha = 0.92f),
-                                contentColor = Color.White
+                                containerColor = palette.surfaceCard.copy(alpha = 0.94f),
+                                contentColor = palette.textPrimary
                             ),
                             shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
                             modifier = Modifier
                                 .height(44.dp)
-                                .border(1.2.dp, PrimaryCyan.copy(alpha = 0.65f), RoundedCornerShape(50))
+                                .border(1.2.dp, palette.accentPrimary.copy(alpha = 0.65f), RoundedCornerShape(50))
                                 .springPress()
                         ) {
                             Row(
@@ -377,10 +409,10 @@ fun <T> OnboardingSlider(
                                         text = nextText,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 13.sp,
-                                        color = Color.White
+                                        color = palette.textPrimary
                                     )
                                 }
-                                VectorNextArrow(isRtl = isRtl)
+                                VectorNextArrow(isRtl = isRtl, color = palette.textPrimary)
                             }
                         }
                     }

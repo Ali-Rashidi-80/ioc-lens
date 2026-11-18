@@ -3,7 +3,9 @@ package io.github.mrcoder20.ioclens.domain.model
 enum class HashAlgorithm {
     MD5,
     SHA1,
-    SHA256
+    SHA256,
+    SHA384,
+    SHA512
 }
 
 sealed class ParsedIoc {
@@ -27,7 +29,8 @@ sealed class ParsedIoc {
         override val rawValue: String,
         override val normalizedValue: String,
         val host: String,
-        val isInternal: Boolean
+        val isInternal: Boolean,
+        val hadEmbeddedCredentials: Boolean = false
     ) : ParsedIoc()
 
     data class Hash(

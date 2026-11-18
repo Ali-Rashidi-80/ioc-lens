@@ -11,16 +11,16 @@ import java.security.MessageDigest
 
 actual class ChunkedStreamHasher actual constructor() : StreamHasher {
 
-    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
+    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.IO) {
         val file = File(filePath)
-        if (!file.exists() || !file.isFile) {
-            throw IllegalArgumentException("File not found or is not a regular file at: $filePath")
+        if (!file.exists() || !file.isFile || !file.canRead()) {
+            throw IllegalArgumentException("Selected file does not exist or cannot be read")
         }
 
         val sha256Digest = MessageDigest.getInstance("SHA-256")
         val md5Digest = MessageDigest.getInstance("MD5")
 
-        val buffer = ByteArray(64 * 1024) // 64KB buffer
+        val buffer = ByteArray(64 * 1024)
         var totalBytes = 0L
 
         FileInputStream(file).use { input ->

@@ -80,7 +80,10 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -128,30 +131,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import io.github.mrcoder20.ioclens.core.components.AppBackHandler
 import io.github.mrcoder20.ioclens.core.components.CameraLensVectorIcon
 import io.github.mrcoder20.ioclens.core.components.ClipboardVectorIcon
+import io.github.mrcoder20.ioclens.core.components.rememberClipboardActions
 import io.github.mrcoder20.ioclens.presentation.vision.CyberLensDialog
 import io.github.mrcoder20.ioclens.core.components.ControlledMarqueeText
 import io.github.mrcoder20.ioclens.core.components.DisintegrationContainer
 import io.github.mrcoder20.ioclens.core.components.FileDocumentVectorIcon
 import io.github.mrcoder20.ioclens.core.components.HistoryVectorIcon
-import io.github.mrcoder20.ioclens.core.components.LiquidGlowBackground
 import io.github.mrcoder20.ioclens.core.components.ScannerVectorIcon
 import io.github.mrcoder20.ioclens.core.components.SettingsVectorIcon
 import io.github.mrcoder20.ioclens.core.components.ShieldVerdictVectorIcon
@@ -161,38 +165,125 @@ import io.github.mrcoder20.ioclens.core.components.springPress
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
-import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
-import io.github.mrcoder20.ioclens.core.theme.CardDark
-import io.github.mrcoder20.ioclens.core.theme.DangerNeon
-import io.github.mrcoder20.ioclens.core.theme.PlaceholderHighContrast
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.IocSemanticColors
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
 import io.github.mrcoder20.ioclens.core.theme.PrimaryNeon
-import io.github.mrcoder20.ioclens.core.theme.SurfaceDark
+import io.github.mrcoder20.ioclens.core.theme.rememberMonospaceFontFamily
 import io.github.mrcoder20.ioclens.core.theme.topBorderHighlightBrush
-import io.github.mrcoder20.ioclens.core.theme.cardGlassBackdropBrush
-import io.github.mrcoder20.ioclens.core.theme.VerdictClean
-import io.github.mrcoder20.ioclens.core.theme.VerdictLowRisk
-import io.github.mrcoder20.ioclens.core.theme.VerdictMalicious
-import io.github.mrcoder20.ioclens.core.theme.VerdictNoData
-import io.github.mrcoder20.ioclens.core.theme.VerdictSuspicious
 import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.TriageVerdict
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
+import io.github.mrcoder20.ioclens.domain.vision.QuishingAnalyzer
+import io.github.mrcoder20.ioclens.logDiagnostic
 import io.github.mrcoder20.ioclens.presentation.settings.SettingsScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+private val exportJsonFormat = Json {
+    prettyPrint = true
+    encodeDefaults = true
+}
+
+internal fun filterScanHistory(
+    history: List<TriageVerdict>,
+    searchQuery: String = "",
+    selectedTypeFilter: IndicatorType? = null,
+    selectedVerdictFilter: VerdictLevel? = null,
+    excludedRawValues: Set<String> = emptySet()
+): List<TriageVerdict> {
+    val trimmed = searchQuery.trim()
+    return history.filter { item ->
+        item.indicator.rawValue !in excludedRawValues &&
+            (trimmed.isEmpty() ||
+                item.indicator.rawValue.contains(trimmed, ignoreCase = true) ||
+                item.indicator.normalizedValue.contains(trimmed, ignoreCase = true) ||
+                item.summaryDescription.contains(trimmed, ignoreCase = true)) &&
+            (selectedTypeFilter == null || item.indicator.type == selectedTypeFilter) &&
+            (selectedVerdictFilter == null || item.overallVerdict == selectedVerdictFilter)
+    }
+}
+
+private fun verdictColorFor(level: VerdictLevel, palette: IocSemanticColors): Color = when (level) {
+    VerdictLevel.CLEAN -> palette.verdictClean
+    VerdictLevel.LOW_RISK -> palette.verdictLowRisk
+    VerdictLevel.SUSPICIOUS -> palette.verdictSuspicious
+    VerdictLevel.MALICIOUS -> palette.verdictMalicious
+    VerdictLevel.NO_DATA -> palette.verdictNoData
+}
+
+private fun padTwoDigits(value: Int): String = if (value < 10) "0$value" else value.toString()
+
+internal fun formatUtcTimestamp(epochMs: Long): String {
+    if (epochMs <= 0L) return ""
+    val totalSeconds = epochMs / 1000L
+    val days = totalSeconds.floorDiv(86400L)
+    val secOfDay = totalSeconds.mod(86400L)
+    val hour = (secOfDay / 3600L).toInt()
+    val minute = ((secOfDay % 3600L) / 60L).toInt()
+
+    val z = days + 719468L
+    val era = (if (z >= 0) z else z - 146096L) / 146097L
+    val doe = z - era * 146097L
+    val yoe = (doe - doe / 1460L + doe / 36524L - doe / 146096L) / 365L
+    val y = yoe + era * 400L
+    val doy = doe - (365L * yoe + yoe / 4L - yoe / 100L)
+    val mp = (5L * doy + 2L) / 153L
+    val day = (doy - (153L * mp + 2L) / 5L + 1L).toInt()
+    val month = (mp + if (mp < 10L) 3L else -9L).toInt()
+    val year = (y + if (month <= 2) 1L else 0L).toInt()
+    return "$year-${padTwoDigits(month)}-${padTwoDigits(day)} ${padTwoDigits(hour)}:${padTwoDigits(minute)} UTC"
+}
+
+private fun formatFileSize(bytes: Long, language: AppLanguage): String {
+    if (bytes <= 0L) return ""
+    val label = when {
+        bytes < 1024L -> "$bytes B"
+        bytes < 1024L * 1024L -> "${bytes / 1024L} KB"
+        else -> {
+            val tenths = (bytes * 10L) / (1024L * 1024L)
+            "${tenths / 10}.${tenths % 10} MB"
+        }
+    }
+    return if (language == AppLanguage.PERSIAN) LocalizationProvider.toPersianDigits(label) else label
+}
+
+private fun buildVerdictMarkdownReport(verdict: TriageVerdict, appLanguage: AppLanguage): String {
+    val strings = LocalizationProvider.getStrings(appLanguage)
+    val sb = StringBuilder()
+    sb.appendLine("# IOC Lens Triage Report")
+    sb.appendLine("- **Indicator:** `${QuishingAnalyzer.defang(verdict.indicator.rawValue)}`")
+    sb.appendLine("- **Type:** ${LocalizationProvider.getIndicatorTypeName(verdict.indicator.type, appLanguage)}")
+    sb.appendLine("- **Verdict:** ${LocalizationProvider.getVerdictName(verdict.overallVerdict, appLanguage)} (${verdict.confidenceScore}%)")
+    val ts = formatUtcTimestamp(verdict.timestampEpochMs)
+    if (ts.isNotBlank()) {
+        sb.appendLine("- **Timestamp:** $ts")
+    }
+    sb.appendLine("- **Summary:** ${LocalizationProvider.getLocalizedVerdictSummary(verdict, appLanguage)}")
+    sb.appendLine()
+    sb.appendLine("## ${strings.threatIntelSourcesResults}")
+    verdict.sourceResults.forEach { src ->
+        sb.appendLine("- **${src.providerName}**: ${src.verdict.name} (${src.detectionsCount}/${src.totalEngineCount}) — ${src.summary}")
+    }
+    return sb.toString().trim()
+}
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
     settingsRepository: SettingsRepository,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onReplayGuide: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
+    val palette = LocalIocColors.current
+    val clipboardActions = rememberClipboardActions()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -239,7 +330,11 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(brush = Brush.verticalGradient(colors = listOf(BackgroundDark, CardDark)))
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(palette.surfaceElevated, palette.surfaceCard)
+                                )
+                            )
                             .statusBarsPadding()
                             .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
@@ -254,12 +349,12 @@ fun HomeScreen(
                                         .clip(CircleShape)
                                         .clickable { coroutineScope.launch { drawerState.close() } }
                                         .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color.White.copy(alpha = 0.12f)
+                                    color = palette.surfaceInset
                                 ) {
                                     Text(
                                         text = "✕",
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                        color = Color.White,
+                                        color = palette.textPrimary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
                                     )
@@ -313,7 +408,7 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         icon = {
                             ScannerVectorIcon(
-                                tint = if (uiState.selectedBottomNavTab == 0) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (uiState.selectedBottomNavTab == 0) palette.accentPrimary else palette.textSecondary,
                                 size = 20.dp
                             )
                         },
@@ -332,7 +427,7 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         icon = {
                             HistoryVectorIcon(
-                                tint = if (uiState.selectedBottomNavTab == 1) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (uiState.selectedBottomNavTab == 1) palette.accentPrimary else palette.textSecondary,
                                 size = 20.dp
                             )
                         },
@@ -356,7 +451,7 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         icon = {
                             SettingsVectorIcon(
-                                tint = if (uiState.selectedBottomNavTab == 2) PrimaryCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (uiState.selectedBottomNavTab == 2) palette.accentPrimary else palette.textSecondary,
                                 size = 20.dp
                             )
                         },
@@ -365,6 +460,25 @@ fun HomeScreen(
                         onClick = {
                             viewModel.onEvent(HomeEvent.SelectBottomNavTab(2))
                             coroutineScope.launch { drawerState.close() }
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = {
+                            ShieldVerdictVectorIcon(
+                                tint = palette.textSecondary,
+                                size = 20.dp
+                            )
+                        },
+                        label = { Text(text = strings.menuGuide, fontWeight = FontWeight.SemiBold) },
+                        selected = false,
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            onReplayGuide()
                         },
                         colors = NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -389,10 +503,10 @@ fun HomeScreen(
             val isMobileOrTablet = screenWidth < 840.dp
 
             // Ambient Top Glow (Subtle translucent cyber accent wash)
-            val ambientGlowBrush = remember {
+            val ambientGlowBrush = remember(palette.isDark, palette.accentPrimary) {
                 Brush.verticalGradient(
                     colors = listOf(
-                        PrimaryNeon.copy(alpha = 0.08f),
+                        palette.accentPrimary.copy(alpha = if (palette.isDark) 0.08f else 0.05f),
                         Color.Transparent
                     )
                 )
@@ -411,6 +525,10 @@ fun HomeScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
                     isFullScreen = true,
+                    onReplayGuide = {
+                        viewModel.onEvent(HomeEvent.SelectBottomNavTab(0))
+                        onReplayGuide()
+                    },
                     onClose = { viewModel.onEvent(HomeEvent.SelectBottomNavTab(0)) }
                 )
             } else {
@@ -439,17 +557,18 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { coroutineScope.launch { drawerState.open() } },
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    .clickable { coroutineScope.launch { drawerState.open() } }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = palette.surfaceElevated.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.35f))
                             ) {
                                 Text(
                                     text = "☰",
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryCyan
+                                    color = palette.accentPrimary
                                 )
                             }
                         }
@@ -477,14 +596,14 @@ fun HomeScreen(
                                         text = "IOC ",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color.White,
+                                        color = palette.textPrimary,
                                         letterSpacing = 1.sp
                                     )
                                     Text(
                                         text = "LENS",
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = PrimaryCyan,
+                                        color = palette.accentPrimary,
                                         letterSpacing = 1.sp
                                     )
                                 }
@@ -504,26 +623,27 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .springPress()
+                                    .pointerHoverIcon(PointerIcon.Hand)
                                     .clickable {
                                         val nextTab = if (uiState.selectedBottomNavTab == 1) 0 else 1
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
                                     },
-                                color = if (uiState.selectedBottomNavTab == 1) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                color = if (uiState.selectedBottomNavTab == 1) palette.accentPrimary.copy(alpha = 0.18f) else palette.surfaceElevated.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.35f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    HistoryVectorIcon(tint = PrimaryCyan, size = 16.dp)
+                                    HistoryVectorIcon(tint = palette.accentPrimary, size = 16.dp)
                                     if (uiState.scanHistory.isNotEmpty()) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = LocalizationProvider.formatNumber(uiState.scanHistory.size, uiState.appLanguage),
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = PrimaryCyan
+                                            color = palette.accentPrimary
                                         )
                                     }
                                 }
@@ -534,19 +654,20 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .springPress()
+                                    .pointerHoverIcon(PointerIcon.Hand)
                                     .clickable {
                                         val nextTab = if (uiState.selectedBottomNavTab == 2) 0 else 2
                                         viewModel.onEvent(HomeEvent.SelectBottomNavTab(nextTab))
                                     },
-                                color = if (uiState.selectedBottomNavTab == 2) PrimaryCyan.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                color = if (uiState.selectedBottomNavTab == 2) palette.accentPrimary.copy(alpha = 0.18f) else palette.surfaceElevated.copy(alpha = 0.9f),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.35f))
                             ) {
                                 Box(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    SettingsVectorIcon(tint = PrimaryCyan, size = 16.dp)
+                                    SettingsVectorIcon(tint = palette.accentPrimary, size = 16.dp)
                                 }
                             }
                         }
@@ -565,6 +686,10 @@ fun HomeScreen(
                                 },
                                 onDelete = { item ->
                                     viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                },
+                                onExportJson = { items ->
+                                    clipboardActions.copyText(exportJsonFormat.encodeToString(items))
+                                    viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
                                 },
                                 onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                             )
@@ -593,6 +718,7 @@ fun HomeScreen(
                                         onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                         onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                         onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                        onSelectSample = { sample -> viewModel.onEvent(HomeEvent.SelectSampleQuery(sample)) },
                                         onOpenFilePicker = batchFilePickerLauncher,
                                         onOpenVisionLens = { viewModel.onEvent(HomeEvent.OpenVisionLens) },
                                         modifier = Modifier
@@ -607,6 +733,8 @@ fun HomeScreen(
                                         onOpenFilePicker = batchFilePickerLauncher,
                                         onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
                                         onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                        onRetryQueueItem = { id -> viewModel.onEvent(HomeEvent.RetryQueueItem(id)) },
+                                        onRemoveQueueItem = { id -> viewModel.onEvent(HomeEvent.RemoveQueueItem(id)) },
                                         modifier = Modifier
                                             .weight(1f)
                                             .fillMaxHeight(),
@@ -615,7 +743,11 @@ fun HomeScreen(
                                 }
 
                                 // 2. File Hashing Progress Banner (Full Width)
-                                FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+                                FileHashingBanner(
+                                    uiState = uiState,
+                                    appLanguage = uiState.appLanguage,
+                                    onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                )
 
                                 // 3. Auto-Dismissing Error Message Banner (Full Width)
                                 ErrorMessageBanner(errorMessage = uiState.errorMessage)
@@ -642,11 +774,51 @@ fun HomeScreen(
                                     exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
                                 ) {
                                     uiState.activeVerdict?.let { verdict ->
-                                        OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                        OverallVerdictCard(
+                                            verdict = verdict,
+                                            appLanguage = uiState.appLanguage,
+                                            onCopyRaw = {
+                                                clipboardActions.copyText(verdict.indicator.rawValue)
+                                                viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                            },
+                                            onCopyDefanged = {
+                                                clipboardActions.copyText(QuishingAnalyzer.defang(verdict.indicator.rawValue))
+                                                viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                            },
+                                            onCopyReport = {
+                                                clipboardActions.copyText(buildVerdictMarkdownReport(verdict, uiState.appLanguage))
+                                                viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                            },
+                                            onReScan = { viewModel.onEvent(HomeEvent.ReScanIndicator) }
+                                        )
                                     }
                                 }
 
+                                // 6. Per-Engine Telemetry Breakdown Matrix (Desktop Two-Column)
+                                AnimatedVisibility(
+                                    visible = uiState.isLoading || uiState.activeVerdict != null,
+                                    enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                    exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                                ) {
+                                    LiveProviderDeck(
+                                        uiState = uiState,
+                                        onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
+                                        isTwoColumn = true
+                                    )
+                                }
 
+                                // 7. Desktop Recent Triage HUD Feed
+                                RecentTriageFeedHUD(
+                                    history = uiState.scanHistory,
+                                    appLanguage = uiState.appLanguage,
+                                    strings = strings,
+                                    onSelect = { item -> viewModel.onEvent(HomeEvent.HistoryItemClicked(item)) },
+                                    onDelete = { item -> viewModel.onEvent(HomeEvent.DeleteHistoryItem(item)) },
+                                    onReScan = { raw ->
+                                        viewModel.onEvent(HomeEvent.QueryChanged(raw))
+                                        viewModel.onEvent(HomeEvent.AnalyzeClicked)
+                                    }
+                                )
                             }
                         }
                     }
@@ -679,17 +851,41 @@ fun HomeScreen(
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
-                                        color = Color(0xFF0F172A).copy(alpha = 0.90f),
-                                        border = BorderStroke(0.8.dp, Color(0xFF1E293B))
+                                        color = palette.surfaceCard.copy(alpha = 0.94f),
+                                        border = BorderStroke(0.8.dp, palette.borderSubtle)
                                     ) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth().padding(3.dp),
                                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                                         ) {
                                             val triageModes = listOf(
-                                                Triple(0, if (isRtl) "همه بخش‌ها" else "All", "🌐"),
-                                                Triple(1, if (isRtl) "تحلیل شاخص" else "IOC Text", "🔍"),
-                                                Triple(2, if (isRtl) "صف فایل‌ها" else "Files", "📁")
+                                                Triple(
+                                                    0,
+                                                    when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "همه بخش‌ها"
+                                                        AppLanguage.RUSSIAN -> "Все"
+                                                        AppLanguage.ENGLISH -> "All"
+                                                    },
+                                                    "🌐"
+                                                ),
+                                                Triple(
+                                                    1,
+                                                    when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "تحلیل شاخص"
+                                                        AppLanguage.RUSSIAN -> "IOC-текст"
+                                                        AppLanguage.ENGLISH -> "IOC Text"
+                                                    },
+                                                    "🔍"
+                                                ),
+                                                Triple(
+                                                    2,
+                                                    when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "صف فایل‌ها"
+                                                        AppLanguage.RUSSIAN -> "Файлы"
+                                                        AppLanguage.ENGLISH -> "Files"
+                                                    },
+                                                    "📁"
+                                                )
                                             )
                                             triageModes.forEach { (idx, title, icon) ->
                                                 val isSelected = activeTriageTab == idx
@@ -701,8 +897,8 @@ fun HomeScreen(
                                                         .clickable { activeTriageTab = idx }
                                                         .pointerHoverIcon(PointerIcon.Hand),
                                                     shape = RoundedCornerShape(8.dp),
-                                                    color = if (isSelected) PrimaryCyan.copy(alpha = 0.18f) else Color.Transparent,
-                                                    border = if (isSelected) BorderStroke(0.9.dp, PrimaryCyan.copy(alpha = 0.40f)) else null
+                                                    color = if (isSelected) palette.accentPrimary.copy(alpha = 0.16f) else Color.Transparent,
+                                                    border = if (isSelected) BorderStroke(0.9.dp, palette.accentPrimary.copy(alpha = 0.45f)) else null
                                                 ) {
                                                     Row(
                                                         modifier = Modifier.fillMaxSize(),
@@ -715,7 +911,7 @@ fun HomeScreen(
                                                             text = title,
                                                             fontSize = 10.5.sp,
                                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                            color = if (isSelected) PrimaryCyan else Color(0xFFCBD5E1),
+                                                            color = if (isSelected) palette.accentPrimary else palette.textSecondary,
                                                             maxLines = 1
                                                         )
                                                     }
@@ -733,6 +929,7 @@ fun HomeScreen(
                                             onClear = { viewModel.onEvent(HomeEvent.ClearClicked) },
                                             onCancel = { viewModel.onEvent(HomeEvent.CancelScan) },
                                             onAnalyze = { viewModel.onEvent(HomeEvent.AnalyzeClicked) },
+                                            onSelectSample = { sample -> viewModel.onEvent(HomeEvent.SelectSampleQuery(sample)) },
                                             onOpenFilePicker = batchFilePickerLauncher,
                                             onOpenVisionLens = { viewModel.onEvent(HomeEvent.OpenVisionLens) }
                                         )
@@ -745,12 +942,18 @@ fun HomeScreen(
                                             onOpenFilePicker = batchFilePickerLauncher,
                                             onClearQueue = { viewModel.onEvent(HomeEvent.ClearFileQueue) },
                                             onSelectQueueItem = { viewModel.onEvent(HomeEvent.SelectQueueItemVerdict(it)) },
+                                            onRetryQueueItem = { id -> viewModel.onEvent(HomeEvent.RetryQueueItem(id)) },
+                                            onRemoveQueueItem = { id -> viewModel.onEvent(HomeEvent.RemoveQueueItem(id)) },
                                             modifier = Modifier.fillMaxWidth(),
                                             isCompact = true
                                         )
                                     }
 
-                                    FileHashingBanner(uiState = uiState, appLanguage = uiState.appLanguage)
+                                    FileHashingBanner(
+                                        uiState = uiState,
+                                        appLanguage = uiState.appLanguage,
+                                        onCancel = { viewModel.onEvent(HomeEvent.CancelScan) }
+                                    )
 
                                     ErrorMessageBanner(errorMessage = uiState.errorMessage)
 
@@ -774,8 +977,36 @@ fun HomeScreen(
                                         exit = fadeOut(tween(250)) + shrinkVertically(tween(250))
                                     ) {
                                         uiState.activeVerdict?.let { verdict ->
-                                            OverallVerdictCard(verdict = verdict, appLanguage = uiState.appLanguage)
+                                            OverallVerdictCard(
+                                                verdict = verdict,
+                                                appLanguage = uiState.appLanguage,
+                                                onCopyRaw = {
+                                                    clipboardActions.copyText(verdict.indicator.rawValue)
+                                                    viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                                },
+                                                onCopyDefanged = {
+                                                    clipboardActions.copyText(QuishingAnalyzer.defang(verdict.indicator.rawValue))
+                                                    viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                                },
+                                                onCopyReport = {
+                                                    clipboardActions.copyText(buildVerdictMarkdownReport(verdict, uiState.appLanguage))
+                                                    viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                                                },
+                                                onReScan = { viewModel.onEvent(HomeEvent.ReScanIndicator) }
+                                            )
                                         }
+                                    }
+
+                                    AnimatedVisibility(
+                                        visible = uiState.isLoading || uiState.activeVerdict != null,
+                                        enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                                        exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                                    ) {
+                                        LiveProviderDeck(
+                                            uiState = uiState,
+                                            onToggle = { viewModel.onEvent(HomeEvent.ToggleProviderDeck) },
+                                            isTwoColumn = false
+                                        )
                                     }
                                 }
                             }
@@ -789,6 +1020,10 @@ fun HomeScreen(
                                     },
                                     onDelete = { item ->
                                         viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
+                                    },
+                                    onExportJson = { items ->
+                                        clipboardActions.copyText(exportJsonFormat.encodeToString(items))
+                                        viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
                                     },
                                     onClear = { viewModel.onEvent(HomeEvent.ClearHistory) }
                                 )
@@ -819,6 +1054,10 @@ fun HomeScreen(
                     onDelete = { item ->
                         viewModel.onEvent(HomeEvent.DeleteHistoryItem(item))
                     },
+                    onExportJson = { items ->
+                        clipboardActions.copyText(exportJsonFormat.encodeToString(items))
+                        viewModel.onEvent(HomeEvent.ShowStatusFeedback(strings.copiedFeedback))
+                    },
                     onClear = { viewModel.onEvent(HomeEvent.ClearHistory) },
                     onClose = { viewModel.onEvent(HomeEvent.SetHistorySheetOpen(false)) }
                 )
@@ -833,8 +1072,49 @@ fun HomeScreen(
                 SettingsScreen(
                     settingsRepository = settingsRepository,
                     isMobileOrTablet = isMobileOrTablet,
+                    onReplayGuide = {
+                        viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false))
+                        onReplayGuide()
+                    },
                     onClose = { viewModel.onEvent(HomeEvent.SetSettingsSheetOpen(false)) }
                 )
+            }
+
+            // Status Feedback Toast Banner
+            val feedbackMessage = uiState.statusFeedbackMessage
+            LaunchedEffect(feedbackMessage) {
+                if (feedbackMessage != null) {
+                    delay(2400L)
+                    viewModel.onEvent(HomeEvent.DismissStatusFeedback)
+                }
+            }
+            AnimatedVisibility(
+                visible = feedbackMessage != null,
+                enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 3 },
+                exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 3 },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (isMobileOrTablet) 76.dp else 48.dp, start = 16.dp, end = 16.dp)
+            ) {
+                if (feedbackMessage != null) {
+                    Surface(
+                        color = palette.surfaceElevated,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.65f)),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.onEvent(HomeEvent.DismissStatusFeedback) }
+                    ) {
+                        Text(
+                            text = feedbackMessage,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = palette.textPrimary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
 
             // Mobile & Tablet Adaptive Cyberpunk Bottom Navigation Bar
@@ -868,6 +1148,8 @@ fun HomeScreen(
                 ThreatIntelEnginesDialog(
                     strings = strings,
                     isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
+                    appLanguage = uiState.appLanguage,
+                    settingsRepository = settingsRepository,
                     onDismiss = { showThreatIntelDialog = false }
                 )
             }
@@ -899,6 +1181,8 @@ private fun LiveScanBanner(
     modifier: Modifier = Modifier
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     val infiniteTransition = rememberInfiniteTransition(label = "LiveScanRadar")
 
     // Rotating radar beam (deferred to graphicsLayer to prevent parent card recomposition)
@@ -918,15 +1202,15 @@ private fun LiveScanBanner(
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF091424).copy(alpha = 0.95f)
+            containerColor = palette.surfaceCard.copy(alpha = 0.96f)
         ),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.2.dp,
             Brush.horizontalGradient(
                 listOf(
-                    PrimaryCyan.copy(alpha = 0.8f),
-                    Color(0xFF00FF88).copy(alpha = 0.7f),
-                    PrimaryCyan.copy(alpha = 0.8f)
+                    palette.accentPrimary.copy(alpha = 0.8f),
+                    palette.accentSecondary.copy(alpha = 0.7f),
+                    palette.accentPrimary.copy(alpha = 0.8f)
                 )
             )
         ),
@@ -951,41 +1235,37 @@ private fun LiveScanBanner(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF06101E))
-                            .border(1.dp, PrimaryCyan.copy(alpha = 0.4f), CircleShape),
+                            .background(palette.surfaceInset)
+                            .border(1.dp, palette.accentPrimary.copy(alpha = 0.4f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Canvas(modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = radarRotationState.value }) {
                             val center = Offset(size.width / 2f, size.height / 2f)
                             val radius = size.width / 2f
 
-                            // Outer radar circle
                             drawCircle(
-                                color = PrimaryCyan.copy(alpha = 0.35f),
+                                color = palette.accentPrimary.copy(alpha = 0.35f),
                                 radius = radius,
                                 style = Stroke(width = 1.2.dp.toPx())
                             )
-                            // Inner circle
                             drawCircle(
-                                color = PrimaryCyan.copy(alpha = 0.2f),
+                                color = palette.accentPrimary.copy(alpha = 0.2f),
                                 radius = radius * 0.55f,
                                 style = Stroke(width = 1.dp.toPx())
                             )
-                            // Sweep needle
                             drawLine(
-                                color = PrimaryCyan,
+                                color = palette.accentPrimary,
                                 start = center,
                                 end = Offset(center.x + radius, center.y),
                                 strokeWidth = 2.dp.toPx(),
                                 cap = StrokeCap.Round
                             )
                         }
-                        // Center blip
                         Box(
                             modifier = Modifier
                                 .size(5.dp)
                                 .clip(CircleShape)
-                                .background(Color.White)
+                                .background(palette.textPrimary)
                         )
                     }
 
@@ -997,9 +1277,9 @@ private fun LiveScanBanner(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Surface(
-                                color = PrimaryCyan.copy(alpha = 0.15f),
+                                color = palette.accentPrimary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(4.dp),
-                                border = androidx.compose.foundation.BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.4f))
+                                border = BorderStroke(0.6.dp, palette.accentPrimary.copy(alpha = 0.4f))
                             ) {
                                 Text(
                                     text = targetIndicator?.let { LocalizationProvider.getIndicatorTypeName(it.type, appLanguage) } ?: strings.statusScanning,
@@ -1007,14 +1287,14 @@ private fun LiveScanBanner(
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryCyan
+                                    color = palette.accentPrimary
                                 )
                             }
 
                             Text(
                                 text = strings.liveScanInProgress,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White,
+                                color = palette.textPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp
                             )
@@ -1026,8 +1306,8 @@ private fun LiveScanBanner(
                                 ControlledMarqueeText(
                                     text = targetIndicator.rawValue,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF9CA3AF),
-                                    fontFamily = FontFamily.Monospace,
+                                    color = palette.textSecondary,
+                                    fontFamily = monoFont,
                                     fontSize = 11.5.sp,
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -1039,12 +1319,12 @@ private fun LiveScanBanner(
                 // Instant Cancel Button
                 Button(
                     onClick = onCancel,
-                    colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.9f)),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.verdictMalicious),
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier
                         .height(36.dp)
-                        .border(1.dp, VerdictMalicious, RoundedCornerShape(10.dp))
+                        .border(1.dp, palette.verdictMalicious, RoundedCornerShape(10.dp))
                 ) {
                     Text(
                         text = strings.cancelScan,
@@ -1066,14 +1346,14 @@ private fun LiveScanBanner(
                     Text(
                         text = "${LocalizationProvider.formatNumber(finishedEngines, appLanguage)} / ${LocalizationProvider.formatNumber(totalEngines, appLanguage)} ${strings.enginesCompleted}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = PrimaryCyan,
+                        color = palette.accentPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
                     Text(
                         text = "${(progress * 100).toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF9CA3AF),
+                        color = palette.textSecondary,
                         fontSize = 10.5.sp
                     )
                 }
@@ -1084,8 +1364,8 @@ private fun LiveScanBanner(
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
-                    color = PrimaryCyan,
-                    trackColor = Color(0xFF101B2E)
+                    color = palette.accentPrimary,
+                    trackColor = palette.surfaceInset
                 )
             }
         }
@@ -1104,19 +1384,20 @@ private fun CyberpunkBottomNavBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        color = Color(0xFF090E17).copy(alpha = 0.95f),
-        border = androidx.compose.foundation.BorderStroke(
+        color = palette.surfaceElevated.copy(alpha = 0.97f),
+        border = BorderStroke(
             1.dp,
             Brush.horizontalGradient(
                 listOf(
                     Color.Transparent,
-                    PrimaryCyan.copy(alpha = 0.5f),
-                    PrimaryCyan.copy(alpha = 0.7f),
-                    PrimaryCyan.copy(alpha = 0.5f),
+                    palette.accentPrimary.copy(alpha = 0.5f),
+                    palette.accentPrimary.copy(alpha = 0.7f),
+                    palette.accentPrimary.copy(alpha = 0.5f),
                     Color.Transparent
                 )
             )
@@ -1139,8 +1420,8 @@ private fun CyberpunkBottomNavBar(
 
             tabs.forEach { (index, label) ->
                 val isSelected = selectedTab == index
-                val activeColor = PrimaryCyan
-                val inactiveColor = Color(0xFF7E8B9F)
+                val activeColor = palette.accentPrimary
+                val inactiveColor = palette.textMuted
 
                 val indicatorWidth by animateDpAsState(
                     targetValue = if (isSelected) 22.dp else 0.dp,
@@ -1195,14 +1476,14 @@ private fun CyberpunkBottomNavBar(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .offset(x = 10.dp, y = (-4).dp)
-                                        .background(PrimaryCyan, CircleShape)
+                                        .background(palette.accentPrimary, CircleShape)
                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                 ) {
                                     Text(
                                         text = LocalizationProvider.formatNumber(historyCount, appLanguage),
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.Black
+                                        color = palette.onAccentPrimary
                                     )
                                 }
                             }
@@ -1227,7 +1508,7 @@ private fun CyberpunkBottomNavBar(
                                 .width(indicatorWidth)
                                 .height(2.dp)
                                 .clip(RoundedCornerShape(1.dp))
-                                .background(if (indicatorWidth > 1.dp) PrimaryCyan else Color.Transparent)
+                                .background(if (indicatorWidth > 1.dp) palette.accentPrimary else Color.Transparent)
                         )
                     }
                 }
@@ -1237,37 +1518,65 @@ private fun CyberpunkBottomNavBar(
 }
 
 @Composable
-private fun FileHashingBanner(uiState: HomeUiState, appLanguage: AppLanguage) {
+private fun FileHashingBanner(
+    uiState: HomeUiState,
+    appLanguage: AppLanguage,
+    onCancel: () -> Unit = {}
+) {
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
     AnimatedVisibility(visible = uiState.isHashingFile) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.90f)),
-            border = BorderStroke(1.dp, topBorderHighlightBrush(PrimaryNeon, isDark = true)),
+            colors = CardDefaults.cardColors(containerColor = palette.surfaceCard.copy(alpha = 0.94f)),
+            border = BorderStroke(1.dp, topBorderHighlightBrush(palette.accentPrimary, isDark = palette.isDark)),
             shape = RoundedCornerShape(14.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = PrimaryCyan,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "⚡ ${strings.streamHashingTitle}: ${uiState.hashingFileName ?: "file"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = PrimaryCyan,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = palette.accentPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "⚡ ${strings.streamHashingTitle}: ${uiState.hashingFileName ?: "file"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = palette.accentPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    TextButton(
+                        onClick = onCancel,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(
+                            text = strings.cancelScan,
+                            color = palette.verdictMalicious,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(3.dp),
-                    color = PrimaryCyan,
-                    trackColor = BackgroundDark
+                    color = palette.accentPrimary,
+                    trackColor = palette.surfaceInset
                 )
             }
         }
@@ -1277,17 +1586,20 @@ private fun FileHashingBanner(uiState: HomeUiState, appLanguage: AppLanguage) {
 @Composable
 private fun SearchCard(
     uiState: HomeUiState,
-    strings: io.github.mrcoder20.ioclens.core.localization.AppStrings,
+    strings: AppStrings,
     isCompact: Boolean,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onCancel: () -> Unit,
     onAnalyze: () -> Unit,
+    onSelectSample: (String) -> Unit = {},
     onOpenFilePicker: () -> Unit = {},
     onOpenVisionLens: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
+    val clipboardActions = rememberClipboardActions()
     var isHovered by remember { mutableStateOf(false) }
     val pulseGlowState = if (uiState.queryInput.isNotBlank()) {
         val infiniteTransition = rememberInfiniteTransition(label = "scanPulse")
@@ -1314,18 +1626,17 @@ private fun SearchCard(
                 }
             },
         shape = RoundedCornerShape(16.dp),
-        color = CardDark.copy(alpha = if (isHovered) 0.95f else 0.85f),
+        color = palette.surfaceCard.copy(alpha = if (isHovered) 0.98f else 0.92f),
         border = BorderStroke(
             1.dp,
-            if (isHovered) Brush.linearGradient(listOf(PrimaryCyan, PrimaryCyan.copy(alpha = 0.45f)))
-            else topBorderHighlightBrush(PrimaryNeon, isDark = true)
+            if (isHovered) Brush.linearGradient(listOf(palette.accentPrimary, palette.accentPrimary.copy(alpha = 0.45f)))
+            else topBorderHighlightBrush(palette.accentPrimary, isDark = palette.isDark)
         ),
         shadowElevation = if (isHovered) 8.dp else 4.dp
     ) {
         Column(
             modifier = if (isCompact) Modifier.fillMaxWidth().padding(18.dp) else Modifier.fillMaxSize().padding(18.dp)
         ) {
-            // Header matching FileScannerCard perfectly
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1335,10 +1646,10 @@ private fun SearchCard(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(PrimaryCyan.copy(alpha = 0.15f)),
+                        .background(palette.accentPrimary.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    ScannerVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                    ScannerVectorIcon(tint = palette.accentPrimary, size = 20.dp)
                 }
                 Column {
                     Text(
@@ -1349,7 +1660,7 @@ private fun SearchCard(
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = palette.textPrimary
                     )
                     Text(
                         text = when (uiState.appLanguage) {
@@ -1358,7 +1669,7 @@ private fun SearchCard(
                             else -> "Real-time zero-key triage for IP, Domain, URL & Hash"
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8)
+                        color = palette.textSecondary
                     )
                 }
             }
@@ -1369,22 +1680,43 @@ private fun SearchCard(
             OutlinedTextField(
                 value = uiState.queryInput,
                 onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onPreviewKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyDown &&
+                            (keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter) &&
+                            uiState.queryInput.isNotBlank() &&
+                            !uiState.isLoading
+                        ) {
+                            onAnalyze()
+                            true
+                        } else {
+                            false
+                        }
+                    },
                 textStyle = LocalTextStyle.current.copy(
                     textDirection = TextDirection.Ltr,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = monoFont,
                     fontSize = if (isCompact) 13.5.sp else 14.5.sp,
-                    color = Color.White
+                    color = palette.textPrimary
                 ),
                 placeholder = {
                     Text(
                         text = strings.searchFieldPlaceholder,
-                        color = PlaceholderHighContrast,
+                        color = palette.textMuted,
                         fontSize = if (isCompact) 12.sp else 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (uiState.queryInput.isNotBlank() && !uiState.isLoading) {
+                            onAnalyze()
+                        }
+                    }
+                ),
                 trailingIcon = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -1400,13 +1732,13 @@ private fun SearchCard(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = PrimaryCyan.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f)),
+                                color = palette.accentPrimary.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.4f)),
                                 modifier = Modifier.size(26.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     CameraLensVectorIcon(
-                                        tint = PrimaryCyan,
+                                        tint = palette.accentPrimary,
                                         size = 14.dp
                                     )
                                 }
@@ -1422,7 +1754,7 @@ private fun SearchCard(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                    color = palette.surfaceInset,
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -1430,7 +1762,7 @@ private fun SearchCard(
                                             text = "✕",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            color = palette.textPrimary
                                         )
                                     }
                                 }
@@ -1440,13 +1772,58 @@ private fun SearchCard(
                 },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = PrimaryCyan,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                    focusedTextColor = palette.textPrimary,
+                    unfocusedTextColor = palette.textPrimary,
+                    focusedBorderColor = palette.accentPrimary,
+                    unfocusedBorderColor = palette.borderStrong
                 ),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            // Quick Sample IOC Chips when query is empty & idle
+            AnimatedVisibility(visible = uiState.queryInput.isBlank() && !uiState.isLoading) {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Text(
+                        text = strings.sampleIocsTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.textMuted,
+                        fontSize = 10.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val samples = listOf(
+                            strings.sampleGoogleDns to "8.8.8.8",
+                            strings.sampleMalwareUrl to "malware-test.com",
+                            strings.sampleHash to "ed01ebfbc9eb5bbea545af4d01bf5f1071661840480439c6e5babe8e080e41aa"
+                        )
+                        samples.forEach { (label, sampleValue) ->
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSelectSample(sampleValue) }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = palette.surfaceInset,
+                                border = BorderStroke(0.8.dp, palette.borderSubtle),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    fontSize = 10.5.sp,
+                                    color = palette.accentPrimary,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
             if (!isCompact) {
@@ -1462,19 +1839,19 @@ private fun SearchCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
-                            val clipText = clipboardManager.getText()?.text
+                            val clipText = clipboardActions.readText()
                             if (!clipText.isNullOrBlank()) {
                                 onQueryChange(clipText.trim())
                             }
                         },
-                        modifier = Modifier.springPress(),
-                        colors = ButtonDefaults.textButtonColors(contentColor = PrimaryCyan)
+                        modifier = Modifier.springPress().pointerHoverIcon(PointerIcon.Hand),
+                        colors = ButtonDefaults.textButtonColors(contentColor = palette.accentPrimary)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            ClipboardVectorIcon(tint = PrimaryCyan, size = 15.dp)
+                            ClipboardVectorIcon(tint = palette.accentPrimary, size = 15.dp)
                             Text(
                                 text = strings.pasteFromClipboard,
                                 fontSize = 12.sp,
@@ -1487,7 +1864,7 @@ private fun SearchCard(
                 if (uiState.isLoading) {
                     Button(
                         onClick = onCancel,
-                        colors = ButtonDefaults.buttonColors(containerColor = VerdictMalicious.copy(alpha = 0.85f)),
+                        colors = ButtonDefaults.buttonColors(containerColor = palette.verdictMalicious),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.height(38.dp).defaultMinSize(minWidth = 110.dp).springPress()
                     ) {
@@ -1511,16 +1888,16 @@ private fun SearchCard(
                         onClick = onAnalyze,
                         enabled = uiState.queryInput.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryCyan,
-                            contentColor = Color(0xFF070B14),
-                            disabledContainerColor = Color(0xFF131D31),
-                            disabledContentColor = Color(0xFF64748B)
+                            containerColor = palette.accentPrimary,
+                            contentColor = palette.onAccentPrimary,
+                            disabledContainerColor = palette.surfaceInset,
+                            disabledContentColor = palette.textMuted
                         ),
                         shape = RoundedCornerShape(10.dp),
                         border = if (uiState.queryInput.isNotBlank()) {
-                            BorderStroke(1.5.dp, PrimaryCyan.copy(alpha = pulseGlowState?.value ?: 0.35f))
+                            BorderStroke(1.5.dp, palette.accentPrimary.copy(alpha = pulseGlowState?.value ?: 0.35f))
                         } else {
-                            BorderStroke(1.dp, Color(0xFF1E293B))
+                            BorderStroke(1.dp, palette.borderSubtle)
                         },
                         modifier = Modifier.height(38.dp).defaultMinSize(minWidth = 110.dp).springPress()
                     ) {
@@ -1549,10 +1926,13 @@ private fun FileScannerCard(
     onOpenFilePicker: () -> Unit,
     onClearQueue: () -> Unit = {},
     onSelectQueueItem: (FileQueueItem) -> Unit = {},
+    onRetryQueueItem: (String) -> Unit = {},
+    onRemoveQueueItem: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     isCompact: Boolean = false
 ) {
-    val isRtl = uiState.appLanguage.isRtl
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     var isCardHovered by remember { mutableStateOf(false) }
     val dropInteractionSource = remember { MutableInteractionSource() }
     val isDropHovered by dropInteractionSource.collectIsHoveredAsState()
@@ -1575,12 +1955,12 @@ private fun FileScannerCard(
                     }
                 }
             },
-        color = CardDark.copy(alpha = if (isCardHovered) 0.95f else 0.85f),
+        color = palette.surfaceCard.copy(alpha = if (isCardHovered) 0.98f else 0.92f),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
             1.dp,
-            if (isCardHovered) Brush.linearGradient(listOf(PrimaryCyan, PrimaryCyan.copy(alpha = 0.45f)))
-            else topBorderHighlightBrush(PrimaryNeon, isDark = true)
+            if (isCardHovered) Brush.linearGradient(listOf(palette.accentPrimary, palette.accentPrimary.copy(alpha = 0.45f)))
+            else topBorderHighlightBrush(palette.accentPrimary, isDark = palette.isDark)
         ),
         shadowElevation = if (isCardHovered) 8.dp else 4.dp
     ) {
@@ -1595,16 +1975,17 @@ private fun FileScannerCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
                     Box(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(PrimaryCyan.copy(alpha = 0.15f)),
+                            .background(palette.accentPrimary.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        FileDocumentVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                        FileDocumentVectorIcon(tint = palette.accentPrimary, size = 20.dp)
                     }
                     Column {
                         Text(
@@ -1615,7 +1996,7 @@ private fun FileScannerCard(
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = palette.textPrimary
                         )
                         Text(
                             text = when (uiState.appLanguage) {
@@ -1624,7 +2005,7 @@ private fun FileScannerCard(
                                 else -> "100% Client-side local hashing with multi-file queue"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF94A3B8)
+                            color = palette.textSecondary
                         )
                     }
                 }
@@ -1632,15 +2013,21 @@ private fun FileScannerCard(
                 if (totalQueueCount > 0) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = PrimaryCyan.copy(alpha = 0.12f),
-                        border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.35f))
+                        color = palette.accentPrimary.copy(alpha = 0.12f),
+                        border = BorderStroke(0.6.dp, palette.accentPrimary.copy(alpha = 0.35f))
                     ) {
+                        val doneFmt = LocalizationProvider.formatNumber(doneQueueCount, uiState.appLanguage)
+                        val totalFmt = LocalizationProvider.formatNumber(totalQueueCount, uiState.appLanguage)
                         Text(
-                            text = if (isRtl) "$doneQueueCount/$totalQueueCount پردازش" else "$doneQueueCount/$totalQueueCount Done",
+                            text = when (uiState.appLanguage) {
+                                AppLanguage.PERSIAN -> "$doneFmt/$totalFmt پردازش"
+                                AppLanguage.RUSSIAN -> "$doneFmt/$totalFmt готово"
+                                AppLanguage.ENGLISH -> "$doneFmt/$totalFmt Done"
+                            },
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = PrimaryCyan
+                            color = palette.accentPrimary
                         )
                     }
                 }
@@ -1666,16 +2053,24 @@ private fun FileScannerCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = if (isRtl) "صف فایل‌ها:" else "Triage Queue:",
+                                text = when (uiState.appLanguage) {
+                                    AppLanguage.PERSIAN -> "صف فایل‌ها:"
+                                    AppLanguage.RUSSIAN -> "Очередь:"
+                                    AppLanguage.ENGLISH -> "Triage Queue:"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFCBD5E1)
+                                color = palette.textSecondary
                             )
                             if (uiState.isProcessingQueue) {
                                 Text(
-                                    text = if (isRtl) "در حال پردازش..." else "Processing...",
+                                    text = when (uiState.appLanguage) {
+                                        AppLanguage.PERSIAN -> "در حال پردازش..."
+                                        AppLanguage.RUSSIAN -> "Обработка..."
+                                        AppLanguage.ENGLISH -> "Processing..."
+                                    },
                                     fontSize = 10.5.sp,
-                                    color = PrimaryCyan,
+                                    color = palette.accentPrimary,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -1687,15 +2082,19 @@ private fun FileScannerCard(
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable(onClick = onOpenFilePicker)
                                     .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color.White.copy(alpha = 0.08f),
-                                border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.15f))
+                                color = palette.surfaceInset,
+                                border = BorderStroke(0.7.dp, palette.borderSubtle)
                             ) {
                                 Text(
-                                    text = if (isRtl) "+ افزودن فایل" else "+ Add More",
+                                    text = when (uiState.appLanguage) {
+                                        AppLanguage.PERSIAN -> "+ افزودن فایل"
+                                        AppLanguage.RUSSIAN -> "+ Добавить"
+                                        AppLanguage.ENGLISH -> "+ Add More"
+                                    },
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
+                                    color = palette.textPrimary
                                 )
                             }
 
@@ -1704,15 +2103,19 @@ private fun FileScannerCard(
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable(onClick = onClearQueue)
                                     .pointerHoverIcon(PointerIcon.Hand),
-                                color = Color(0xFFEF4444).copy(alpha = 0.12f),
-                                border = BorderStroke(0.7.dp, Color(0xFFEF4444).copy(alpha = 0.35f))
+                                color = palette.verdictMalicious.copy(alpha = 0.12f),
+                                border = BorderStroke(0.7.dp, palette.verdictMalicious.copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = if (isRtl) "پاکسازی صف" else "Clear",
+                                    text = when (uiState.appLanguage) {
+                                        AppLanguage.PERSIAN -> "پاکسازی صف"
+                                        AppLanguage.RUSSIAN -> "Очистить"
+                                        AppLanguage.ENGLISH -> "Clear"
+                                    },
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFEF4444)
+                                    color = palette.verdictMalicious
                                 )
                             }
                         }
@@ -1725,8 +2128,8 @@ private fun FileScannerCard(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = PrimaryCyan,
-                        trackColor = Color.White.copy(alpha = 0.08f)
+                        color = palette.accentPrimary,
+                        trackColor = palette.surfaceInset
                     )
 
                     // Scrollable List of Queued Files
@@ -1740,16 +2143,11 @@ private fun FileScannerCard(
                         uiState.fileQueue.forEach { item ->
                             val isSelected = uiState.activeVerdict != null && uiState.activeVerdict == item.verdict
                             val statusColor = when (item.status) {
-                                QueueItemStatus.QUEUED -> Color(0xFF94A3B8)
-                                QueueItemStatus.HASHING -> PrimaryCyan
-                                QueueItemStatus.TRIAGING -> Color(0xFFF59E0B)
-                                QueueItemStatus.DONE -> when (item.verdict?.overallVerdict) {
-                                    VerdictLevel.MALICIOUS -> Color(0xFFEF4444)
-                                    VerdictLevel.CLEAN -> Color(0xFF10B981)
-                                    VerdictLevel.SUSPICIOUS -> Color(0xFFF97316)
-                                    else -> Color(0xFF94A3B8)
-                                }
-                                QueueItemStatus.ERROR -> Color(0xFFEF4444)
+                                QueueItemStatus.QUEUED -> palette.textMuted
+                                QueueItemStatus.HASHING -> palette.accentPrimary
+                                QueueItemStatus.TRIAGING -> palette.verdictLowRisk
+                                QueueItemStatus.DONE -> verdictColorFor(item.verdict?.overallVerdict ?: VerdictLevel.NO_DATA, palette)
+                                QueueItemStatus.ERROR -> palette.verdictMalicious
                             }
 
                             Surface(
@@ -1758,10 +2156,10 @@ private fun FileScannerCard(
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable(enabled = item.verdict != null) { onSelectQueueItem(item) }
                                     .pointerHoverIcon(if (item.verdict != null) PointerIcon.Hand else PointerIcon.Default),
-                                color = if (isSelected) PrimaryCyan.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.04f),
+                                color = if (isSelected) palette.accentPrimary.copy(alpha = 0.12f) else palette.surfaceInset,
                                 border = BorderStroke(
                                     0.8.dp,
-                                    if (isSelected) PrimaryCyan else statusColor.copy(alpha = 0.30f)
+                                    if (isSelected) palette.accentPrimary else statusColor.copy(alpha = 0.35f)
                                 ),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
@@ -1781,39 +2179,120 @@ private fun FileScannerCard(
                                                 text = item.fileName,
                                                 fontSize = 11.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                maxLines = 1
+                                                color = palette.textPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            if (!item.sha256.isNullOrBlank()) {
+                                            val sizeLabel = formatFileSize(item.fileSizeBytes, uiState.appLanguage)
+                                            if (!item.sha256.isNullOrBlank() || sizeLabel.isNotBlank()) {
+                                                val hashShort = item.sha256?.takeIf { it.length >= 24 }
+                                                    ?.let { "${it.take(12)}...${it.takeLast(8)}" }
+                                                    ?: item.sha256.orEmpty()
+                                                val meta = listOf(sizeLabel, hashShort).filter { it.isNotBlank() }.joinToString(" • ")
                                                 Text(
-                                                    text = item.sha256.take(16) + "..." + item.sha256.takeLast(8),
+                                                    text = meta,
                                                     fontSize = 9.5.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFF94A3B8)
+                                                    fontFamily = monoFont,
+                                                    color = palette.textMuted,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            if (item.status == QueueItemStatus.ERROR && !item.errorMessage.isNullOrBlank()) {
+                                                Text(
+                                                    text = item.errorMessage,
+                                                    fontSize = 9.5.sp,
+                                                    color = palette.verdictMalicious,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
                                     }
 
-                                    // Item Status Tag
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = statusColor.copy(alpha = 0.12f),
-                                        border = BorderStroke(0.6.dp, statusColor.copy(alpha = 0.40f))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(
-                                            text = when (item.status) {
-                                                QueueItemStatus.QUEUED -> if (isRtl) "در صف" else "Queued"
-                                                QueueItemStatus.HASHING -> if (isRtl) "محاسبه هش..." else "Hashing..."
-                                                QueueItemStatus.TRIAGING -> if (isRtl) "تریاژ موتورها..." else "Triaging..."
-                                                QueueItemStatus.DONE -> item.verdict?.overallVerdict?.name ?: "DONE"
-                                                QueueItemStatus.ERROR -> if (isRtl) "خطا" else "ERROR"
-                                            },
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = statusColor
-                                        )
+                                        if (item.status == QueueItemStatus.ERROR) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clickable { onRetryQueueItem(item.id) }
+                                                    .pointerHoverIcon(PointerIcon.Hand),
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = palette.accentPrimary.copy(alpha = 0.14f),
+                                                border = BorderStroke(0.6.dp, palette.accentPrimary.copy(alpha = 0.45f))
+                                            ) {
+                                                Text(
+                                                    text = "↻",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = palette.accentPrimary
+                                                )
+                                            }
+                                        }
+
+                                        // Item Status Tag
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = statusColor.copy(alpha = 0.12f),
+                                            border = BorderStroke(0.6.dp, statusColor.copy(alpha = 0.40f))
+                                        ) {
+                                            Text(
+                                                text = when (item.status) {
+                                                    QueueItemStatus.QUEUED -> when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "در صف"
+                                                        AppLanguage.RUSSIAN -> "В очереди"
+                                                        AppLanguage.ENGLISH -> "Queued"
+                                                    }
+                                                    QueueItemStatus.HASHING -> when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "محاسبه هش..."
+                                                        AppLanguage.RUSSIAN -> "Хеш..."
+                                                        AppLanguage.ENGLISH -> "Hashing..."
+                                                    }
+                                                    QueueItemStatus.TRIAGING -> when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "تریاژ موتورها..."
+                                                        AppLanguage.RUSSIAN -> "Проверка..."
+                                                        AppLanguage.ENGLISH -> "Triaging..."
+                                                    }
+                                                    QueueItemStatus.DONE -> item.verdict?.let {
+                                                        LocalizationProvider.getVerdictName(it.overallVerdict, uiState.appLanguage)
+                                                    } ?: strings.done
+                                                    QueueItemStatus.ERROR -> when (uiState.appLanguage) {
+                                                        AppLanguage.PERSIAN -> "خطا"
+                                                        AppLanguage.RUSSIAN -> "Ошибка"
+                                                        AppLanguage.ENGLISH -> "ERROR"
+                                                    }
+                                                },
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = statusColor
+                                            )
+                                        }
+
+                                        if (item.status != QueueItemStatus.HASHING && item.status != QueueItemStatus.TRIAGING) {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable { onRemoveQueueItem(item.id) }
+                                                    .pointerHoverIcon(PointerIcon.Hand),
+                                                color = palette.verdictMalicious.copy(alpha = 0.10f),
+                                                shape = CircleShape
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "✕",
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = palette.verdictMalicious
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1841,8 +2320,8 @@ private fun FileScannerCard(
                         )
                         .pointerHoverIcon(PointerIcon.Hand),
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isDropHovered) PrimaryCyan.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                    border = BorderStroke(1.5.dp, if (isDropHovered) PrimaryCyan else PrimaryCyan.copy(alpha = 0.4f))
+                    color = if (isDropHovered) palette.accentPrimary.copy(alpha = 0.14f) else palette.surfaceInset,
+                    border = BorderStroke(1.5.dp, if (isDropHovered) palette.accentPrimary else palette.accentPrimary.copy(alpha = 0.4f))
                 ) {
                     Column(
                         modifier = Modifier
@@ -1855,10 +2334,10 @@ private fun FileScannerCard(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(PrimaryCyan.copy(alpha = 0.12f)),
+                                .background(palette.accentPrimary.copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            UploadCloudVectorIcon(tint = PrimaryCyan, size = 22.dp)
+                            UploadCloudVectorIcon(tint = palette.accentPrimary, size = 22.dp)
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1871,7 +2350,7 @@ private fun FileScannerCard(
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             textAlign = TextAlign.Center
                         )
 
@@ -1884,7 +2363,7 @@ private fun FileScannerCard(
                                 else -> "Supports all formats: Executables, Documents, Archives • Multi-file queue"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF94A3B8),
+                            color = palette.textSecondary,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -1895,6 +2374,7 @@ private fun FileScannerCard(
 }
 @Composable
 private fun ErrorMessageBanner(errorMessage: String?) {
+    val palette = LocalIocColors.current
     AnimatedVisibility(
         visible = !errorMessage.isNullOrBlank(),
         enter = fadeIn(animationSpec = tween(250)) + expandVertically(animationSpec = tween(250)),
@@ -1907,8 +2387,8 @@ private fun ErrorMessageBanner(errorMessage: String?) {
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp),
                 shape = RoundedCornerShape(10.dp),
-                color = DangerNeon.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, DangerNeon.copy(alpha = 0.45f))
+                color = palette.verdictMalicious.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, palette.verdictMalicious.copy(alpha = 0.45f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
@@ -1917,13 +2397,13 @@ private fun ErrorMessageBanner(errorMessage: String?) {
                 ) {
                     Text(
                         text = "⚠",
-                        color = DangerNeon,
+                        color = palette.verdictMalicious,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = errorMessage,
-                        color = DangerNeon,
+                        color = palette.verdictMalicious,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1936,21 +2416,22 @@ private fun ErrorMessageBanner(errorMessage: String?) {
 @Composable
 private fun OverallVerdictCard(
     verdict: TriageVerdict,
-    appLanguage: AppLanguage
+    appLanguage: AppLanguage,
+    onCopyRaw: () -> Unit = {},
+    onCopyDefanged: () -> Unit = {},
+    onCopyReport: () -> Unit = {},
+    onReScan: () -> Unit = {}
 ) {
-    val verdictColor = when (verdict.overallVerdict) {
-        VerdictLevel.CLEAN -> VerdictClean
-        VerdictLevel.LOW_RISK -> VerdictLowRisk
-        VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-        VerdictLevel.MALICIOUS -> VerdictMalicious
-        VerdictLevel.NO_DATA -> VerdictNoData
-    }
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
+    val verdictColor = verdictColorFor(verdict.overallVerdict, palette)
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val timestampText = remember(verdict.timestampEpochMs) { formatUtcTimestamp(verdict.timestampEpochMs) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
+        colors = CardDefaults.cardColors(containerColor = palette.surfaceCard.copy(alpha = 0.96f)),
         border = BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.85f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -1983,25 +2464,26 @@ private fun OverallVerdictCard(
                             ControlledMarqueeText(
                                 text = verdict.indicator.rawValue,
                                 style = MaterialTheme.typography.titleMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
+                                    fontFamily = monoFont,
                                     fontSize = 14.5.sp
                                 ),
-                                color = Color.White,
+                                color = palette.textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
                         Spacer(modifier = Modifier.height(2.dp))
+                        val typeLabel = "${strings.indicatorTypeLabel}: ${LocalizationProvider.getIndicatorTypeName(verdict.indicator.type, appLanguage)}"
                         Text(
-                            text = "${strings.indicatorTypeLabel}: ${LocalizationProvider.getIndicatorTypeName(verdict.indicator.type, appLanguage)}",
+                            text = if (timestampText.isNotBlank()) "$typeLabel • $timestampText" else typeLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF94A3B8)
+                            color = palette.textSecondary
                         )
                     }
                 }
 
                 Surface(
-                    color = verdictColor.copy(alpha = 0.20f),
+                    color = verdictColor.copy(alpha = 0.18f),
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, verdictColor)
                 ) {
@@ -2015,12 +2497,55 @@ private fun OverallVerdictCard(
                 }
             }
 
+            if (verdict.hasNetworkError) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = palette.verdictSuspicious.copy(alpha = 0.12f),
+                    border = BorderStroke(0.9.dp, palette.verdictSuspicious.copy(alpha = 0.45f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "⚠ ${strings.networkOutageBanner}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = palette.verdictSuspicious,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        )
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onReScan() }
+                                .pointerHoverIcon(PointerIcon.Hand),
+                            color = palette.verdictSuspicious.copy(alpha = 0.2f),
+                            border = BorderStroke(0.8.dp, palette.verdictSuspicious),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = strings.retryScanButton,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.verdictSuspicious
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = LocalizationProvider.getLocalizedVerdictSummary(verdict, appLanguage),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFE2E8F0)
+                color = palette.textPrimary
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -2033,7 +2558,7 @@ private fun OverallVerdictCard(
                 Text(
                     text = strings.threatConfidenceScore,
                     style = MaterialTheme.typography.labelSmall,
-                    color = PrimaryCyan,
+                    color = palette.accentPrimary,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -2051,9 +2576,51 @@ private fun OverallVerdictCard(
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
                 color = verdictColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                trackColor = palette.surfaceInset
             )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                VerdictActionChip(label = strings.copyRawIoc, accent = palette.accentPrimary, onClick = onCopyRaw)
+                VerdictActionChip(label = strings.copyDefangedIoc, accent = palette.accentPrimary, onClick = onCopyDefanged)
+                VerdictActionChip(label = strings.copyReportMarkdown, accent = palette.accentSecondary, onClick = onCopyReport)
+                VerdictActionChip(label = "⚡ ${strings.reAnalyze}", accent = verdictColor, onClick = onReScan)
+            }
         }
+    }
+}
+
+@Composable
+private fun VerdictActionChip(
+    label: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    val palette = LocalIocColors.current
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand),
+        color = palette.surfaceInset,
+        border = BorderStroke(0.8.dp, accent.copy(alpha = 0.45f)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accent,
+            maxLines = 1
+        )
     }
 }
 
@@ -2065,17 +2632,44 @@ private fun LiveProviderDeck(
     modifier: Modifier = Modifier
 ) {
     val strings = LocalizationProvider.getStrings(uiState.appLanguage)
+    val palette = LocalIocColors.current
+    val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
+    val activeMap = remember(activeSources) { activeSources.associateBy { it.providerName } }
+    val zeroKeyProviders = remember {
+        listOf(
+            "URLhaus (abuse.ch)" to true,
+            "MalwareBazaar (abuse.ch)" to true,
+            "ThreatFox (abuse.ch)" to true,
+            "RDAP / Registry" to true,
+            "Cloudflare DoH" to true,
+            "Shodan InternetDB" to true,
+            "AlienVault OTX" to true,
+            "RIPE Stat" to true,
+            "crt.sh" to true,
+            "Feodo Tracker (abuse.ch)" to true,
+            "ipwho.is" to true
+        )
+    }
+    val allProviders = remember(activeSources) {
+        val zeroKeyNames = zeroKeyProviders.map { it.first }.toSet()
+        val optionalActive = activeSources
+            .filter { it.providerName !in zeroKeyNames }
+            .map { it.providerName to false }
+        zeroKeyProviders + optionalActive
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+        colors = CardDefaults.cardColors(containerColor = palette.surfaceCard.copy(alpha = 0.96f)),
+        border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.25f))
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggle() },
+                    .clickable { onToggle() }
+                    .pointerHoverIcon(PointerIcon.Hand),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2084,15 +2678,15 @@ private fun LiveProviderDeck(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = PrimaryCyan.copy(alpha = 0.15f),
+                        color = palette.accentPrimary.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.wrapContentSize()
                     ) {
                         Text(
-                            text = strings.enginesCount,
+                            text = "${LocalizationProvider.formatNumber(allProviders.size, uiState.appLanguage)} ${strings.enginesCount}",
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             fontSize = 10.sp,
                             maxLines = 1,
                             softWrap = false
@@ -2102,7 +2696,7 @@ private fun LiveProviderDeck(
                     ControlledMarqueeText(
                         text = strings.threatIntelProvidersTitle,
                         style = MaterialTheme.typography.labelLarge,
-                        color = PrimaryCyan,
+                        color = palette.accentPrimary,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f, fill = false)
                     )
@@ -2110,29 +2704,13 @@ private fun LiveProviderDeck(
 
                 Text(
                     text = if (uiState.isProviderDeckExpanded) "▲" else "▼",
-                    color = MaterialTheme.colorScheme.outline,
+                    color = palette.textMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(start = 4.dp)
                 )
             }
 
             AnimatedVisibility(visible = uiState.isProviderDeckExpanded) {
-                val activeSources = uiState.activeVerdict?.sourceResults ?: emptyList()
-                val activeMap = activeSources.associateBy { it.providerName }
-
-                val allProviders = listOf(
-                    "URLhaus (abuse.ch)" to true,
-                    "MalwareBazaar (abuse.ch)" to true,
-                    "ThreatFox (abuse.ch)" to true,
-                    "RDAP / Registry" to true,
-                    "Cloudflare DoH" to true,
-                    "Shodan InternetDB" to true,
-                    "AlienVault OTX" to true,
-                    "RIPE Stat" to true,
-                    "crt.sh" to true,
-                    "Feodo Tracker (abuse.ch)" to true
-                )
-
                 val currentIndicatorType = uiState.targetIndicator?.type ?: uiState.activeVerdict?.indicator?.type
 
                 if (isTwoColumn) {
@@ -2196,6 +2774,7 @@ private fun isProviderApplicable(name: String, type: IndicatorType?): Boolean {
         "URLhaus (abuse.ch)" -> type == IndicatorType.URL || type == IndicatorType.DOMAIN
         "MalwareBazaar (abuse.ch)" -> type == IndicatorType.FILE_HASH
         "ThreatFox (abuse.ch)" -> true
+        "Feodo Tracker (abuse.ch)" -> type == IndicatorType.IP_ADDRESS
         "RDAP / Registry" -> type == IndicatorType.IP_ADDRESS || type == IndicatorType.DOMAIN
         "Cloudflare DoH" -> type == IndicatorType.DOMAIN
         "Shodan InternetDB" -> type == IndicatorType.IP_ADDRESS
@@ -2223,23 +2802,20 @@ private fun ProviderRow(
     isTwoColumn: Boolean = false
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
     val isRateLimited = result?.isRateLimited == true || result?.summary?.contains("Rate Limit", ignoreCase = true) == true
     val isTimedOut = result?.summary?.contains("timed out", ignoreCase = true) == true
+    val isProviderError = result?.isError == true && !isRateLimited && !isTimedOut
     val isApplicable = isProviderApplicable(name, indicatorType)
 
     val statusColor = when {
-        isRateLimited -> Color(0xFFF59E0B) // Amber Rate Limit Warning
-        isTimedOut -> Color(0xFF94A3B8)
-        isLoading && !isApplicable && indicatorType != null -> VerdictNoData
-        isLoading && isApplicable -> PrimaryCyan
-        result != null -> when (result.verdict) {
-            VerdictLevel.CLEAN -> VerdictClean
-            VerdictLevel.LOW_RISK -> VerdictLowRisk
-            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-            VerdictLevel.MALICIOUS -> VerdictMalicious
-            VerdictLevel.NO_DATA -> VerdictNoData
-        }
-        else -> VerdictNoData
+        isRateLimited -> palette.verdictLowRisk
+        isTimedOut -> palette.textMuted
+        isProviderError -> palette.verdictMalicious
+        isLoading && !isApplicable && indicatorType != null -> palette.verdictNoData
+        isLoading && isApplicable -> palette.accentPrimary
+        result != null -> verdictColorFor(result.verdict, palette)
+        else -> palette.verdictNoData
     }
 
     val statusText = when {
@@ -2247,6 +2823,11 @@ private fun ProviderRow(
         isLoading -> strings.statusScanning
         isRateLimited -> strings.statusRateLimited
         isTimedOut -> strings.statusTimedOut
+        isProviderError -> when (appLanguage) {
+            AppLanguage.PERSIAN -> "خطا"
+            AppLanguage.RUSSIAN -> "Ошибка"
+            AppLanguage.ENGLISH -> "ERR"
+        }
         result != null -> LocalizationProvider.getVerdictName(result.verdict, appLanguage)
         hasActiveVerdict && !isApplicable -> strings.statusNotApplicable
         hasActiveVerdict -> if (isTwoColumn) strings.statusKeyRequiredShort else strings.statusKeyRequired
@@ -2257,8 +2838,8 @@ private fun ProviderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0D1424), RoundedCornerShape(10.dp))
-            .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(10.dp))
+            .background(palette.surfaceInset, RoundedCornerShape(10.dp))
+            .border(0.6.dp, palette.borderSubtle, RoundedCornerShape(10.dp))
             .padding(horizontal = if (isTwoColumn) 8.dp else 12.dp, vertical = if (isTwoColumn) 6.dp else 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -2274,7 +2855,7 @@ private fun ProviderRow(
                 ControlledMarqueeText(
                     text = LocalizationProvider.getProviderDisplayName(name, appLanguage),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
+                    color = palette.textPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = if (isTwoColumn) 11.5.sp else 13.sp,
                     modifier = Modifier.weight(1f)
@@ -2283,7 +2864,7 @@ private fun ProviderRow(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = strings.freeBadge,
-                        color = VerdictClean,
+                        color = palette.verdictClean,
                         fontSize = if (isTwoColumn) 9.sp else 10.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -2295,7 +2876,7 @@ private fun ProviderRow(
                 ControlledMarqueeText(
                     text = LocalizationProvider.getLocalizedSourceSummary(result.summary, appLanguage),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = palette.textSecondary,
                     fontSize = if (isTwoColumn) 9.sp else 10.5.sp,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2303,7 +2884,7 @@ private fun ProviderRow(
         }
 
         Surface(
-            color = if (isLoading) PrimaryCyan.copy(alpha = 0.15f) else statusColor.copy(alpha = 0.18f),
+            color = if (isLoading) palette.accentPrimary.copy(alpha = 0.15f) else statusColor.copy(alpha = 0.16f),
             shape = RoundedCornerShape(6.dp)
         ) {
             ControlledMarqueeText(
@@ -2311,7 +2892,7 @@ private fun ProviderRow(
                 modifier = Modifier
                     .padding(horizontal = if (isTwoColumn) 5.dp else 8.dp, vertical = 2.dp)
                     .widthIn(max = if (isTwoColumn) 115.dp else 160.dp),
-                color = if (isLoading) PrimaryCyan else statusColor,
+                color = if (isLoading) palette.accentPrimary else statusColor,
                 fontWeight = FontWeight.Bold,
                 fontSize = if (isTwoColumn) 8.5.sp else 10.sp
             )
@@ -2325,23 +2906,70 @@ private fun HistoryFullScreenView(
     appLanguage: AppLanguage,
     onSelect: (TriageVerdict) -> Unit,
     onDelete: (TriageVerdict) -> Unit,
+    onExportJson: (List<TriageVerdict>) -> Unit = {},
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<IndicatorType?>(null) }
+    var selectedVerdictFilter by remember { mutableStateOf<VerdictLevel?>(null) }
     var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
     var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
 
-    val filteredHistory = remember(history, searchQuery, selectedTypeFilter, pendingDeletedRawValues) {
-        history.filter { item ->
-            item.indicator.rawValue !in pendingDeletedRawValues &&
-                (searchQuery.isBlank() || item.indicator.rawValue.contains(searchQuery.trim(), ignoreCase = true)) &&
-                (selectedTypeFilter == null || item.indicator.type == selectedTypeFilter)
-        }
+    val filteredHistory = remember(
+        history,
+        searchQuery,
+        selectedTypeFilter,
+        selectedVerdictFilter,
+        pendingDeletedRawValues
+    ) {
+        filterScanHistory(
+            history = history,
+            searchQuery = searchQuery,
+            selectedTypeFilter = selectedTypeFilter,
+            selectedVerdictFilter = selectedVerdictFilter,
+            excludedRawValues = pendingDeletedRawValues
+        )
+    }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            containerColor = palette.surfaceElevated,
+            title = {
+                Text(
+                    text = strings.confirmClearHistoryTitle,
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = strings.confirmClearHistoryMessage,
+                    color = palette.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        onClear()
+                    }
+                ) {
+                    Text(text = strings.confirmButton, color = palette.verdictMalicious, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text(text = strings.cancelButton, color = palette.textSecondary)
+                }
+            }
+        )
     }
 
     Column(
@@ -2356,16 +2984,29 @@ private fun HistoryFullScreenView(
                 horizontalArrangement = if (isRtl) Arrangement.Start else Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onClear,
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
-                ) {
-                    Text(
-                        text = strings.clearHistory,
-                        color = VerdictMalicious,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = { onExportJson(filteredHistory.ifEmpty { history }) },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(
+                            text = strings.exportHistoryButton,
+                            color = palette.accentPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    TextButton(
+                        onClick = { showClearConfirmDialog = true },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Text(
+                            text = strings.clearHistory,
+                            color = palette.verdictMalicious,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -2378,34 +3019,34 @@ private fun HistoryFullScreenView(
             placeholder = {
                 Text(
                     text = strings.searchHistoryPlaceholder,
-                    color = PlaceholderHighContrast,
+                    color = palette.textMuted,
                     fontSize = 12.5.sp
                 )
             },
             leadingIcon = {
                 ScannerVectorIcon(
                     size = 16.dp,
-                    tint = PrimaryCyan.copy(alpha = 0.85f)
+                    tint = palette.accentPrimary.copy(alpha = 0.85f)
                 )
             },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text(text = "✕", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "✕", color = palette.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = PrimaryCyan,
-                unfocusedBorderColor = Color(0xFF1E293B)
+                focusedTextColor = palette.textPrimary,
+                unfocusedTextColor = palette.textPrimary,
+                focusedBorderColor = palette.accentPrimary,
+                unfocusedBorderColor = palette.borderStrong
             ),
             shape = RoundedCornerShape(12.dp)
         )
 
-        // Filter chips (ALL, IP, DOMAIN, URL, HASH)
+        // Indicator type filter chips (ALL, IP, DOMAIN, URL, HASH)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2427,17 +3068,17 @@ private fun HistoryFullScreenView(
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { selectedTypeFilter = type }
                         .pointerHoverIcon(PointerIcon.Hand),
-                    color = if (isSelected) PrimaryCyan.copy(alpha = 0.22f) else Color(0xFF0D1424),
-                    border = androidx.compose.foundation.BorderStroke(
+                    color = if (isSelected) palette.accentPrimary.copy(alpha = 0.18f) else palette.surfaceInset,
+                    border = BorderStroke(
                         0.8.dp,
-                        if (isSelected) PrimaryCyan else Color(0xFF1E293B)
+                        if (isSelected) palette.accentPrimary else palette.borderSubtle
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = label,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = if (isSelected) PrimaryCyan else Color(0xFF94A3B8),
+                        color = if (isSelected) palette.accentPrimary else palette.textSecondary,
                         fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
@@ -2445,7 +3086,51 @@ private fun HistoryFullScreenView(
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        // Verdict filter chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = strings.filterByVerdictLabel,
+                fontSize = 10.5.sp,
+                color = palette.textMuted,
+                fontWeight = FontWeight.Medium
+            )
+            val verdictOptions = listOf(
+                null to strings.filterAll,
+                VerdictLevel.MALICIOUS to LocalizationProvider.getVerdictName(VerdictLevel.MALICIOUS, appLanguage),
+                VerdictLevel.SUSPICIOUS to LocalizationProvider.getVerdictName(VerdictLevel.SUSPICIOUS, appLanguage),
+                VerdictLevel.CLEAN to LocalizationProvider.getVerdictName(VerdictLevel.CLEAN, appLanguage),
+                VerdictLevel.NO_DATA to LocalizationProvider.getVerdictName(VerdictLevel.NO_DATA, appLanguage)
+            )
+            verdictOptions.forEach { (verdictLevel, label) ->
+                val isSelected = selectedVerdictFilter == verdictLevel
+                val chipColor = verdictLevel?.let { verdictColorFor(it, palette) } ?: palette.accentPrimary
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { selectedVerdictFilter = verdictLevel }
+                        .pointerHoverIcon(PointerIcon.Hand),
+                    color = if (isSelected) chipColor.copy(alpha = 0.18f) else palette.surfaceInset,
+                    border = BorderStroke(0.8.dp, if (isSelected) chipColor else palette.borderSubtle),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        color = if (isSelected) chipColor else palette.textSecondary,
+                        fontSize = 10.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = palette.borderSubtle)
 
         // History items list or empty states
         if (history.isEmpty()) {
@@ -2462,9 +3147,9 @@ private fun HistoryFullScreenView(
                     Text(text = "📜", fontSize = 36.sp)
                     Text(
                         text = strings.noHistory,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = palette.textMuted,
                         style = MaterialTheme.typography.bodyMedium,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -2477,9 +3162,9 @@ private fun HistoryFullScreenView(
             ) {
                 Text(
                     text = strings.noFilterResults,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = palette.textMuted,
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
             }
         } else {
@@ -2490,13 +3175,7 @@ private fun HistoryFullScreenView(
                 filteredHistory.forEach { item ->
                     val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
                     if (!isPendingDelete) {
-                        val itemColor = when (item.overallVerdict) {
-                            VerdictLevel.CLEAN -> VerdictClean
-                            VerdictLevel.LOW_RISK -> VerdictLowRisk
-                            VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-                            VerdictLevel.MALICIOUS -> VerdictMalicious
-                            VerdictLevel.NO_DATA -> VerdictNoData
-                        }
+                        val itemColor = verdictColorFor(item.overallVerdict, palette)
 
                         DisintegrationContainer(
                             isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
@@ -2517,7 +3196,7 @@ private fun HistoryFullScreenView(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF0D1424))
+                                    .background(palette.surfaceInset)
                                     .border(0.6.dp, itemColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                                     .clickable { onSelect(item) }
                                     .pointerHoverIcon(PointerIcon.Hand)
@@ -2530,16 +3209,18 @@ private fun HistoryFullScreenView(
                                         ControlledMarqueeText(
                                             text = item.indicator.rawValue,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = Color.White,
+                                            color = palette.textPrimary,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
+                                    val ts = formatUtcTimestamp(item.timestampEpochMs)
+                                    val baseMeta = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}"
                                     Text(
-                                        text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                        text = if (ts.isNotBlank()) "$baseMeta • $ts" else baseMeta,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
+                                        color = palette.textSecondary
                                     )
                                 }
 
@@ -2548,7 +3229,7 @@ private fun HistoryFullScreenView(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Surface(
-                                        color = itemColor.copy(alpha = 0.2f),
+                                        color = itemColor.copy(alpha = 0.18f),
                                         shape = RoundedCornerShape(6.dp)
                                     ) {
                                         Text(
@@ -2571,13 +3252,13 @@ private fun HistoryFullScreenView(
                                             }
                                             .pointerHoverIcon(PointerIcon.Hand)
                                             .springPress(),
-                                        color = Color.White.copy(alpha = 0.08f),
+                                        color = palette.verdictMalicious.copy(alpha = 0.12f),
                                         shape = CircleShape
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 text = "✕",
-                                                color = Color(0xFFEF4444),
+                                                color = palette.verdictMalicious,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -2601,19 +3282,68 @@ private fun HistorySheet(
     isMobileOrTablet: Boolean = false,
     onSelect: (TriageVerdict) -> Unit,
     onDelete: (TriageVerdict) -> Unit,
+    onExportJson: (List<TriageVerdict>) -> Unit = {},
     onClear: () -> Unit,
     onClose: () -> Unit
 ) {
     val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
     var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedVerdictFilter by remember { mutableStateOf<VerdictLevel?>(null) }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
+
+    val filteredHistory = remember(history, searchQuery, selectedVerdictFilter, pendingDeletedRawValues) {
+        filterScanHistory(
+            history = history,
+            searchQuery = searchQuery,
+            selectedVerdictFilter = selectedVerdictFilter,
+            excludedRawValues = pendingDeletedRawValues
+        )
+    }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            containerColor = palette.surfaceElevated,
+            title = {
+                Text(
+                    text = strings.confirmClearHistoryTitle,
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = strings.confirmClearHistoryMessage,
+                    color = palette.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        onClear()
+                    }
+                ) {
+                    Text(text = strings.confirmButton, color = palette.verdictMalicious, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text(text = strings.cancelButton, color = palette.textSecondary)
+                }
+            }
+        )
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.75f))
+            .background(Color.Black.copy(alpha = if (palette.isDark) 0.75f else 0.45f))
             .clickable { onClose() },
         contentAlignment = if (isDialogMode) Alignment.Center else Alignment.BottomCenter
     ) {
@@ -2635,22 +3365,20 @@ private fun HistorySheet(
                 )
                 .navigationBarsPadding(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f))
+            colors = CardDefaults.cardColors(containerColor = palette.surfaceCard),
+            border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.4f))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                // Header with Right-Aligned Close Button in both LTR & RTL
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isRtl) {
-                        // In RTL, Start is physical Right -> Close & Clear buttons first
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2660,22 +3388,28 @@ private fun HistorySheet(
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { onClose() }
                                     .pointerHoverIcon(PointerIcon.Hand),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = palette.surfaceInset,
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
                                     text = "✕",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    color = Color.White,
+                                    color = palette.textPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             if (history.isNotEmpty()) {
                                 TextButton(
-                                    onClick = onClear,
+                                    onClick = { onExportJson(filteredHistory.ifEmpty { history }) },
                                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                                 ) {
-                                    Text(text = strings.clearHistory, color = VerdictMalicious, fontSize = 12.sp)
+                                    Text(text = strings.exportHistoryButton, color = palette.accentPrimary, fontSize = 12.sp)
+                                }
+                                TextButton(
+                                    onClick = { showClearConfirmDialog = true },
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                ) {
+                                    Text(text = strings.clearHistory, color = palette.verdictMalicious, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -2683,15 +3417,14 @@ private fun HistorySheet(
                         Text(
                             text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
                             style = MaterialTheme.typography.titleMedium,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             fontWeight = FontWeight.Bold
                         )
                     } else {
-                        // In LTR, Title first, then Clear and Close button on the Right (End)
                         Text(
                             text = "${strings.scanHistoryTitle} (${LocalizationProvider.formatNumber(history.size, appLanguage)})",
                             style = MaterialTheme.typography.titleMedium,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -2701,10 +3434,16 @@ private fun HistorySheet(
                         ) {
                             if (history.isNotEmpty()) {
                                 TextButton(
-                                    onClick = onClear,
+                                    onClick = { onExportJson(filteredHistory.ifEmpty { history }) },
                                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                                 ) {
-                                    Text(text = strings.clearHistory, color = VerdictMalicious, fontSize = 12.sp)
+                                    Text(text = strings.exportHistoryButton, color = palette.accentPrimary, fontSize = 12.sp)
+                                }
+                                TextButton(
+                                    onClick = { showClearConfirmDialog = true },
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                ) {
+                                    Text(text = strings.clearHistory, color = palette.verdictMalicious, fontSize = 12.sp)
                                 }
                             }
                             Surface(
@@ -2712,13 +3451,13 @@ private fun HistorySheet(
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { onClose() }
                                     .pointerHoverIcon(PointerIcon.Hand),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = palette.surfaceInset,
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
                                     text = "✕",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    color = Color.White,
+                                    color = palette.textPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -2726,7 +3465,62 @@ private fun HistorySheet(
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                if (history.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(text = strings.searchHistoryPlaceholder, color = palette.textMuted, fontSize = 12.sp)
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = palette.textPrimary,
+                            unfocusedTextColor = palette.textPrimary,
+                            focusedBorderColor = palette.accentPrimary,
+                            unfocusedBorderColor = palette.borderStrong
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val verdictOptions = listOf(
+                            null to strings.filterAll,
+                            VerdictLevel.MALICIOUS to LocalizationProvider.getVerdictName(VerdictLevel.MALICIOUS, appLanguage),
+                            VerdictLevel.SUSPICIOUS to LocalizationProvider.getVerdictName(VerdictLevel.SUSPICIOUS, appLanguage),
+                            VerdictLevel.CLEAN to LocalizationProvider.getVerdictName(VerdictLevel.CLEAN, appLanguage)
+                        )
+                        verdictOptions.forEach { (verdictLevel, label) ->
+                            val isSelected = selectedVerdictFilter == verdictLevel
+                            val chipColor = verdictLevel?.let { verdictColorFor(it, palette) } ?: palette.accentPrimary
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { selectedVerdictFilter = verdictLevel }
+                                    .pointerHoverIcon(PointerIcon.Hand),
+                                color = if (isSelected) chipColor.copy(alpha = 0.18f) else palette.surfaceInset,
+                                border = BorderStroke(0.8.dp, if (isSelected) chipColor else palette.borderSubtle),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = if (isSelected) chipColor else palette.textSecondary,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = palette.borderSubtle)
 
                 if (history.isEmpty()) {
                     Box(
@@ -2737,9 +3531,23 @@ private fun HistorySheet(
                     ) {
                         Text(
                             text = strings.noHistory,
-                            color = MaterialTheme.colorScheme.outline,
+                            color = palette.textMuted,
                             style = MaterialTheme.typography.bodyMedium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else if (filteredHistory.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = strings.noFilterResults,
+                            color = palette.textMuted,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
                         )
                     }
                 } else {
@@ -2751,16 +3559,10 @@ private fun HistorySheet(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        history.forEach { item ->
+                        filteredHistory.forEach { item ->
                             val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
                             if (!isPendingDelete) {
-                                val itemColor = when (item.overallVerdict) {
-                                    VerdictLevel.CLEAN -> VerdictClean
-                                    VerdictLevel.LOW_RISK -> VerdictLowRisk
-                                    VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-                                    VerdictLevel.MALICIOUS -> VerdictMalicious
-                                    VerdictLevel.NO_DATA -> VerdictNoData
-                                }
+                                val itemColor = verdictColorFor(item.overallVerdict, palette)
 
                                 DisintegrationContainer(
                                     isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
@@ -2781,8 +3583,8 @@ private fun HistorySheet(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFF0D1424))
-                                            .border(0.5.dp, itemColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                            .background(palette.surfaceInset)
+                                            .border(0.6.dp, itemColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                                             .clickable { onSelect(item) }
                                             .pointerHoverIcon(PointerIcon.Hand)
                                             .padding(12.dp),
@@ -2794,15 +3596,17 @@ private fun HistorySheet(
                                                 ControlledMarqueeText(
                                                     text = item.indicator.rawValue,
                                                     style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.White,
+                                                    color = palette.textPrimary,
                                                     fontWeight = FontWeight.Bold,
                                                     modifier = Modifier.fillMaxWidth()
                                                 )
                                             }
+                                            val ts = formatUtcTimestamp(item.timestampEpochMs)
+                                            val baseMeta = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}"
                                             Text(
-                                                text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                                text = if (ts.isNotBlank()) "$baseMeta • $ts" else baseMeta,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.outline
+                                                color = palette.textSecondary
                                             )
                                         }
 
@@ -2811,7 +3615,7 @@ private fun HistorySheet(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             Surface(
-                                                color = itemColor.copy(alpha = 0.2f),
+                                                color = itemColor.copy(alpha = 0.18f),
                                                 shape = RoundedCornerShape(6.dp)
                                             ) {
                                                 Text(
@@ -2823,7 +3627,6 @@ private fun HistorySheet(
                                                 )
                                             }
 
-                                            // Spring-pressed Thanos Snap Disintegration Delete Button
                                             Surface(
                                                 modifier = Modifier
                                                     .size(28.dp)
@@ -2835,13 +3638,13 @@ private fun HistorySheet(
                                                     }
                                                     .pointerHoverIcon(PointerIcon.Hand)
                                                     .springPress(),
-                                                color = Color.White.copy(alpha = 0.08f),
+                                                color = palette.verdictMalicious.copy(alpha = 0.12f),
                                                 shape = CircleShape
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "✕",
-                                                        color = Color(0xFFEF4444),
+                                                        color = palette.verdictMalicious,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -2872,14 +3675,16 @@ private fun RecentTriageFeedHUD(
     onReScan: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     var deletingItemRawValue by remember { mutableStateOf<String?>(null) }
     var pendingDeletedRawValues by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.25f))
+        colors = CardDefaults.cardColors(containerColor = palette.surfaceCard.copy(alpha = 0.96f)),
+        border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.25f))
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(
@@ -2891,19 +3696,19 @@ private fun RecentTriageFeedHUD(
                     Text(
                         text = strings.recentTriageFeed,
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
+                        color = palette.textPrimary,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
-                        color = PrimaryCyan.copy(alpha = 0.15f),
+                        color = palette.accentPrimary.copy(alpha = 0.14f),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = LocalizationProvider.formatNumber(history.size, appLanguage),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -2919,8 +3724,8 @@ private fun RecentTriageFeedHUD(
                         .fillMaxWidth()
                         .defaultMinSize(minHeight = 150.dp),
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF090E17).copy(alpha = 0.75f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.2f))
+                    color = palette.surfaceInset,
+                    border = BorderStroke(1.dp, palette.borderSubtle)
                 ) {
                     Box(
                         modifier = Modifier
@@ -2933,9 +3738,9 @@ private fun RecentTriageFeedHUD(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Surface(
-                                color = PrimaryCyan.copy(alpha = 0.12f),
+                                color = palette.accentPrimary.copy(alpha = 0.12f),
                                 shape = CircleShape,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.35f))
                             ) {
                                 Text(
                                     text = "🗄️",
@@ -2946,14 +3751,14 @@ private fun RecentTriageFeedHUD(
                             Text(
                                 text = strings.noHistory,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF94A3B8),
+                                color = palette.textSecondary,
                                 fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = strings.zeroKeyInstantScanReady,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = VerdictClean,
+                                color = palette.verdictClean,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -2969,13 +3774,7 @@ private fun RecentTriageFeedHUD(
                     recentScans.forEach { item ->
                         val isPendingDelete = item.indicator.rawValue in pendingDeletedRawValues
                         if (!isPendingDelete) {
-                            val verdictColor = when (item.overallVerdict) {
-                                VerdictLevel.CLEAN -> VerdictClean
-                                VerdictLevel.LOW_RISK -> VerdictLowRisk
-                                VerdictLevel.SUSPICIOUS -> VerdictSuspicious
-                                VerdictLevel.MALICIOUS -> VerdictMalicious
-                                VerdictLevel.NO_DATA -> VerdictNoData
-                            }
+                            val verdictColor = verdictColorFor(item.overallVerdict, palette)
 
                             DisintegrationContainer(
                                 isDisintegrating = deletingItemRawValue == item.indicator.rawValue,
@@ -3000,8 +3799,8 @@ private fun RecentTriageFeedHUD(
                                         .clickable { onSelect(item) }
                                         .pointerHoverIcon(PointerIcon.Hand),
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF0B1322).copy(alpha = 0.8f),
-                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, verdictColor.copy(alpha = 0.35f))
+                                    color = palette.surfaceInset,
+                                    border = BorderStroke(0.8.dp, verdictColor.copy(alpha = 0.35f))
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -3018,7 +3817,7 @@ private fun RecentTriageFeedHUD(
                                             Surface(
                                                 color = verdictColor.copy(alpha = 0.15f),
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f))
+                                                border = BorderStroke(1.dp, verdictColor.copy(alpha = 0.6f))
                                             ) {
                                                 Text(
                                                     text = LocalizationProvider.getVerdictName(item.overallVerdict, appLanguage),
@@ -3034,16 +3833,18 @@ private fun RecentTriageFeedHUD(
                                                     ControlledMarqueeText(
                                                         text = item.indicator.rawValue,
                                                         style = MaterialTheme.typography.bodyMedium,
-                                                        color = Color.White,
+                                                        color = palette.textPrimary,
                                                         fontWeight = FontWeight.SemiBold,
-                                                        fontFamily = FontFamily.Monospace,
+                                                        fontFamily = monoFont,
                                                         modifier = Modifier.fillMaxWidth()
                                                     )
                                                 }
+                                                val ts = formatUtcTimestamp(item.timestampEpochMs)
+                                                val baseMeta = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}"
                                                 Text(
-                                                    text = "${LocalizationProvider.getIndicatorTypeName(item.indicator.type, appLanguage)} • ${strings.threatConfidenceScore}: ${LocalizationProvider.formatScore(item.confidenceScore, appLanguage)}",
+                                                    text = if (ts.isNotBlank()) "$baseMeta • $ts" else baseMeta,
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = Color(0xFF64748B),
+                                                    color = palette.textSecondary,
                                                     fontSize = 10.5.sp
                                                 )
                                             }
@@ -3059,9 +3860,9 @@ private fun RecentTriageFeedHUD(
                                                     .springPress()
                                                     .clickable { onReScan(item.indicator.rawValue) }
                                                     .pointerHoverIcon(PointerIcon.Hand),
-                                                color = PrimaryCyan.copy(alpha = 0.15f),
+                                                color = palette.accentPrimary.copy(alpha = 0.14f),
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.5f))
+                                                border = BorderStroke(0.8.dp, palette.accentPrimary.copy(alpha = 0.5f))
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -3072,14 +3873,13 @@ private fun RecentTriageFeedHUD(
                                                     Text(
                                                         text = strings.reAnalyze,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = PrimaryCyan,
+                                                        color = palette.accentPrimary,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.sp
                                                     )
                                                 }
                                             }
 
-                                            // Spring-pressed Thanos Dust Particle Snap Deletion Button
                                             Surface(
                                                 modifier = Modifier
                                                     .size(28.dp)
@@ -3091,13 +3891,13 @@ private fun RecentTriageFeedHUD(
                                                     }
                                                     .pointerHoverIcon(PointerIcon.Hand)
                                                     .springPress(),
-                                                color = Color.White.copy(alpha = 0.08f),
+                                                color = palette.verdictMalicious.copy(alpha = 0.12f),
                                                 shape = CircleShape
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "✕",
-                                                        color = Color(0xFFEF4444),
+                                                        color = palette.verdictMalicious,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -3115,21 +3915,13 @@ private fun RecentTriageFeedHUD(
     }
 }
 
-/**
- * Desktop Live Threat Intel Engines Ping & Connectivity Status Bar.
- *
- * Grounded at the absolute bottom of the desktop window:
- * - Live Ping / Latency measurement for all 10 Zero-Key Engines
- * - Interactive [Ping All] probe trigger
- * - Scrollable micro-latency chips with LTR protection against character breaking
- * - Encrypted TLS & Zero Cloud Leak privacy invariants
- */
 @Composable
 private fun StatusBarNavChevron(
     isLeft: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
     var isHovered by remember { mutableStateOf(false) }
     val animatedScale by animateFloatAsState(
         targetValue = if (isHovered) 1.10f else 1.0f,
@@ -3162,15 +3954,15 @@ private fun StatusBarNavChevron(
                     }
                 }
             },
-        color = Color(0xEE0B132B),
-        border = BorderStroke(0.9.dp, PrimaryCyan.copy(alpha = borderAlpha)),
+        color = palette.surfaceElevated,
+        border = BorderStroke(0.9.dp, palette.accentPrimary.copy(alpha = borderAlpha)),
         shape = RoundedCornerShape(6.dp),
         shadowElevation = if (isHovered) 3.dp else 0.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(PrimaryCyan.copy(alpha = glowAlpha)),
+                .background(palette.accentPrimary.copy(alpha = glowAlpha)),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(10.dp)) {
@@ -3187,7 +3979,7 @@ private fun StatusBarNavChevron(
                 }
                 drawPath(
                     path = path,
-                    color = PrimaryCyan,
+                    color = palette.accentPrimary,
                     style = Stroke(
                         width = strokeWidth,
                         cap = StrokeCap.Round,
@@ -3215,11 +4007,15 @@ private fun DesktopEngineConnectivityStatusBar(
     onOpenEnginesDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
+    val strings = LocalizationProvider.getStrings(appLanguage)
     var engineStatuses by remember { mutableStateOf(DEFAULT_PROBE_ENGINES) }
     var isProbing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val chipsScrollState = rememberScrollState()
 
+    val anyProbed = remember(engineStatuses) { engineStatuses.any { it.hasProbed } }
     val onlineEngines = remember(engineStatuses) { engineStatuses.filter { it.isOnline } }
     val avgPing = remember(onlineEngines) {
         if (onlineEngines.isNotEmpty()) {
@@ -3265,7 +4061,10 @@ private fun DesktopEngineConnectivityStatusBar(
                     engineStatuses = updated
                     isProbing = false
                 }
-            } catch (_: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logDiagnostic("EngineProbe", "Status bar batch probe failed", e)
                 withContext(Dispatchers.Main) {
                     isProbing = false
                 }
@@ -3275,20 +4074,22 @@ private fun DesktopEngineConnectivityStatusBar(
         }
     }
 
+    val barColor = palette.surfaceElevated.copy(alpha = 0.98f)
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(38.dp),
-        color = Color(0xFA070D1B),
+        color = barColor,
         border = BorderStroke(
             1.dp,
             Brush.horizontalGradient(
                 listOf(
-                    PrimaryCyan.copy(alpha = 0.15f),
-                    PrimaryCyan.copy(alpha = 0.45f),
-                    PrimaryNeon.copy(alpha = 0.60f),
-                    PrimaryCyan.copy(alpha = 0.45f),
-                    PrimaryCyan.copy(alpha = 0.15f)
+                    palette.accentPrimary.copy(alpha = 0.15f),
+                    palette.accentPrimary.copy(alpha = 0.45f),
+                    palette.accentSecondary.copy(alpha = 0.55f),
+                    palette.accentPrimary.copy(alpha = 0.45f),
+                    palette.accentPrimary.copy(alpha = 0.15f)
                 )
             )
         ),
@@ -3311,8 +4112,8 @@ private fun DesktopEngineConnectivityStatusBar(
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onOpenEnginesDialog)
                         .pointerHoverIcon(PointerIcon.Hand),
-                    color = Color.White.copy(alpha = 0.04f),
-                    border = BorderStroke(0.6.dp, PrimaryCyan.copy(alpha = 0.25f)),
+                    color = palette.surfaceInset,
+                    border = BorderStroke(0.6.dp, palette.accentPrimary.copy(alpha = 0.25f)),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Row(
@@ -3320,29 +4121,41 @@ private fun DesktopEngineConnectivityStatusBar(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
-                        // Pulsing Beacon LED
+                        val beaconColor = when {
+                            !anyProbed -> palette.accentPrimary
+                            onlineCount > 0 -> palette.verdictClean
+                            else -> palette.verdictMalicious
+                        }
                         Box(
                             modifier = Modifier
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .graphicsLayer { alpha = if (onlineCount > 0) beaconPulse else 1.0f }
-                                .background(if (onlineCount > 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                                .graphicsLayer { alpha = if (!anyProbed || onlineCount > 0) beaconPulse else 1.0f }
+                                .background(beaconColor)
                         )
 
                         Text(
-                            text = when (appLanguage) {
-                                AppLanguage.PERSIAN -> {
-                                    val onlineFmt = LocalizationProvider.formatNumber(onlineCount, appLanguage)
-                                    val totalFmt = LocalizationProvider.formatNumber(totalCount, appLanguage)
-                                    val pingFmt = LocalizationProvider.formatNumber(avgPing.toInt(), appLanguage)
-                                    "$onlineFmt از $totalFmt موتور فعال • میانگین: ${pingFmt}ms"
+                            text = if (!anyProbed) {
+                                strings.probeUnchecked
+                            } else {
+                                when (appLanguage) {
+                                    AppLanguage.PERSIAN -> {
+                                        val onlineFmt = LocalizationProvider.formatNumber(onlineCount, appLanguage)
+                                        val totalFmt = LocalizationProvider.formatNumber(totalCount, appLanguage)
+                                        val pingFmt = LocalizationProvider.formatNumber(avgPing.toInt(), appLanguage)
+                                        "$onlineFmt از $totalFmt موتور فعال • میانگین: ${pingFmt}ms"
+                                    }
+                                    AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
+                                    AppLanguage.ENGLISH -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
                                 }
-                                AppLanguage.RUSSIAN -> "$onlineCount/$totalCount онлайн • Средний: ${avgPing}ms"
-                                else -> "$onlineCount/$totalCount Engines Online • Avg: ${avgPing}ms"
                             },
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (onlineCount > 0) Color(0xFFE2E8F0) else Color(0xFFFCA5A5),
+                            color = when {
+                                !anyProbed -> palette.textPrimary
+                                onlineCount > 0 -> palette.textPrimary
+                                else -> palette.verdictMalicious
+                            },
                             maxLines = 1,
                             softWrap = false
                         )
@@ -3355,8 +4168,8 @@ private fun DesktopEngineConnectivityStatusBar(
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(enabled = !isProbing) { probeAllEngines() }
                         .pointerHoverIcon(if (isProbing) PointerIcon.Default else PointerIcon.Hand),
-                    color = if (isProbing) PrimaryCyan.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.45f))
+                    color = if (isProbing) palette.accentPrimary.copy(alpha = 0.22f) else palette.surfaceInset,
+                    border = BorderStroke(0.8.dp, palette.accentPrimary.copy(alpha = 0.45f))
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -3369,17 +4182,10 @@ private fun DesktopEngineConnectivityStatusBar(
                             modifier = if (isProbing) Modifier.graphicsLayer { rotationZ = probeSpin } else Modifier
                         )
                         Text(
-                            text = when {
-                                isProbing && appLanguage == AppLanguage.PERSIAN -> "در حال پینگ..."
-                                isProbing && appLanguage == AppLanguage.RUSSIAN -> "Проверка..."
-                                isProbing -> "Probing..."
-                                appLanguage == AppLanguage.PERSIAN -> "تست پینگ"
-                                appLanguage == AppLanguage.RUSSIAN -> "Тест пинга"
-                                else -> "Ping All"
-                            },
+                            text = if (isProbing) strings.probingInProgress else strings.probeAllButton,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = PrimaryCyan,
+                            color = palette.accentPrimary,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -3393,7 +4199,7 @@ private fun DesktopEngineConnectivityStatusBar(
                     .padding(horizontal = 10.dp)
                     .width(1.dp)
                     .height(18.dp)
-                    .background(Color.White.copy(alpha = 0.12f))
+                    .background(palette.borderSubtle)
             )
 
             // Slot 2: Full-Width Scrollable & Draggable Threat Engine Latency Chips (Zero Character Breaking)
@@ -3402,12 +4208,7 @@ private fun DesktopEngineConnectivityStatusBar(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left scroll chevron button with animated entry/exit
-                    AnimatedVisibility(
-                        visible = canScrollLeft,
-                        enter = fadeIn(tween(150)) + expandHorizontally(),
-                        exit = fadeOut(tween(150)) + shrinkHorizontally()
-                    ) {
+                    if (canScrollLeft) {
                         StatusBarNavChevron(
                             isLeft = true,
                             onClick = {
@@ -3419,7 +4220,6 @@ private fun DesktopEngineConnectivityStatusBar(
                         )
                     }
 
-                    // Left edge gradient fade when scrolled
                     if (canScrollLeft) {
                         Box(
                             modifier = Modifier
@@ -3427,13 +4227,12 @@ private fun DesktopEngineConnectivityStatusBar(
                                 .height(26.dp)
                                 .background(
                                     Brush.horizontalGradient(
-                                        colors = listOf(Color(0xFA070D1B), Color.Transparent)
+                                        colors = listOf(barColor, Color.Transparent)
                                     )
                                 )
                         )
                     }
 
-                    // Chips list with Mouse Wheel Scroll + Mouse/Touch Drag-to-Scroll + Click to inspect
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -3468,11 +4267,15 @@ private fun DesktopEngineConnectivityStatusBar(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         engineStatuses.forEach { engine ->
-                            val dotColor = if (engine.isOnline) Color(0xFF10B981) else Color(0xFFEF4444)
+                            val dotColor = when {
+                                !engine.hasProbed -> palette.textMuted
+                                engine.isOnline -> palette.verdictClean
+                                else -> palette.verdictMalicious
+                            }
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = Color.White.copy(alpha = 0.04f),
-                                border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.25f)),
+                                color = palette.surfaceInset,
+                                border = BorderStroke(0.7.dp, dotColor.copy(alpha = 0.30f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .clickable(onClick = onOpenEnginesDialog)
@@ -3491,18 +4294,26 @@ private fun DesktopEngineConnectivityStatusBar(
                                     Text(
                                         text = engine.name,
                                         fontSize = 10.sp,
-                                        fontFamily = FontFamily.Monospace,
+                                        fontFamily = monoFont,
                                         fontWeight = FontWeight.Medium,
-                                        color = Color(0xFFCBD5E1),
+                                        color = palette.textSecondary,
                                         maxLines = 1,
                                         softWrap = false
                                     )
                                     Text(
-                                        text = if (engine.isOnline) "${engine.pingMs}ms" else "ERR",
+                                        text = when {
+                                            !engine.hasProbed -> "—"
+                                            engine.isOnline -> "${engine.pingMs}ms"
+                                            else -> "ERR"
+                                        },
                                         fontSize = 9.5.sp,
-                                        fontFamily = FontFamily.Monospace,
+                                        fontFamily = monoFont,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (engine.isOnline) Color(0xFF38BDF8) else Color(0xFFEF4444),
+                                        color = when {
+                                            !engine.hasProbed -> palette.textMuted
+                                            engine.isOnline -> palette.accentPrimary
+                                            else -> palette.verdictMalicious
+                                        },
                                         maxLines = 1,
                                         softWrap = false
                                     )
@@ -3511,7 +4322,6 @@ private fun DesktopEngineConnectivityStatusBar(
                         }
                     }
 
-                    // Right edge gradient fade when scrollable
                     if (canScrollRight) {
                         Box(
                             modifier = Modifier
@@ -3519,13 +4329,12 @@ private fun DesktopEngineConnectivityStatusBar(
                                 .height(26.dp)
                                 .background(
                                     Brush.horizontalGradient(
-                                        colors = listOf(Color.Transparent, Color(0xFA070D1B))
+                                        colors = listOf(Color.Transparent, barColor)
                                     )
                                 )
                         )
                     }
 
-                    // Right scroll chevron button with animated entry/exit
                     AnimatedVisibility(
                         visible = canScrollRight,
                         enter = fadeIn(tween(150)) + expandHorizontally(),

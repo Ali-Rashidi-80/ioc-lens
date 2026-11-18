@@ -97,7 +97,7 @@ fun <T> TrainMarqueeRow(
                 if (lastNanos != 0L) {
                     val dtSec = (nowNanos - lastNanos) / 1_000_000_000f
                     val delta = pxPerSec * dtSec
-                    offsetPx = (offsetPx + delta) % cycleWidthPx
+                    offsetPx = MarqueeMath.advanceCycleOffset(offsetPx, delta, cycleWidthPx)
                 }
                 lastNanos = nowNanos
             }
@@ -117,10 +117,7 @@ fun <T> TrainMarqueeRow(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         if (cycleWidthPx > 0f) {
-                            // Invert drag amount for natural scrolling feel
-                            val factor = if (isRtl) 1f else -1f
-                            val next = offsetPx + (factor * dragAmount)
-                            offsetPx = if (next < 0f) (next % cycleWidthPx) + cycleWidthPx else next % cycleWidthPx
+                            offsetPx = MarqueeMath.wrapDragOffset(offsetPx, dragAmount, cycleWidthPx, isRtl)
                         }
                     }
                 )
@@ -160,14 +157,8 @@ fun <T> TrainMarqueeRow(
             )
     ) {
         val containerWidthPx = with(density) { maxWidth.toPx() }
-        val repeatCopies = if (cycleWidthPx > 0f) {
-            ((containerWidthPx / cycleWidthPx).toInt() + 3).coerceIn(3, 10)
-        } else {
-            4
-        }
-
-        val sign = if (isRtl) 1f else -1f
-        val currentTranslation = sign * (offsetPx % (if (cycleWidthPx > 0f) cycleWidthPx else 1f))
+        val repeatCopies = MarqueeMath.computeRepeatCopies(containerWidthPx, cycleWidthPx)
+        val currentTranslation = MarqueeMath.computeTrainTranslation(offsetPx, cycleWidthPx, isRtl)
 
         Row(
             modifier = Modifier

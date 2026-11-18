@@ -9,7 +9,13 @@ import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.RGBLuminanceSource
+import com.google.zxing.ReaderException
 import com.google.zxing.common.HybridBinarizer
+import io.github.mrcoder20.ioclens.logDiagnostic
+
+private const val ANDROID_MAX_VISION_IMAGE_BYTES = 20 * 1024 * 1024
+private const val ANDROID_MAX_IMAGE_DIMENSION = 12_000
+private const val ANDROID_MAX_IMAGE_PIXELS = 36_000_000L
 
 actual class PlatformVisualDecoder actual constructor() {
 
@@ -19,17 +25,43 @@ actual class PlatformVisualDecoder actual constructor() {
         DecodeHintType.CHARACTER_SET to "UTF-8"
     )
 
-    private val multiFormatReader = MultiFormatReader()
-
-    // Reusable byte array buffer for zero-allocation CameraX frame processing
+    // Reusable byte array buffer for CameraX analyzer thread
     private var reusableBuffer: ByteArray? = null
 
     actual fun decodeBarcodeFromBytes(imageBytes: ByteArray): List<BarcodePayload> {
-        if (imageBytes.isEmpty()) return emptyList()
+        if (imageBytes.isEmpty() || imageBytes.size > ANDROID_MAX_VISION_IMAGE_BYTES) {
+            return emptyList()
+        }
         return try {
-            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return emptyList()
-            decodeBitmap(bitmap)
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, boundsOptions)
+            val rawW = boundsOptions.outWidth
+            val rawH = boundsOptions.outHeight
+            if (rawW <= 0 || rawH <= 0 ||
+                rawW > ANDROID_MAX_IMAGE_DIMENSION || rawH > ANDROID_MAX_IMAGE_DIMENSION ||
+                rawW.toLong() * rawH.toLong() > ANDROID_MAX_IMAGE_PIXELS
+            ) {
+                logDiagnostic("AndroidVisualDecoder", "Rejected oversized image raster: ${rawW}x$rawH")
+                return emptyList()
+            }
+
+            var sampleSize = 1
+            while ((rawW / sampleSize) > 1920 || (rawH / sampleSize) > 1920) {
+                sampleSize *= 2
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, decodeOptions)
+                ?: return emptyList()
+            try {
+                decodeBitmap(bitmap)
+            } finally {
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
         } catch (e: Exception) {
+            logDiagnostic("AndroidVisualDecoder", "Failed to decode barcode image bytes", e)
             emptyList()
         }
     }
@@ -37,6 +69,9 @@ actual class PlatformVisualDecoder actual constructor() {
     fun decodeBitmap(bitmap: Bitmap): List<BarcodePayload> {
         val width = bitmap.width
         val height = bitmap.height
+        if (width <= 0 || height <= 0 || width.toLong() * height.toLong() > ANDROID_MAX_IMAGE_PIXELS) {
+            return emptyList()
+        }
         val pixels = IntArray(width * height)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
@@ -44,10 +79,13 @@ actual class PlatformVisualDecoder actual constructor() {
         val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
 
         return try {
-            val result = multiFormatReader.decode(binaryBitmap, hints)
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
             val type = mapZxingFormat(result.barcodeFormat)
             listOf(QuishingAnalyzer.analyze(result.text, type))
+        } catch (_: ReaderException) {
+            emptyList()
         } catch (e: Exception) {
+            logDiagnostic("AndroidVisualDecoder", "Unexpected bitmap barcode decode failure", e)
             emptyList()
         }
     }
@@ -79,10 +117,13 @@ actual class PlatformVisualDecoder actual constructor() {
 
             val source = PlanarYUVLuminanceSource(yuvBytes, width, height, 0, 0, width, height, false)
             val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-            val result = multiFormatReader.decode(binaryBitmap, hints)
+            val result = MultiFormatReader().decode(binaryBitmap, hints)
             val type = mapZxingFormat(result.barcodeFormat)
             listOf(QuishingAnalyzer.analyze(result.text, type))
+        } catch (_: ReaderException) {
+            emptyList()
         } catch (e: Exception) {
+            logDiagnostic("AndroidVisualDecoder", "Unexpected camera frame decode failure", e)
             emptyList()
         }
     }

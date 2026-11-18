@@ -16,6 +16,7 @@ import io.github.mrcoder20.ioclens.core.localization.AppTheme
 val LocalAccentColor = compositionLocalOf { PrimaryNeon }
 val LocalRawAccentColor = compositionLocalOf { PrimaryNeon }
 val LocalAppTheme = compositionLocalOf { AppTheme.DARK }
+val LocalIocColors = compositionLocalOf { DarkIocSemanticColors }
 
 /**
  * PortX Cyber Dark Theme:
@@ -34,7 +35,7 @@ private val PortXDarkColorScheme = darkColorScheme(
     onSurface = TextPrimary,
     surfaceVariant = CardDark,
     onSurfaceVariant = TextSecondary,
-    outline = TextMutedLight
+    outline = BorderDark
 )
 
 /**
@@ -48,17 +49,17 @@ private val IocLensClassicColorScheme = darkColorScheme(
     onPrimaryContainer = IocLensTextPrimary,
     secondary = IocLensSecondary,
     onSecondary = IocLensBackground,
-    background = IocLensBackground,
+    background = Color(0xFF050811),
     onBackground = IocLensTextPrimary,
-    surface = IocLensSurface,
+    surface = Color(0xFF0F182D),
     onSurface = IocLensTextPrimary,
-    surfaceVariant = IocLensSurfaceVariant,
+    surfaceVariant = Color(0xFF16223E),
     onSurfaceVariant = IocLensTextSecondary,
     outline = IocLensTextMuted
 )
 
 /**
- * Clean Light Theme Palette (Linear / GitHub Slate aesthetics).
+ * Clean Light Theme Palette (Linear / GitHub Slate aesthetics with WCAG AA contrast).
  */
 private val PortXLightColorScheme = lightColorScheme(
     primary = Color(0xFF0284C7),
@@ -67,11 +68,11 @@ private val PortXLightColorScheme = lightColorScheme(
     surface = SurfaceLight,
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = Color(0xFF0F172A),
-    onSurface = Color(0xFF0F172A),
+    onBackground = TextPrimaryLight,
+    onSurface = TextPrimaryLight,
     surfaceVariant = SurfaceInsetLight,
     onSurfaceVariant = TextSecondaryLight,
-    outline = BorderLight
+    outline = Color(0xFF475569)
 )
 
 @Composable
@@ -84,24 +85,31 @@ fun IOCLensTheme(
     val isSystemDark = isSystemInDarkTheme()
 
     val activeColorScheme = when (appTheme) {
-        AppTheme.IOC_LENS_CLASSIC, AppTheme.DARK -> IocLensClassicColorScheme
+        AppTheme.IOC_LENS_CLASSIC -> IocLensClassicColorScheme
+        AppTheme.DARK -> PortXDarkColorScheme
+        AppTheme.LIGHT -> PortXLightColorScheme
         AppTheme.SYSTEM -> if (isSystemDark) IocLensClassicColorScheme else PortXLightColorScheme
     }
 
-    val activeAccent = when (appTheme) {
-        AppTheme.IOC_LENS_CLASSIC, AppTheme.DARK -> IocLensPrimary
-        AppTheme.SYSTEM -> if (isSystemDark) IocLensPrimary else Color(0xFF0284C7)
+    val activeSemanticColors = when (appTheme) {
+        AppTheme.IOC_LENS_CLASSIC -> ClassicIocSemanticColors
+        AppTheme.DARK -> DarkIocSemanticColors
+        AppTheme.LIGHT -> LightIocSemanticColors
+        AppTheme.SYSTEM -> if (isSystemDark) ClassicIocSemanticColors else LightIocSemanticColors
     }
+
+    val activeAccent = activeSemanticColors.accentPrimary
 
     CompositionLocalProvider(
         LocalAccentColor provides activeAccent,
         LocalRawAccentColor provides activeAccent,
         LocalAppTheme provides appTheme,
+        LocalIocColors provides activeSemanticColors,
         LocalLayoutDirection provides layoutDirection
     ) {
         MaterialTheme(
             colorScheme = activeColorScheme,
-            typography = AppTypography,
+            typography = getAppTypography(appLanguage),
             content = content
         )
     }

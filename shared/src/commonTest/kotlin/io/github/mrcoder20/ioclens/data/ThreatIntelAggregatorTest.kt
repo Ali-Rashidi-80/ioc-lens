@@ -7,13 +7,20 @@ import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,9 +29,21 @@ import kotlin.test.assertTrue
 
 class ThreatIntelAggregatorTest {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun TestScope.safeMockEngine(
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData
+    ): MockEngine {
+        return MockEngine(
+            MockEngineConfig().apply {
+                dispatcher = StandardTestDispatcher(testScheduler)
+                addHandler(handler)
+            }
+        )
+    }
+
     @Test
     fun testZeroKeyPublicMaliciousDetection() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("urlhaus-api.abuse.ch") -> {
@@ -77,7 +96,7 @@ class ThreatIntelAggregatorTest {
 
     @Test
     fun testProviderTimeoutResilience() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             if (url.contains("threatfox-api.abuse.ch")) {
                 // Simulate slow provider exceeding timeout
@@ -110,7 +129,7 @@ class ThreatIntelAggregatorTest {
 
     @Test
     fun testHttpErrorResilience() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             // Simulate 503 Service Unavailable / network error on one service
             if (request.url.toString().contains("urlhaus-api.abuse.ch")) {
                 respond("Service Unavailable", HttpStatusCode.ServiceUnavailable)
@@ -141,7 +160,7 @@ class ThreatIntelAggregatorTest {
     @Test
     fun testAuthenticatedProviderWithKey() = runTest {
         var vtKeyReceived: String? = null
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             if (request.url.toString().contains("virustotal.com")) {
                 vtKeyReceived = request.headers["x-apikey"]
                 respond(
@@ -174,7 +193,7 @@ class ThreatIntelAggregatorTest {
     fun testVirusTotalUrlIdentifierLookup() = runTest {
         val mutex = Mutex()
         val requestedEndpoints = mutableListOf<String>()
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             mutex.withLock {
                 requestedEndpoints.add(url)
@@ -204,7 +223,7 @@ class ThreatIntelAggregatorTest {
 
     @Test
     fun testIpQualityScoreWithKey() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             if (request.url.toString().contains("ipqualityscore.com")) {
                 respond(
                     content = """{"success": true, "fraud_score": 85, "recent_abuse": true, "bot_status": false}""",
@@ -233,7 +252,7 @@ class ThreatIntelAggregatorTest {
 
     @Test
     fun testRdapAndDnsDoNotFalselyAssertCleanForUnknownDomain() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("rdap.org") -> {

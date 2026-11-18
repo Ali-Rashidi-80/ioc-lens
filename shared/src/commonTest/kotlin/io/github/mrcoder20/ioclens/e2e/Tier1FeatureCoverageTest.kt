@@ -3,17 +3,10 @@ package io.github.mrcoder20.ioclens.e2e
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.storage.InMemoryKeyValueStorage
-import io.github.mrcoder20.ioclens.data.remote.AlienVaultOtxProvider
 import io.github.mrcoder20.ioclens.data.remote.CloudflareDnsProvider
-import io.github.mrcoder20.ioclens.data.remote.CrtShProvider
-import io.github.mrcoder20.ioclens.data.remote.IpWhoIsProvider
-import io.github.mrcoder20.ioclens.data.remote.MalwareBazaarProvider
-import io.github.mrcoder20.ioclens.data.remote.RdapProvider
-import io.github.mrcoder20.ioclens.data.remote.RipeStatProvider
 import io.github.mrcoder20.ioclens.data.remote.ShodanInternetDbProvider
-import io.github.mrcoder20.ioclens.data.remote.ThreatFoxProvider
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelAggregator
-import io.github.mrcoder20.ioclens.data.remote.UrlhausProvider
+import io.github.mrcoder20.ioclens.data.remote.createDefaultZeroKeyProviders
 import io.github.mrcoder20.ioclens.data.repository.SettingsRepositoryImpl
 import io.github.mrcoder20.ioclens.data.repository.ThreatIntelRepositoryImpl
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
@@ -25,6 +18,7 @@ import io.github.mrcoder20.ioclens.domain.usecase.AnalyzeIndicatorUseCase
 import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import io.github.mrcoder20.ioclens.presentation.home.HomeEvent
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
+import io.github.mrcoder20.ioclens.presentation.intro.IntroSlideData
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -64,21 +58,17 @@ class Tier1FeatureCoverageTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun testDirectionalArrowPointsLeftForPersianAndRightForEnglishRussian() {
-        // Persian (RTL) -> Back Arrow points Right (→)
+    fun testRtlDirectionAndOnboardingSlidesAcrossAllLanguages() {
         assertTrue(AppLanguage.PERSIAN.isRtl)
-        val persianArrow = if (AppLanguage.PERSIAN.isRtl) "→" else "←"
-        assertEquals("→", persianArrow)
-
-        // English (LTR) -> Back Arrow points Left (←)
         assertFalse(AppLanguage.ENGLISH.isRtl)
-        val englishArrow = if (AppLanguage.ENGLISH.isRtl) "→" else "←"
-        assertEquals("←", englishArrow)
-
-        // Russian (LTR) -> Back Arrow points Left (←)
         assertFalse(AppLanguage.RUSSIAN.isRtl)
-        val russianArrow = if (AppLanguage.RUSSIAN.isRtl) "→" else "←"
-        assertEquals("←", russianArrow)
+
+        for (lang in AppLanguage.entries) {
+            val slides = IntroSlideData.getSlides(lang)
+            assertEquals(4, slides.size, "Language $lang must provide 4 onboarding slides")
+            assertTrue(slides.all { it.title.isNotBlank() && it.description.isNotBlank() })
+        }
+        assertTrue(IntroSlideData.getSlides(AppLanguage.PERSIAN).first().title.contains(persianRegex))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -174,20 +164,9 @@ class Tier1FeatureCoverageTest {
 
     @Test
     fun testTenZeroKeyProvidersConfiguredWithoutApiKeys() {
-        val providers = listOf(
-            UrlhausProvider(),
-            MalwareBazaarProvider(),
-            ThreatFoxProvider(),
-            RdapProvider(),
-            CloudflareDnsProvider(),
-            ShodanInternetDbProvider(),
-            AlienVaultOtxProvider(),
-            RipeStatProvider(),
-            CrtShProvider(),
-            IpWhoIsProvider()
-        )
+        val providers = createDefaultZeroKeyProviders()
 
-        assertEquals(10, providers.size, "Must have exactly 10 Zero-Key engines")
+        assertEquals(10, providers.size, "Must have exactly 10 default Zero-Key engines")
         for (provider in providers) {
             assertTrue(provider.isZeroKey, "Provider '${provider.name}' must have isZeroKey = true")
         }

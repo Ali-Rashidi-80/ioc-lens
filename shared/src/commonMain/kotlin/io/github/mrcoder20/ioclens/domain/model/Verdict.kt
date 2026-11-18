@@ -18,7 +18,8 @@ data class SourceResult(
     val detectionsCount: Int,
     val totalEngineCount: Int,
     val summary: String,
-    val isRateLimited: Boolean = false
+    val isRateLimited: Boolean = false,
+    val isError: Boolean = false
 )
 
 @Serializable
@@ -27,5 +28,7 @@ data class TriageVerdict(
     val overallVerdict: VerdictLevel,
     val confidenceScore: Int, // 0 to 100
     val summaryDescription: String,
-    val sourceResults: List<SourceResult>
+    val sourceResults: List<SourceResult>,
+    val timestampEpochMs: Long = 0L,
+    val hasNetworkError: Boolean = false
 )

@@ -9,3 +9,7 @@ interface Platform {
 expect fun getPlatform(): Platform
 
 expect fun getSystemLanguage(): AppLanguage
+
+expect fun currentTimeMillis(): Long
+
+expect fun logDiagnostic(tag: String, message: String, throwable: Throwable? = null)

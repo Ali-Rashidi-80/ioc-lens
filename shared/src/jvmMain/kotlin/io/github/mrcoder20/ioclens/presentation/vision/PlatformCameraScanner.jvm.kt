@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,11 +56,13 @@ import io.github.mrcoder20.ioclens.core.components.CameraLensVectorIcon
 import io.github.mrcoder20.ioclens.core.components.ClipboardVectorIcon
 import io.github.mrcoder20.ioclens.core.components.QrMatrixVectorIcon
 import io.github.mrcoder20.ioclens.core.components.rememberFilePickerLauncher
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
-import io.github.mrcoder20.ioclens.core.theme.PrimaryNeon
-import io.github.mrcoder20.ioclens.core.theme.SlateBorder
+import io.github.mrcoder20.ioclens.core.localization.AppLanguage
+import io.github.mrcoder20.ioclens.core.localization.LocaleManager
+import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
 import io.github.mrcoder20.ioclens.domain.vision.BarcodePayload
 import io.github.mrcoder20.ioclens.domain.vision.PlatformVisualDecoder
+import io.github.mrcoder20.ioclens.logDiagnostic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,11 +77,16 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.swing.JDialog
 
+private const val MAX_JVM_VISION_IMAGE_BYTES = 20L * 1024L * 1024L
+
 @Composable
 actual fun PlatformCameraScanner(
     onPayloadsDetected: (List<BarcodePayload>) -> Unit,
     modifier: Modifier
 ) {
+    val appLanguage by LocaleManager.currentLanguage.collectAsState()
+    val strings = LocalizationProvider.getStrings(appLanguage)
+    val palette = LocalIocColors.current
     val decoder = remember { PlatformVisualDecoder() }
     val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
@@ -87,6 +95,14 @@ actual fun PlatformCameraScanner(
     var isStatusError by remember { mutableStateOf(false) }
     var isDecoding by remember { mutableStateOf(false) }
     var dismissJob by remember { mutableStateOf<Job?>(null) }
+
+    val tooLargeMessage = remember(appLanguage) {
+        when (appLanguage) {
+            AppLanguage.PERSIAN -> "حجم تصویر بیش از ۲۰ مگابایت است و برای جلوگیری از سرریز حافظه رد شد."
+            AppLanguage.RUSSIAN -> "Изображение превышает лимит 20 МБ и отклонено."
+            AppLanguage.ENGLISH -> "Image exceeds 20 MB limit and was rejected."
+        }
+    }
 
     fun showSnackbar(msg: String, isError: Boolean = false, durationMs: Long = 3200L) {
         statusMessage = msg
@@ -98,12 +114,10 @@ actual fun PlatformCameraScanner(
         }
     }
 
-    fun processClipboard(silent: Boolean = false) {
+    fun processClipboard() {
         if (isDecoding) return
         isDecoding = true
-        if (!silent) {
-            showSnackbar("Analyzing clipboard image...", isError = false, durationMs = 2000L)
-        }
+        showSnackbar(strings.statusScanning, isError = false, durationMs = 2000L)
         scope.launch(Dispatchers.IO) {
             val payloads = decoder.decodeFromClipboard()
             withContext(Dispatchers.Main) {
@@ -111,42 +125,24 @@ actual fun PlatformCameraScanner(
                 if (payloads.isNotEmpty()) {
                     statusMessage = null
                     onPayloadsDetected(payloads)
-                } else if (!silent) {
-                    showSnackbar("No barcode found in clipboard", isError = true)
-                }
-            }
-        }
-    }
-
-    val filePickerLauncher = rememberFilePickerLauncher { filePath, _ ->
-        if (filePath.isNotBlank()) {
-            isDecoding = true
-            showSnackbar("Analyzing selected image file...", isError = false, durationMs = 2000L)
-            scope.launch(Dispatchers.IO) {
-                val file = File(filePath)
-                val payloads = if (file.exists() && file.isFile) {
-                    val bytes = runCatching { file.readBytes() }.getOrDefault(byteArrayOf())
-                    decoder.decodeBarcodeFromBytes(bytes)
                 } else {
-                    emptyList()
-                }
-                withContext(Dispatchers.Main) {
-                    isDecoding = false
-                    if (payloads.isNotEmpty()) {
-                        statusMessage = null
-                        onPayloadsDetected(payloads)
-                    } else {
-                        showSnackbar("No barcode detected in selected image.", isError = true)
-                    }
+                    showSnackbar(strings.visionNoBarcodeFound, isError = true)
                 }
             }
         }
     }
 
-    fun processDroppedFile(file: File) {
-        if (!file.exists() || !file.isFile) return
+    fun processLocalImageFile(file: File) {
+        if (DesktopDragAndDropCoordinator.isUnsafeRemotePath(file.path) || !file.exists() || !file.isFile) {
+            return
+        }
+        val length = file.length()
+        if (length <= 0L || length > MAX_JVM_VISION_IMAGE_BYTES) {
+            showSnackbar(tooLargeMessage, isError = true)
+            return
+        }
         isDecoding = true
-        showSnackbar("Decoding ${file.name}...", isError = false, durationMs = 2000L)
+        showSnackbar("${strings.statusScanning} (${file.name})", isError = false, durationMs = 2000L)
         scope.launch(Dispatchers.IO) {
             val bytes = runCatching { file.readBytes() }.getOrDefault(byteArrayOf())
             val payloads = if (bytes.isNotEmpty()) decoder.decodeBarcodeFromBytes(bytes) else emptyList()
@@ -156,18 +152,24 @@ actual fun PlatformCameraScanner(
                     statusMessage = null
                     onPayloadsDetected(payloads)
                 } else {
-                    showSnackbar("No barcode detected in ${file.name}", isError = true)
+                    showSnackbar("${strings.visionNoBarcodeFound} (${file.name})", isError = true)
                 }
             }
         }
     }
 
+    val filePickerLauncher = rememberFilePickerLauncher { filePath, _ ->
+        if (filePath.isNotBlank()) {
+            processLocalImageFile(File(filePath))
+        }
+    }
+
     fun processDroppedImage(img: Image) {
         isDecoding = true
-        showSnackbar("Decoding dropped image...", isError = false, durationMs = 2000L)
+        showSnackbar(strings.statusScanning, isError = false, durationMs = 2000L)
         scope.launch(Dispatchers.IO) {
-            val w = img.getWidth(null).coerceAtLeast(1)
-            val h = img.getHeight(null).coerceAtLeast(1)
+            val w = img.getWidth(null).coerceIn(1, 12_000)
+            val h = img.getHeight(null).coerceIn(1, 12_000)
             val buffered = if (img is BufferedImage) img else {
                 val b = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
                 val g = b.createGraphics()
@@ -182,7 +184,7 @@ actual fun PlatformCameraScanner(
                     statusMessage = null
                     onPayloadsDetected(payloads)
                 } else {
-                    showSnackbar("No barcode detected in dropped image.", isError = true)
+                    showSnackbar(strings.visionNoBarcodeFound, isError = true)
                 }
             }
         }
@@ -190,7 +192,7 @@ actual fun PlatformCameraScanner(
 
     // Register active Vision drop handlers and attach a single DropTarget to the Dialog window
     DisposableEffect(Unit) {
-        DesktopDragAndDropCoordinator.visionDropHandler = { file -> processDroppedFile(file) }
+        DesktopDragAndDropCoordinator.visionDropHandler = { file -> processLocalImageFile(file) }
         DesktopDragAndDropCoordinator.visionImageDropHandler = { img -> processDroppedImage(img) }
 
         val activeDialog = Window.getWindows()
@@ -203,9 +205,11 @@ actual fun PlatformCameraScanner(
         if (targetComp != null) {
             val dialogDropListener = DesktopDragAndDropCoordinator.createSafeDropListener(
                 onFilesDropped = { files ->
-                    val candidate = files.firstOrNull { it.isFile && it.exists() }
+                    val candidate = files.firstOrNull {
+                        !DesktopDragAndDropCoordinator.isUnsafeRemotePath(it.path) && it.isFile && it.exists()
+                    }
                     if (candidate != null) {
-                        processDroppedFile(candidate)
+                        processLocalImageFile(candidate)
                     }
                 },
                 onImageDropped = { img ->
@@ -214,13 +218,15 @@ actual fun PlatformCameraScanner(
                 onTextDropped = { text ->
                     val file = DesktopDragAndDropCoordinator.parseDroppedTextToFile(text)
                     if (file != null) {
-                        processDroppedFile(file)
+                        processLocalImageFile(file)
                     }
                 }
             )
             try {
                 targetComp.dropTarget = DropTarget(targetComp, DnDConstants.ACTION_COPY_OR_MOVE, dialogDropListener, true)
-            } catch (_: Throwable) {}
+            } catch (t: Throwable) {
+                logDiagnostic("JvmCameraScanner", "Failed to bind Vision dialog DropTarget", t)
+            }
         }
 
         onDispose {
@@ -230,15 +236,15 @@ actual fun PlatformCameraScanner(
             if (targetComp != null) {
                 try {
                     targetComp.dropTarget = oldDt
-                } catch (_: Throwable) {}
+                } catch (t: Throwable) {
+                    logDiagnostic("JvmCameraScanner", "Failed to restore previous DropTarget", t)
+                }
             }
         }
     }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
-        // Silent check on open: if user already snipped a QR code, auto-detect it without any error banner!
-        processClipboard(silent = true)
     }
 
     Box(
@@ -247,7 +253,7 @@ actual fun PlatformCameraScanner(
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 if ((event.isCtrlPressed || event.isMetaPressed) && event.key == Key.V) {
-                    processClipboard(silent = false)
+                    processClipboard()
                     true
                 } else {
                     false
@@ -268,12 +274,12 @@ actual fun PlatformCameraScanner(
                     .width(160.dp)
                     .height(105.dp)
                     .border(
-                        BorderStroke(1.5.dp, Brush.linearGradient(listOf(PrimaryCyan, PrimaryNeon.copy(alpha = 0.5f)))),
+                        BorderStroke(1.5.dp, Brush.linearGradient(listOf(palette.accentPrimary, palette.accentSecondary.copy(alpha = 0.5f)))),
                         RoundedCornerShape(16.dp)
                     )
                     .clickable { filePickerLauncher() },
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF0F172A).copy(alpha = 0.85f)
+                color = palette.surfaceInset
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -283,14 +289,13 @@ actual fun PlatformCameraScanner(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        QrMatrixVectorIcon(tint = PrimaryCyan, size = 40.dp)
+                        QrMatrixVectorIcon(tint = palette.accentPrimary, size = 40.dp)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "DROP / BROWSE",
-                            color = PrimaryCyan,
+                            text = strings.visionBrowseImage,
+                            color = palette.accentPrimary,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -299,8 +304,8 @@ actual fun PlatformCameraScanner(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "Drag & Drop QR image or Snip with Win+Shift+S",
-                color = Color.White.copy(alpha = 0.95f),
+                text = strings.visionDesktopDropTitle,
+                color = palette.textPrimary,
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
@@ -309,8 +314,8 @@ actual fun PlatformCameraScanner(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Supports QR, Data Matrix, Aztec, PDF417 & 1D Barcodes",
-                color = Color(0xFF94A3B8),
+                text = strings.visionDesktopDropDesc,
+                color = palette.textSecondary,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
@@ -322,8 +327,8 @@ actual fun PlatformCameraScanner(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = { processClipboard(silent = false) },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                    onClick = { processClipboard() },
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.accentPrimary),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.height(38.dp)
                 ) {
@@ -331,10 +336,10 @@ actual fun PlatformCameraScanner(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        ClipboardVectorIcon(tint = Color.Black, size = 16.dp)
+                        ClipboardVectorIcon(tint = palette.onAccentPrimary, size = 16.dp)
                         Text(
-                            text = "Paste (Ctrl+V)",
-                            color = Color.Black,
+                            text = strings.visionPasteClipboard,
+                            color = palette.onAccentPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -344,17 +349,17 @@ actual fun PlatformCameraScanner(
                 OutlinedButton(
                     onClick = { filePickerLauncher() },
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, SlateBorder),
+                    border = BorderStroke(1.dp, palette.borderStrong),
                     modifier = Modifier.height(38.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        CameraLensVectorIcon(tint = Color.White, size = 16.dp)
+                        CameraLensVectorIcon(tint = palette.textPrimary, size = 16.dp)
                         Text(
-                            text = "Browse File",
-                            color = Color.White,
+                            text = strings.visionBrowseImage,
+                            color = palette.textPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -374,8 +379,8 @@ actual fun PlatformCameraScanner(
         ) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF0F172A).copy(alpha = 0.96f),
-                border = BorderStroke(1.dp, if (isStatusError) Color(0xFFEF4444).copy(alpha = 0.7f) else PrimaryCyan.copy(alpha = 0.7f)),
+                color = palette.surfaceElevated,
+                border = BorderStroke(1.dp, if (isStatusError) palette.verdictMalicious.copy(alpha = 0.7f) else palette.accentPrimary.copy(alpha = 0.7f)),
                 shadowElevation = 8.dp
             ) {
                 Row(
@@ -386,14 +391,14 @@ actual fun PlatformCameraScanner(
                     Text(if (isStatusError) "⚠️" else "🔍", fontSize = 11.sp)
                     Text(
                         text = statusMessage.orEmpty(),
-                        color = if (isStatusError) Color(0xFFFCA5A5) else PrimaryCyan,
+                        color = if (isStatusError) palette.verdictMalicious else palette.accentPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = "✕",
-                        color = Color.White.copy(alpha = 0.5f),
+                        color = palette.textMuted,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier

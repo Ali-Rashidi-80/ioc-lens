@@ -152,3 +152,77 @@ fun cardGlassBackdropBrush(isDark: Boolean = true, accent: Color = PrimaryNeon):
         )
     }
 }
+
+/**
+ * Semantic theme tokens ensuring high WCAG AA contrast (>= 4.5:1) in both Dark and Light modes.
+ */
+data class IocSemanticColors(
+    val isDark: Boolean,
+    val backgroundCanvas: Color,
+    val surfaceCard: Color,
+    val surfaceElevated: Color,
+    val surfaceInset: Color,
+    val borderSubtle: Color,
+    val borderStrong: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textMuted: Color,
+    val accentPrimary: Color,
+    val onAccentPrimary: Color,
+    val accentSecondary: Color,
+    val verdictClean: Color,
+    val verdictLowRisk: Color,
+    val verdictSuspicious: Color,
+    val verdictMalicious: Color,
+    val verdictNoData: Color
+)
+
+val DarkIocSemanticColors = IocSemanticColors(
+    isDark = true,
+    backgroundCanvas = BackgroundDark,
+    surfaceCard = CardDark,
+    surfaceElevated = Color(0xFF182644),
+    surfaceInset = Color(0xFF0D1424),
+    borderSubtle = Color(0xFF1E293B),
+    borderStrong = Color(0xFF334155),
+    textPrimary = TextPrimary,
+    textSecondary = Color(0xFFCBD5E1),
+    textMuted = Color(0xFF94A3B8),
+    accentPrimary = PrimaryCyan,
+    onAccentPrimary = Color(0xFF041019),
+    accentSecondary = SecondaryNeon,
+    verdictClean = VerdictClean,
+    verdictLowRisk = CyberAmber,
+    verdictSuspicious = WarningNeon,
+    verdictMalicious = DangerNeon,
+    verdictNoData = Color(0xFF94A3B8)
+)
+
+val ClassicIocSemanticColors = DarkIocSemanticColors.copy(
+    backgroundCanvas = Color(0xFF050811),
+    surfaceCard = Color(0xFF0F182D),
+    surfaceElevated = Color(0xFF16223E),
+    accentPrimary = IocLensPrimary,
+    accentSecondary = IocLensSecondary
+)
+
+val LightIocSemanticColors = IocSemanticColors(
+    isDark = false,
+    backgroundCanvas = BackgroundLight,
+    surfaceCard = SurfaceLight,
+    surfaceElevated = Color(0xFFFFFFFF),
+    surfaceInset = SurfaceInsetLight,
+    borderSubtle = BorderLight,
+    borderStrong = GlassBorderLight,
+    textPrimary = TextPrimaryLight,
+    textSecondary = TextSecondaryLight,
+    textMuted = Color(0xFF475569),
+    accentPrimary = Color(0xFF0284C7),
+    onAccentPrimary = Color.White,
+    accentSecondary = Color(0xFF7C3AED),
+    verdictClean = Color(0xFF059669),
+    verdictLowRisk = Color(0xFFB45309),
+    verdictSuspicious = Color(0xFFD97706),
+    verdictMalicious = Color(0xFFDC2626),
+    verdictNoData = Color(0xFF475569)
+)

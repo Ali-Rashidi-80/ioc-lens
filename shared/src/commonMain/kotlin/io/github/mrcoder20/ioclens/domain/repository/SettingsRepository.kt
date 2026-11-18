@@ -15,6 +15,13 @@ interface SettingsRepository {
     fun setAppLanguage(language: AppLanguage)
     fun updateApiKey(provider: String, key: String)
 
+    fun setAutoScanClipboard(enabled: Boolean) {}
+    fun setRequestTimeoutMs(timeoutMs: Long) {}
+    fun setMaxHistoryEntries(maxEntries: Int) {}
+    fun setProviderEnabled(providerName: String, enabled: Boolean) {}
+    fun addCustomPrivacyRule(rule: String): Boolean = false
+    fun removeCustomPrivacyRule(rule: String) {}
+
     fun getScanHistory(): List<TriageVerdict>
     fun saveScanHistory(history: List<TriageVerdict>)
     fun deleteScanHistoryItem(rawValue: String)

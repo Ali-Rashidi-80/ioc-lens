@@ -46,21 +46,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.mrcoder20.ioclens.core.components.CameraLensVectorIcon
+import io.github.mrcoder20.ioclens.core.components.rememberClipboardActions
 import io.github.mrcoder20.ioclens.core.localization.AppStrings
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
-import io.github.mrcoder20.ioclens.core.theme.PrimaryNeon
-import io.github.mrcoder20.ioclens.core.theme.SlateBorder
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
+import io.github.mrcoder20.ioclens.core.theme.rememberMonospaceFontFamily
 import io.github.mrcoder20.ioclens.domain.vision.BarcodePayload
+import io.github.mrcoder20.ioclens.domain.vision.QuishingAnalyzer
 import io.github.mrcoder20.ioclens.domain.vision.QuishingRisk
 
 @Composable
@@ -73,7 +73,8 @@ fun CyberLensDialog(
 ) {
     if (!isOpen) return
 
-    val clipboardManager = LocalClipboardManager.current
+    val palette = LocalIocColors.current
+    val clipboardActions = rememberClipboardActions()
     var activePayload by remember { mutableStateOf<BarcodePayload?>(null) }
 
     Dialog(
@@ -87,7 +88,7 @@ fun CyberLensDialog(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.70f))
+                .background(Color.Black.copy(alpha = if (palette.isDark) 0.72f else 0.45f))
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -102,8 +103,8 @@ fun CyberLensDialog(
                     .width(dialogWidth)
                     .clipToBounds(),
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF070B14).copy(alpha = 0.95f),
-                border = BorderStroke(1.dp, Brush.linearGradient(listOf(PrimaryCyan.copy(alpha = 0.6f), Color(0xFF1E293B))))
+                color = palette.surfaceCard,
+                border = BorderStroke(1.dp, Brush.linearGradient(listOf(palette.accentPrimary.copy(alpha = 0.6f), palette.borderStrong)))
             ) {
                 Column(
                     modifier = Modifier
@@ -122,10 +123,10 @@ fun CyberLensDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            CameraLensVectorIcon(tint = PrimaryCyan, size = 20.dp)
+                            CameraLensVectorIcon(tint = palette.accentPrimary, size = 20.dp)
                             Text(
-                                text = "IOC Vision",
-                                color = Color.White,
+                                text = strings.visionTitle,
+                                color = palette.textPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -138,13 +139,13 @@ fun CyberLensDialog(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.08f),
+                                color = palette.surfaceInset,
                                 modifier = Modifier.size(26.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = "✕",
-                                        color = Color.White.copy(alpha = 0.8f),
+                                        color = palette.textPrimary,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -155,14 +156,15 @@ fun CyberLensDialog(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (activePayload == null) {
+                    val currentPayload = activePayload
+                    if (currentPayload == null) {
                         // Scanner Viewport with glowing reticle and laser sweep
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(if (isCompact) 330.dp else 360.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+                                .border(1.dp, palette.borderStrong, RoundedCornerShape(16.dp))
                                 .clipToBounds()
                         ) {
                             PlatformCameraScanner(
@@ -182,14 +184,15 @@ fun CyberLensDialog(
                     } else {
                         // Quishing Triage Card
                         QuishingTriageCard(
-                            payload = activePayload!!,
+                            payload = currentPayload,
+                            strings = strings,
                             isCompact = isCompact,
                             onTriage = {
-                                onTriagePayload(activePayload!!)
+                                onTriagePayload(currentPayload)
                                 onDismiss()
                             },
                             onCopy = {
-                                clipboardManager.setText(AnnotatedString(activePayload!!.defangedText))
+                                clipboardActions.copyText(currentPayload.defangedText)
                             },
                             onScanAgain = {
                                 activePayload = null
@@ -204,6 +207,7 @@ fun CyberLensDialog(
 
 @Composable
 private fun ViewfinderReticleOverlay(modifier: Modifier = Modifier) {
+    val palette = LocalIocColors.current
     val infiniteTransition = rememberInfiniteTransition(label = "laser")
     val laserY by infiniteTransition.animateFloat(
         initialValue = 0.05f,
@@ -221,32 +225,26 @@ private fun ViewfinderReticleOverlay(modifier: Modifier = Modifier) {
         val stroke = 3.dp.toPx()
         val cornerLen = 24.dp.toPx()
 
-        // 4 Reticle Corners (Cyber Cyan)
-        // Top-Left
-        drawLine(PrimaryCyan, Offset(16f, 16f), Offset(16f + cornerLen, 16f), stroke, StrokeCap.Round)
-        drawLine(PrimaryCyan, Offset(16f, 16f), Offset(16f, 16f + cornerLen), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(16f, 16f), Offset(16f + cornerLen, 16f), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(16f, 16f), Offset(16f, 16f + cornerLen), stroke, StrokeCap.Round)
 
-        // Top-Right
-        drawLine(PrimaryCyan, Offset(w - 16f, 16f), Offset(w - 16f - cornerLen, 16f), stroke, StrokeCap.Round)
-        drawLine(PrimaryCyan, Offset(w - 16f, 16f), Offset(w - 16f, 16f + cornerLen), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(w - 16f, 16f), Offset(w - 16f - cornerLen, 16f), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(w - 16f, 16f), Offset(w - 16f, 16f + cornerLen), stroke, StrokeCap.Round)
 
-        // Bottom-Left
-        drawLine(PrimaryCyan, Offset(16f, h - 16f), Offset(16f + cornerLen, h - 16f), stroke, StrokeCap.Round)
-        drawLine(PrimaryCyan, Offset(16f, h - 16f), Offset(16f, h - 16f - cornerLen), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(16f, h - 16f), Offset(16f + cornerLen, h - 16f), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(16f, h - 16f), Offset(16f, h - 16f - cornerLen), stroke, StrokeCap.Round)
 
-        // Bottom-Right
-        drawLine(PrimaryCyan, Offset(w - 16f, h - 16f), Offset(w - 16f - cornerLen, h - 16f), stroke, StrokeCap.Round)
-        drawLine(PrimaryCyan, Offset(w - 16f, h - 16f), Offset(w - 16f, h - 16f - cornerLen), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(w - 16f, h - 16f), Offset(w - 16f - cornerLen, h - 16f), stroke, StrokeCap.Round)
+        drawLine(palette.accentPrimary, Offset(w - 16f, h - 16f), Offset(w - 16f, h - 16f - cornerLen), stroke, StrokeCap.Round)
 
-        // Animated Laser Sweep Line
         val currentLaserY = h * laserY
         drawLine(
             brush = Brush.horizontalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    PrimaryCyan.copy(alpha = 0.85f),
-                    PrimaryNeon,
-                    PrimaryCyan.copy(alpha = 0.85f),
+                    palette.accentPrimary.copy(alpha = 0.85f),
+                    palette.accentSecondary,
+                    palette.accentPrimary.copy(alpha = 0.85f),
                     Color.Transparent
                 )
             ),
@@ -261,12 +259,15 @@ private fun ViewfinderReticleOverlay(modifier: Modifier = Modifier) {
 @Composable
 private fun QuishingTriageCard(
     payload: BarcodePayload,
+    strings: AppStrings,
     isCompact: Boolean,
     onTriage: () -> Unit,
     onCopy: () -> Unit,
     onScanAgain: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     var copied by remember { mutableStateOf(false) }
 
     Column(
@@ -280,9 +281,9 @@ private fun QuishingTriageCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val (badgeBg, badgeBorder, badgeText, badgeColor) = when (payload.quishingRisk) {
-                QuishingRisk.HIGH_RISK -> Quad(Color(0xFFEF4444).copy(alpha = 0.15f), Color(0xFFEF4444), "High Risk", Color(0xFFF87171))
-                QuishingRisk.SUSPICIOUS -> Quad(Color(0xFFF59E0B).copy(alpha = 0.15f), Color(0xFFF59E0B), "Suspicious", Color(0xFFFBBF24))
-                else -> Quad(Color(0xFF10B981).copy(alpha = 0.15f), Color(0xFF10B981), "Safe / Plain", Color(0xFF34D399))
+                QuishingRisk.HIGH_RISK -> Quad(palette.verdictMalicious.copy(alpha = 0.15f), palette.verdictMalicious, strings.visionHighRisk, palette.verdictMalicious)
+                QuishingRisk.SUSPICIOUS -> Quad(palette.verdictSuspicious.copy(alpha = 0.15f), palette.verdictSuspicious, strings.visionSuspicious, palette.verdictSuspicious)
+                else -> Quad(palette.verdictClean.copy(alpha = 0.15f), palette.verdictClean, strings.visionSafe, palette.verdictClean)
             }
 
             Surface(
@@ -301,7 +302,7 @@ private fun QuishingTriageCard(
 
             Text(
                 text = "${payload.type.name} • ${payload.detectedIocType ?: "TEXT"}",
-                color = Color.Gray,
+                color = palette.textMuted,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -313,26 +314,28 @@ private fun QuishingTriageCard(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF0F172A),
-            border = BorderStroke(1.dp, Color(0xFF334155))
+            color = palette.surfaceInset,
+            border = BorderStroke(1.dp, palette.borderSubtle)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "DEFANGED TARGET",
-                    color = Color.Gray,
+                    text = strings.visionDefangedLabel,
+                    color = palette.textMuted,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = payload.defangedText,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Text(
+                        text = payload.defangedText,
+                        color = palette.textPrimary,
+                        fontSize = 12.sp,
+                        fontFamily = monoFont,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
 
@@ -342,12 +345,12 @@ private fun QuishingTriageCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                color = Color.Black.copy(alpha = 0.3f),
-                border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f))
+                color = palette.verdictSuspicious.copy(alpha = 0.10f),
+                border = BorderStroke(1.dp, palette.verdictSuspicious.copy(alpha = 0.45f))
             ) {
                 Text(
                     text = "⚠️ ${payload.riskReason}",
-                    color = Color(0xFFE2E8F0),
+                    color = palette.textPrimary,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(8.dp)
                 )
@@ -355,16 +358,21 @@ private fun QuishingTriageCard(
         }
 
         if (payload.unmaskedTargetUrl != null) {
+            val safeDefangedUnmasked = remember(payload.unmaskedTargetUrl) {
+                QuishingAnalyzer.defang(payload.unmaskedTargetUrl)
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF0284C7).copy(alpha = 0.15f),
-                border = BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.5f))
+                color = palette.accentPrimary.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.45f))
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
-                    Text("UNMASKED DESTINATION", color = Color(0xFF38BDF8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    Text(payload.unmaskedTargetUrl, color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Text(strings.visionUnmaskedLabel, color = palette.accentPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Text(safeDefangedUnmasked, color = palette.textPrimary, fontSize = 11.sp, fontFamily = monoFont)
+                    }
                 }
             }
         }
@@ -374,11 +382,11 @@ private fun QuishingTriageCard(
         // CTAs
         Button(
             onClick = onTriage,
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+            colors = ButtonDefaults.buttonColors(containerColor = palette.accentPrimary),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth().height(40.dp)
         ) {
-            Text("Triage (10 Engines)", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(strings.visionTriageCta, color = palette.onAccentPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -395,15 +403,15 @@ private fun QuishingTriageCard(
                     },
                     modifier = Modifier.fillMaxWidth().height(36.dp),
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, SlateBorder)
+                    border = BorderStroke(1.dp, palette.borderStrong)
                 ) {
-                    Text(if (copied) "Copied!" else "Copy Defanged", color = Color.White, fontSize = 11.sp)
+                    Text(if (copied) strings.copiedFeedback else strings.copyDefangedIoc, color = palette.textPrimary, fontSize = 11.sp)
                 }
                 TextButton(
                     onClick = onScanAgain,
                     modifier = Modifier.fillMaxWidth().height(36.dp)
                 ) {
-                    Text("Scan Again", color = Color.Gray, fontSize = 11.sp)
+                    Text(strings.visionScanAgain, color = palette.textSecondary, fontSize = 11.sp)
                 }
             }
         } else {
@@ -418,15 +426,15 @@ private fun QuishingTriageCard(
                     },
                     modifier = Modifier.weight(1f).height(36.dp),
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, SlateBorder)
+                    border = BorderStroke(1.dp, palette.borderStrong)
                 ) {
-                    Text(if (copied) "Copied!" else "Copy Defanged", color = Color.White, fontSize = 11.sp)
+                    Text(if (copied) strings.copiedFeedback else strings.copyDefangedIoc, color = palette.textPrimary, fontSize = 11.sp)
                 }
                 TextButton(
                     onClick = onScanAgain,
                     modifier = Modifier.weight(1f).height(36.dp)
                 ) {
-                    Text("Scan Again", color = Color.Gray, fontSize = 11.sp)
+                    Text(strings.visionScanAgain, color = palette.textSecondary, fontSize = 11.sp)
                 }
             }
         }

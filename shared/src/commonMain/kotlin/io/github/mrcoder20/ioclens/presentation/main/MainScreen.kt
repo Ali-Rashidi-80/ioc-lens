@@ -25,6 +25,7 @@ import io.github.mrcoder20.ioclens.core.theme.SetSystemBarIconsColor
 import io.github.mrcoder20.ioclens.domain.repository.SettingsRepository
 import io.github.mrcoder20.ioclens.presentation.home.HomeScreen
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
+import io.github.mrcoder20.ioclens.presentation.intro.IntroEvent
 import io.github.mrcoder20.ioclens.presentation.intro.IntroScreen
 import io.github.mrcoder20.ioclens.presentation.intro.IntroViewModel
 import io.github.mrcoder20.ioclens.presentation.splash.SplashScreen
@@ -45,6 +46,7 @@ fun MainScreen(
     ) {
         val isDark = when (uiState.appSettings.appTheme) {
             AppTheme.SYSTEM -> isSystemInDarkTheme()
+            AppTheme.LIGHT -> false
             AppTheme.DARK -> true
             AppTheme.IOC_LENS_CLASSIC -> true
         }
@@ -83,7 +85,11 @@ fun MainScreen(
                                 if (isIntroCompleted) {
                                     HomeScreen(
                                         viewModel = homeViewModel,
-                                        settingsRepository = settingsRepository
+                                        settingsRepository = settingsRepository,
+                                        onReplayGuide = {
+                                            introViewModel.onEvent(IntroEvent.Reset)
+                                            mainViewModel.resetIntroForReplay()
+                                        }
                                     )
                                 } else {
                                     IntroScreen(
@@ -97,6 +103,7 @@ fun MainScreen(
                         } else {
                             SplashScreen(
                                 appLanguage = uiState.appSettings.appLanguage,
+                                skipDelay = uiState.appSettings.isIntroCompleted,
                                 onSplashFinished = {
                                     mainViewModel.onSplashFinished()
                                 }

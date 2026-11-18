@@ -66,10 +66,14 @@ class DesktopPolishVerificationTest {
 
     @Test
     fun testHeadlessFallbackReturnsDefaultWithoutCrashing() {
+        val defaults = WindowBoundsClamper.defaultBounds()
+        assertEquals(1040.dp, defaults.size.width)
+        assertEquals(740.dp, defaults.size.height)
+
         val initial = WindowBoundsClamper.resolveInitialBounds()
         assertNotNull(initial)
-        assertEquals(1040.dp, initial.size.width)
-        assertEquals(740.dp, initial.size.height)
+        assertTrue(initial.size.width.value in 380f..1040f, "Initial width ${initial.size.width} out of range")
+        assertTrue(initial.size.height.value in 520f..740f, "Initial height ${initial.size.height} out of range")
     }
 
     @Test
@@ -82,8 +86,7 @@ class DesktopPolishVerificationTest {
             }
 
             assertTrue(handled)
-            assertNotNull(receivedPayload)
-            val payload = receivedPayload!!
+            val payload = checkNotNull(receivedPayload)
             assertEquals(tempFile.absolutePath, payload.filePath)
             assertEquals(tempFile.name, payload.fileName)
             assertFalse(payload.isTemporary)
@@ -103,10 +106,10 @@ class DesktopPolishVerificationTest {
             }
 
             assertTrue(handled)
-            assertNotNull(receivedPayload)
-            assertNull(receivedPayload?.filePath, "Directories must NOT set filePath")
-            assertNotNull(receivedPayload?.errorMessage)
-            assertTrue(receivedPayload.errorMessage!!.contains("Cannot analyze folder '${tempDir.name}'"))
+            val payload = checkNotNull(receivedPayload)
+            assertNull(payload.filePath, "Directories must NOT set filePath")
+            val errorMsg = checkNotNull(payload.errorMessage)
+            assertTrue(errorMsg.contains("Cannot analyze folder '${tempDir.name}'"))
         } finally {
             tempDir.delete()
         }
@@ -146,5 +149,36 @@ class DesktopPolishVerificationTest {
         } finally {
             tempDir.delete()
         }
+    }
+
+    @Test
+    fun testUncAndRemoteFilePathsAreBlockedBeforeFilesystemIo() {
+        assertTrue(DesktopDropHandler.isUnsafeUncOrRemotePath("\\\\attacker.example\\share\\payload.exe"))
+        assertTrue(DesktopDropHandler.isUnsafeUncOrRemotePath("\\\\?\\UNC\\10.0.0.5\\share\\evil.dll"))
+        assertTrue(DesktopDropHandler.isUnsafeUncOrRemotePath("file://evil.example/share/sample.bin"))
+        assertFalse(DesktopDropHandler.isUnsafeUncOrRemotePath("file:///C:/Users/Public/sample.bin"))
+
+        var payload: SharedPayload? = null
+        DesktopDropHandler.processStartupArg("\\\\192.0.2.50\\smb\\leak.exe", AppLanguage.ENGLISH) {
+            payload = it
+        }
+        val uncPayload = checkNotNull(payload)
+        assertNotNull(uncPayload.errorMessage)
+        assertNull(uncPayload.filePath)
+        assertNull(uncPayload.textOrUrl)
+    }
+
+    @Test
+    fun testCliFlagsAreIgnoredWithoutTriggeringScanPayload() {
+        var payload: SharedPayload? = null
+        DesktopDropHandler.processStartupArg("--minimized", AppLanguage.ENGLISH) {
+            payload = it
+        }
+        assertNull(payload)
+
+        DesktopDropHandler.processStartupArg("-psn_0_1234", AppLanguage.ENGLISH) {
+            payload = it
+        }
+        assertNull(payload)
     }
 }

@@ -123,6 +123,11 @@ coverage/
 node_modules/
 .cache/
 graphify-out/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # ---------- Agent & AI tooling scratch (Never commit) ----------
 .agents/

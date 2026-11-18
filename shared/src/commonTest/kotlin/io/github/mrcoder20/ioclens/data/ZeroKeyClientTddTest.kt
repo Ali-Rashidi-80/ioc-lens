@@ -18,10 +18,17 @@ import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.github.mrcoder20.ioclens.domain.parser.IOCParser
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -41,6 +48,18 @@ class ZeroKeyClientTddTest {
 
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
     private val parser = IOCParser()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun TestScope.safeMockEngine(
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData
+    ): MockEngine {
+        return MockEngine(
+            MockEngineConfig().apply {
+                dispatcher = StandardTestDispatcher(testScheduler)
+                addHandler(handler)
+            }
+        )
+    }
 
     @Test
     fun testAllTenCoreEnginesAreZeroKey() {
@@ -69,7 +88,7 @@ class ZeroKeyClientTddTest {
     @Test
     fun testRfc1918PrivacyGuardBlocks19216811WithZeroNetworkCalls() = runTest {
         var networkCallCount = 0
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             networkCallCount++
             error("Privacy Guard VIOLATION: Network request dispatched to ${request.url}")
         }
@@ -109,7 +128,7 @@ class ZeroKeyClientTddTest {
         )
 
         var outboundCalls = 0
-        val mockEngine = MockEngine {
+        val mockEngine = safeMockEngine {
             outboundCalls++
             respond("{}", HttpStatusCode.OK, jsonHeaders)
         }
@@ -128,7 +147,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testZeroKeyIpScanWithZeroApiKeys() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("threatfox-api.abuse.ch") -> {
@@ -182,7 +201,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testZeroKeyDomainScanWithZeroApiKeys() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("urlhaus-api.abuse.ch") -> {
@@ -229,7 +248,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testZeroKeyUrlScanWithZeroApiKeys() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("urlhaus-api.abuse.ch") -> {
@@ -260,7 +279,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testMalwareBazaarProviderDirect() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             respond("""{"query_status": "ok", "signature": "WannaCry", "file_type": "exe"}""", HttpStatusCode.OK, jsonHeaders)
         }
         val client = HttpClient(mockEngine)
@@ -272,7 +291,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testThreatFoxProviderDirect() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             respond("""{"query_status": "ok", "data": [{"threat_type": "payload", "malware": "win.wannacry", "confidence_level": 100}]}""", HttpStatusCode.OK, jsonHeaders)
         }
         val client = HttpClient(mockEngine)
@@ -284,7 +303,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testAlienVaultOtxProviderDirect() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             respond("""{"pulse_info": {"count": 5}}""", HttpStatusCode.OK, jsonHeaders)
         }
         val client = HttpClient(mockEngine)
@@ -296,7 +315,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testZeroKeyHashScanWithZeroApiKeys() = runTest {
-        val mockEngine = MockEngine { request ->
+        val mockEngine = safeMockEngine { request ->
             val url = request.url.toString()
             when {
                 url.contains("mb-api.abuse.ch") -> {
@@ -327,7 +346,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testShodanInternetDbParsesOpenPortsAndCves() = runTest {
-        val mockEngine = MockEngine {
+        val mockEngine = safeMockEngine {
             respond(
                 content = """{"vulns": ["CVE-2021-44228", "CVE-2022-22965"], "ports": [80, 443, 8080], "hostnames": ["vulnerable-server.org"], "tags": ["vpn"]}""",
                 status = HttpStatusCode.OK,
@@ -349,7 +368,7 @@ class ZeroKeyClientTddTest {
     @Test
     fun testIpWhoIsDetectsTorExitNodeAndVpn() = runTest {
         // TOR Exit Node -> MALICIOUS
-        val mockTor = MockEngine {
+        val mockTor = safeMockEngine {
             respond(
                 content = """{"success": true, "connection": {"isp": "Tor Relay"}, "country": "DE", "security": {"tor": true, "proxy": true, "vpn": false, "anonymous": true}}""",
                 status = HttpStatusCode.OK,
@@ -363,7 +382,7 @@ class ZeroKeyClientTddTest {
         assertTrue(resTor.summary.contains("Active TOR exit node"))
 
         // VPN / Proxy -> SUSPICIOUS
-        val mockVpn = MockEngine {
+        val mockVpn = safeMockEngine {
             respond(
                 content = """{"success": true, "connection": {"isp": "Mullvad"}, "country": "SE", "security": {"tor": false, "proxy": false, "vpn": true, "anonymous": true}}""",
                 status = HttpStatusCode.OK,
@@ -378,7 +397,7 @@ class ZeroKeyClientTddTest {
 
     @Test
     fun testCrtShAndRipeStatEnrichment() = runTest {
-        val mockCrt = MockEngine {
+        val mockCrt = safeMockEngine {
             respond(
                 content = """[{"issuer_name": "Let's Encrypt"}, {"issuer_name": "DigiCert"}, {"issuer_name": "Sectigo"}]""",
                 status = HttpStatusCode.OK,
@@ -390,7 +409,7 @@ class ZeroKeyClientTddTest {
         assertEquals(VerdictLevel.NO_DATA, crtResult.verdict)
         assertTrue(crtResult.summary.contains("3 logged certificates discovered"))
 
-        val mockRipe = MockEngine {
+        val mockRipe = safeMockEngine {
             respond(
                 content = """{"data": {"asns": ["13335"], "prefix": "1.1.1.0/24"}}""",
                 status = HttpStatusCode.OK,

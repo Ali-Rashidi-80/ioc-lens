@@ -21,13 +21,16 @@ import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -409,23 +412,27 @@ class AdversarialStressTest {
     // 4. Concurrency Stress Test: Rapid Burst Execution
     // =========================================================================
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testHighConcurrencyStressBurst() = runTest {
-        val mockEngine = MockEngine { request ->
-            delay(10)
-            when {
-                request.url.toString().contains("feodotracker") -> {
-                    respond(
-                        content = """[{"ip_address": "198.51.100.10", "malware": "Dridex", "status": "active"}]""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
-                }
-                else -> {
-                    respond(content = "{}", status = HttpStatusCode.OK, headers = jsonHeaders)
+        val mockEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                delay(10)
+                when {
+                    request.url.toString().contains("feodotracker") -> {
+                        respond(
+                            content = """[{"ip_address": "198.51.100.10", "malware": "Dridex", "status": "active"}]""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    else -> {
+                        respond(content = "{}", status = HttpStatusCode.OK, headers = jsonHeaders)
+                    }
                 }
             }
-        }
+        })
 
         val client = HttpClient(mockEngine)
         val repository = ZeroKeyThreatIntelRepositoryImpl(

@@ -12,11 +12,17 @@ sealed interface HomeEvent {
     data class FileDropped(val filePath: String, val fileName: String, val isTemporary: Boolean = false) : HomeEvent
     data class BatchFilesSelected(val files: List<PickedFile>, val isTemporary: Boolean = false) : HomeEvent
     data object ClearFileQueue : HomeEvent
+    data class RemoveQueueItem(val itemId: String) : HomeEvent
+    data class RetryQueueItem(val itemId: String) : HomeEvent
     data class SelectQueueItemVerdict(val item: FileQueueItem) : HomeEvent
     data class HistoryItemClicked(val verdict: TriageVerdict) : HomeEvent
     data object AnalyzeClicked : HomeEvent
+    data object ReScanIndicator : HomeEvent
     data object CancelScan : HomeEvent
     data object ClearClicked : HomeEvent
+    data class SelectSampleQuery(val sample: String) : HomeEvent
+    data class ShowStatusFeedback(val message: String) : HomeEvent
+    data object DismissStatusFeedback : HomeEvent
     data object ToggleProviderDeck : HomeEvent
     data class SetHistorySheetOpen(val isOpen: Boolean) : HomeEvent
     data class SetSettingsSheetOpen(val isOpen: Boolean) : HomeEvent

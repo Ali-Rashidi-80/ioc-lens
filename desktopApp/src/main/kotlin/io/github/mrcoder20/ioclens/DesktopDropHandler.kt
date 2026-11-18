@@ -7,12 +7,30 @@ import io.github.mrcoder20.ioclens.domain.security.SharedPayload
 import java.io.File
 
 object DesktopDropHandler {
+    internal fun isUnsafeUncOrRemotePath(rawPath: String): Boolean {
+        val trimmed = rawPath.trim().removeSurrounding("\"")
+        if (trimmed.isEmpty()) return false
+        if (trimmed.startsWith("\\\\") || trimmed.startsWith("//")) return true
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("\\\\?\\unc\\")) return true
+        if (lower.contains("@ssl") && lower.contains("davwwwroot")) return true
+        if (lower.startsWith("file://")) {
+            val afterScheme = trimmed.substring(7)
+            if (afterScheme.startsWith("/")) return false
+            val authority = afterScheme.substringBefore('/').substringBefore('\\').lowercase()
+            if (authority.isNotEmpty() && authority != "localhost") return true
+        }
+        return false
+    }
+
     fun processDroppedFiles(
         files: List<*>?,
         language: AppLanguage = LocaleManager.currentLanguage.value,
         onPayloadReady: (SharedPayload) -> Unit
     ): Boolean {
-        val allFiles = files?.filterIsInstance<File>() ?: return false
+        val allFiles = files?.filterIsInstance<File>()
+            ?.filter { !isUnsafeUncOrRemotePath(it.path) }
+            ?: return false
         if (allFiles.isEmpty()) return false
 
         val validFiles = allFiles.filter { it.isFile && it.exists() }
@@ -61,7 +79,20 @@ object DesktopDropHandler {
         language: AppLanguage = LocaleManager.currentLanguage.value,
         onPayloadReady: (SharedPayload) -> Unit
     ) {
-        val file = File(arg)
+        val trimmed = arg.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("-")) {
+            return
+        }
+        if (isUnsafeUncOrRemotePath(trimmed)) {
+            val errorMsg = when (language) {
+                AppLanguage.PERSIAN -> "مسیر شبکه یا UNC ناامن مسدود شد؛ لطفاً فقط فایل لوکال انتخاب کنید."
+                AppLanguage.RUSSIAN -> "Небезопасный сетевой/UNC-путь заблокирован. Выберите локальный файл."
+                AppLanguage.ENGLISH -> "Blocked unsafe remote or UNC network path. Drop a local file instead."
+            }
+            onPayloadReady(SharedPayload(errorMessage = errorMsg))
+            return
+        }
+        val file = File(trimmed)
         if (file.exists()) {
             if (file.isFile) {
                 onPayloadReady(
@@ -81,7 +112,7 @@ object DesktopDropHandler {
                 onPayloadReady(SharedPayload(errorMessage = errorMsg))
             }
         } else {
-            onPayloadReady(SharedPayload(textOrUrl = arg))
+            onPayloadReady(SharedPayload(textOrUrl = trimmed))
         }
     }
 }

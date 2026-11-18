@@ -2,26 +2,21 @@
 
 <img src="docs/assets/banner.png" alt="IOC Lens: copy it, know in a second. Instant, privacy-first IOC triage for SOC analysts" width="900">
 
-[![Release](https://img.shields.io/github/v/release/mr-coder20/ioc-lens?include_prereleases&label=release&color=2ea44f)](https://github.com/mr-coder20/ioc-lens/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/mr-coder20/ioc-lens/total?color=blue)](https://github.com/mr-coder20/ioc-lens/releases)
-[![Stars](https://img.shields.io/github/stars/mr-coder20/ioc-lens?style=flat&color=yellow)](https://github.com/mr-coder20/ioc-lens/stargazers)
-[![CI](https://github.com/mr-coder20/ioc-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/mr-coder20/ioc-lens/actions)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Release](docs/assets/badges/release.svg)](https://github.com/mr-coder20/ioc-lens/releases/latest)
+[![Platforms](docs/assets/badges/downloads.svg)](https://github.com/mr-coder20/ioc-lens/releases)
+[![Zero-Key Engines](docs/assets/badges/stars.svg)](#threat-intelligence-engine-inventory)
+[![CI](docs/assets/badges/ci.svg)](.github/workflows/ci.yml)
+[![License: MIT](docs/assets/badges/license.svg)](LICENSE)
+[![Kotlin](docs/assets/badges/kotlin.svg)](https://kotlinlang.org)
+[![PRs Welcome](docs/assets/badges/prs.svg)](CONTRIBUTING.md)
 
-### [⬇️ Download from Releases](https://github.com/mr-coder20/ioc-lens/releases)
+### [Download from Releases](https://github.com/mr-coder20/ioc-lens/releases)
 
-**🪟 Windows &nbsp;·&nbsp; 🍎 macOS &nbsp;·&nbsp; 🐧 Linux &nbsp;·&nbsp; 🤖 Android &nbsp;·&nbsp; 📱 iOS**
+**Windows &nbsp;·&nbsp; macOS &nbsp;·&nbsp; Linux &nbsp;·&nbsp; Android &nbsp;·&nbsp; iOS**
 
 <br>
 
 [**English**](#english) &nbsp;·&nbsp; [**فارسی**](#persian) &nbsp;·&nbsp; [**Русский**](#russian)
-
-<!-- Add a 10-second demo GIF as docs/assets/demo.gif, then uncomment:
-<br><br>
-<img src="docs/assets/demo.gif" alt="IOC Lens demo" width="760">
--->
 
 </div>
 
@@ -29,200 +24,117 @@
 
 <a id="english"></a>
 
-# 🇬🇧 English
+# English
 
 <div align="center">
 
 [English](#english) · [فارسی](#persian) · [Русский](#russian)
 
-**📋 Copy** &nbsp;→&nbsp; **🛡️ Privacy Guard** &nbsp;→&nbsp; **🌐 Threat-intel sources** &nbsp;→&nbsp; **🎯 One clear verdict**
+**Copy / Drop** &nbsp;→&nbsp; **Privacy Guard** &nbsp;→&nbsp; **Threat-Intel Engines** &nbsp;→&nbsp; **One Clear Verdict**
 
 </div>
 
-**IOC Lens** is a lightweight, privacy-first cross-platform tool for SOC analysts and defenders. Copy an IP address, domain, URL or file hash, and get one clear, explainable verdict from several threat-intelligence sources at once, without juggling browser tabs.
+**IOC Lens** is a lightweight, privacy-first cross-platform tool for SOC analysts and defenders. Paste, share, drag-and-drop, or QR-scan an IP address, domain, URL, or file hash, and get one clear, explainable verdict from multiple threat-intelligence sources at once without juggling browser tabs.
 
-> 🚧 IOC Lens is under active development. Features and capabilities will grow and change over time.
-
-## 💡 Why IOC Lens
+## Why IOC Lens
 
 Checking a suspicious indicator usually means copying it, opening several websites, pasting it again and again, and comparing different answers by hand. IOC Lens does all of that in one step.
 
 | Without IOC Lens | With IOC Lens |
 |---|---|
 | Several tabs, several logins | One quick lookup |
-| Different answers to compare by hand | One combined, explained verdict |
-| Risk of pasting internal data into outside sites | Internal indicators stay on your machine |
-| Heavy platforms for a quick check | A small, fast app on every device |
+| Different answers to compare by hand | One combined, explainable verdict |
+| Risk of pasting internal data into outside sites | Internal indicators stay strictly on your device |
+| Heavy platforms for a quick check | A small, fast app across desktop and mobile |
 
-## ✨ Highlights
+## Highlights
 
-- ⚡ **Instant Zero-Key Triage**: check indicators immediately using 4 free unauthenticated community feeds (abuse.ch URLhaus, MalwareBazaar, ThreatFox, and RDAP) with **zero API keys required** out of the box
-- 🌐 **10 Threat-Intel Providers**: combines live telemetry from URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH, VirusTotal, AbuseIPDB, AlienVault OTX, Pulsedive, and IPQualityScore
-- 🛡️ **Fault-Tolerant Parallel Aggregator**: parallel queries dispatched with strict 10s per-provider timeouts; skips filtered/blocked hosts without freezing or hanging
-- 🔒 **Memory-Safe Stream Hashing**: files up to 100MB+ are hashed via 64KB chunked streams on background worker threads without loading files into RAM or executing payloads
-- 📲 **Native Share Sheet Integration**: select "Share → IOC Lens" from Telegram, Eitaa, browsers, or file managers on Android/iOS/Desktop to auto-scan payloads in under 60 seconds
-- 🎯 **Cyberpunk Single-Hub Dashboard**: unified dashboard with expandable live engine status deck, instant verdict score, and persistent scan history
-- 🛡️ **Privacy Guard Subnet Security**: mathematically validates private IPv4/IPv6 subnets and local domains to keep internal assets strictly on your device
-- 🪶 **Light and native**: small, fast, for **Windows, macOS, Linux, Android and iOS**
-- 🔓 **Open source** under the MIT license
+- **Instant Zero-Key Triage**: Query **11 free unauthenticated community engines** out of the box (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH, Shodan InternetDB, AlienVault OTX, RIPE Stat, crt.sh, Feodo Tracker, and ipwho.is) with **zero API keys required**.
+- **15 Supported Threat-Intel Providers**: Combines the 11 zero-key engines with 4 optional API-key engines (VirusTotal, AbuseIPDB, Pulsedive, IPQualityScore) configurable in **Settings**.
+- **Fault-Tolerant Parallel Aggregator**: Parallel queries dispatched under configurable per-provider timeouts, 2 MB bounded HTTP response reads, circuit-breaker cooldowns, and Feodo blocklist TTL caching.
+- **Memory-Safe Stream Hashing**: Files are hashed locally via 64 KB chunked streams on background I/O threads without uploading binaries or loading entire files into RAM.
+- **Vision & Quishing Triage**: Scan or decode QR codes/barcodes with defanged preview, homograph/open-redirect inspection, and instant IOC triage.
+- **Privacy Guard & Custom Rules**: Validates built-in private IPv4/IPv6 ranges (RFC 1918, CGNAT, loopback, link-local, ULA, NAT64, 6to4, octal/hex/DWORD forms) and internal TLDs (`.local`, `.lan`, `.internal`, `.corp`, `.home`, `.home.arpa`, `.localhost`, `.onion`) plus user-defined domains and CIDRs.
+- **Encrypted Local Storage**: API keys and scan history are encrypted at rest (Android Keystore AES-256-GCM, Desktop AES-256-GCM with owner-restricted key permissions, iOS Keychain).
+- **Multi-Target & Open Source**: Built with Kotlin Multiplatform & Compose Multiplatform for **Windows, macOS, Linux, Android, and iOS** under the MIT license.
 
-## 🌐 Threat Intelligence Engine Inventory (10 Providers)
+<a id="threat-intelligence-engine-inventory"></a>
+
+## Threat Intelligence Engine Inventory
 
 | # | Provider | Auth Mode | Supported Indicators | Purpose |
 |---|---|---|---|---|
-| 1 | **URLhaus (abuse.ch)** | 🟢 Zero-Key Free | URLs, Domains, IPs | Active malware payload distribution URLs |
-| 2 | **MalwareBazaar (abuse.ch)** | 🟢 Zero-Key Free | Hashes (MD5, SHA1, SHA256) | Confirmed malware binary repository lookup |
-| 3 | **ThreatFox (abuse.ch)** | 🟢 Zero-Key Free | IPs, Domains, URLs, Hashes | Corroborated botnet C2 and malicious IOCs |
-| 4 | **RDAP / Network Registry** | 🟢 Zero-Key Free | IPs, Domains | ICANN, ARIN, RIPE, APNIC allocation metadata |
-| 5 | **Cloudflare DoH** | 🟢 Zero-Key Free | Domains, Hosts | Real-time DNS status & resolution validation |
-| 6 | **VirusTotal** | 🔑 API Key (Optional) | Hashes, IPs, Domains, URLs | Multivendor threat scanning across 70+ engines |
-| 7 | **AbuseIPDB** | 🔑 API Key (Optional) | IPv4, IPv6 | Community reports and abuse confidence score |
-| 8 | **AlienVault OTX** | 🔑 API Key (Optional) | Hashes, IPs, Domains, URLs | Open threat pulses and adversary campaigns |
-| 9 | **Pulsedive** | 🔑 API Key (Optional) | IPs, Domains, URLs | Risk level scoring and cyber threat context |
-| 10 | **IPQualityScore** | 🔑 API Key (Optional) | IPv4, IPv6 | Fraud scoring and VPN/Proxy detection |
+| 1 | **URLhaus (abuse.ch)** | Zero-Key Free | URLs, Domains | Active malware payload distribution URLs & hosts |
+| 2 | **MalwareBazaar (abuse.ch)** | Zero-Key Free | Hashes (MD5, SHA-1, SHA-256) | Confirmed malware binary repository lookup |
+| 3 | **ThreatFox (abuse.ch)** | Zero-Key Free | IPs, Domains, URLs, Hashes | Corroborated botnet C2 and malicious IOCs |
+| 4 | **RDAP / Registry** | Zero-Key Free | IPs, Domains | ICANN, ARIN, RIPE, APNIC allocation metadata |
+| 5 | **Cloudflare DoH** | Zero-Key Free | Domains | Real-time encrypted DNS status validation |
+| 6 | **Shodan InternetDB** | Zero-Key Free | IPs | Open ports, hostnames, and passive CVE banners |
+| 7 | **AlienVault OTX** | Zero-Key (Optional Key) | Hashes, IPs, Domains, URLs | Open threat pulses and adversary campaigns |
+| 8 | **RIPE Stat** | Zero-Key Free | IPs | BGP routing prefix and ASN telemetry |
+| 9 | **crt.sh** | Zero-Key Free | Domains | Certificate Transparency log counts |
+| 10 | **Feodo Tracker (abuse.ch)** | Zero-Key Free | IPs | Active botnet C2 blocklist telemetry |
+| 11 | **ipwho.is** | Zero-Key Free | IPs | Proxy, VPN, Tor exit-node & ISP metadata |
+| 12 | **VirusTotal** | Optional API Key | Hashes, IPs, Domains, URLs | Multivendor threat scanning across 70+ engines |
+| 13 | **AbuseIPDB** | Optional API Key | IPv4, IPv6 | Community reports and abuse confidence score |
+| 14 | **Pulsedive** | Optional API Key | IPs, Domains, URLs, Hashes | Risk level scoring and threat context |
+| 15 | **IPQualityScore** | Optional API Key | IPv4, IPv6 | Fraud scoring and VPN/Proxy detection |
 
-## 📥 Install
+## Install
 
 1. Open the **[Releases page](https://github.com/mr-coder20/ioc-lens/releases)**.
-2. Under **Assets** of the latest release, download the file for your system:
+2. Under **Assets** of the latest release, download the package for your system:
 
    | System | File |
    |---|---|
-   | 🪟 Windows | `.msi` |
-   | 🍎 macOS | `.dmg` |
-   | 🐧 Linux | `.deb` |
-   | 🤖 Android | `.apk` |
-   | 📱 iOS | TestFlight / App Store link (see the release notes) |
+   | Windows | `IOC-Lens-windows-x64.msi` |
+   | macOS | `IOC-Lens-macos-arm64.dmg` |
+   | Linux | `IOC-Lens-linux-amd64.deb` |
+   | Android | `IOC-Lens-android.apk` |
+   | iOS | Build from `iosApp/` via Xcode or TestFlight (when published) |
 
-3. Install it:
+> **Recommended:** verify the SHA-256 digest of your download against `SHA256SUMS.txt` from the same release.
 
-<details>
-<summary><b>🪟 Windows</b></summary>
+## Get Started
 
-1. Run the downloaded `.msi` installer and follow the wizard.
-2. If **SmartScreen** shows a warning (early builds may be unsigned), choose **More info → Run anyway**.
-3. Start **IOC Lens** from the Start menu. It lives in the system tray.
+1. **Zero-Key Out-of-the-Box**: Launch IOC Lens and immediately paste an indicator, scan a QR code, or drop/select files for local SHA-256 hashing.
+2. **Optional API Keys & Custom Rules**: Open **Settings** to configure optional API keys, custom internal domain/CIDR Privacy Guard rules, per-engine toggles, timeout, and Dark/Classic/Light/System themes.
+3. **Android Share Target**: Share text, URLs, or files via **Share → IOC Lens** from browsers, messaging apps, or file managers.
+4. **Desktop CLI & Drag-and-Drop**: Drag files or text directly into the window, or pass an indicator or local file path on launch (e.g. `io.github.mrcoder20.ioclens "8.8.8.8"` or `io.github.mrcoder20.ioclens sample.bin`).
 
-</details>
-
-<details>
-<summary><b>🍎 macOS</b></summary>
-
-1. Open the `.dmg` and drag **IOC Lens** into **Applications**.
-2. On first launch, **right-click the app → Open → Open** if macOS says it cannot verify the developer.
-3. Allow the permissions macOS asks for (for example, for the global shortcut).
-
-</details>
-
-<details>
-<summary><b>🐧 Linux</b></summary>
-
-1. Install the package:
-   ```bash
-   sudo apt install ./<downloaded-file>.deb
-   ```
-2. Launch **IOC Lens** from your app menu.
-3. On GNOME, install the *AppIndicator* extension if you do not see the tray icon.
-
-</details>
-
-<details>
-<summary><b>🤖 Android</b></summary>
-
-1. Download the `.apk` on your phone (or copy it from your computer) and tap it.
-2. When asked, allow installing apps from this source (your browser or file manager).
-3. Open **IOC Lens**. Check an indicator by sharing text to it (**Share → IOC Lens**) or by pasting it in the app.
-
-</details>
-
-<details>
-<summary><b>📱 iOS</b></summary>
-
-iOS apps cannot be installed from a downloaded file. Use the **TestFlight / App Store link** published in the release notes (or on the Releases page) once it is available, then open **IOC Lens** and share or paste an indicator.
-
-</details>
-
-> 🔐 **Recommended:** compare the SHA-256 of your download with `SHA256SUMS.txt` from the same release.
-
-## 🚀 Get started
-
-1. **Zero-Key Out-of-the-Box**: Open IOC Lens and immediately paste an indicator (or drop a file). The app automatically queries URLhaus, MalwareBazaar, ThreatFox, and RDAP without needing any configuration.
-2. **Optional API Keys**: Open **Settings → Providers** if you wish to configure personal API keys for VirusTotal, AbuseIPDB, or AlienVault OTX.
-3. **Share Sheet Workflow**: On Android, select text or a file in Telegram/Eitaa/browser, tap **Share → IOC Lens**. The app launches directly into the scan pipeline and provides an explainable verdict.
-4. **Desktop CLI & Drag-and-Drop**: On Windows/macOS/Linux, pass an indicator or file path directly as an argument (e.g. `./IOCLens "8.8.8.8"` or `./IOCLens sample.exe`).
-
-## 🛠️ Building & Automated Testing
+## Building & Automated Testing
 
 ```bash
-# Run multiplatform unit tests (IOCParser, Aggregator, MockEngine)
+# Run shared JVM unit & security tests
 ./gradlew :shared:jvmTest
 
-# Run Android host tests
-./gradlew :shared:testAndroidHostTest
+# Run desktop module tests
+./gradlew :desktopApp:test
 
-# Run 100MB synthetic stream hashing benchmark
-./gradlew :shared:jvmTest --tests "io.github.mrcoder20.ioclens.domain.security.ChunkedStreamHasherTest"
+# Run Android host unit tests and Android lint
+./gradlew :shared:testAndroidHostTest :androidApp:lintDebug
 
-# Build desktop application
-./gradlew :desktopApp:compileKotlin
-
-# Build Android debug APK
-./gradlew :androidApp:assembleDebug
+# Compile desktop and Android debug targets
+./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug
 ```
 
-## 🎯 Understanding verdicts
+## Understanding Verdicts
 
 | Verdict | Meaning |
 |---|---|
-| 🟢 **Clean** | No meaningful detections |
-| 🟡 **Low risk** | Weak or old signals; review in context |
-| 🟠 **Suspicious** | Notable detections; worth investigating |
-| 🔴 **Malicious** | Strong, corroborated detections |
-| ⚪ **No data** | Not known to your enabled sources. This is **not** the same as safe |
+| **Clean** | Explicitly checked with no malicious flags |
+| **Low risk** | Weak or informational flags; review in context |
+| **Suspicious** | Notable detections; worth investigating |
+| **Malicious** | Strong, corroborated detections |
+| **No data** | Unknown to active sources or network unavailable — **never treated as safe** |
 
-A verdict is a triage aid, not a final judgment. Always apply your own analysis.
+## Privacy & Security
 
-## 🛡️ Privacy & security
-
-- **Privacy Guard** blocks private and internal indicators (such as internal IP addresses and internal domain names) before anything is sent out. You can add your own rules.
-- Only the indicator itself is sent, only to the sources you enabled, over HTTPS.
+- **Privacy Guard** blocks private and internal indicators (plus your custom CIDRs and domain rules) before any network request is dispatched.
+- Only the sanitized indicator is sent directly over HTTPS to enabled engines.
 - **No backend, no account, no telemetry.**
-- API keys are kept in your operating system's secure storage.
-- Found a vulnerability? Please read [SECURITY.md](SECURITY.md).
-
-## ❓ FAQ
-
-<details>
-<summary><b>Is IOC Lens free?</b></summary>
-
-Yes. It is open source under the MIT license. The threat-intelligence services it queries offer free API keys; their own terms and limits apply.
-</details>
-
-<details>
-<summary><b>Does it send my data to you?</b></summary>
-
-No. There is no IOC Lens server. Lookups go directly from your computer to the sources you enabled.
-</details>
-
-<details>
-<summary><b>Why "No data" instead of "Clean"?</b></summary>
-
-Not being in a database does not make something safe. New infrastructure is often unknown, so IOC Lens never presents a missing result as a clean one.
-</details>
-
-<details>
-<summary><b>The shortcut does not work.</b></summary>
-
-Another app may be using the same shortcut. Change it in Settings, or use the tray icon instead.
-</details>
-
-## 🤝 Contribute
-
-Ideas, bug reports, new sources, translations and code are all welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), open an [issue](https://github.com/mr-coder20/ioc-lens/issues), or send a pull request.
-
-**⭐ If IOC Lens saves you time, a star helps other defenders find it.**
-
-Released under the [MIT License](LICENSE).
+- Secrets and history are encrypted locally on disk / in OS Keystore/Keychain.
+- Found a vulnerability? Read [SECURITY.md](SECURITY.md).
 
 <div align="right"><a href="#english">↑ Back to top</a></div>
 
@@ -230,7 +142,7 @@ Released under the [MIT License](LICENSE).
 
 <a id="persian"></a>
 
-# 🇮🇷 فارسی
+# فارسی
 
 <div dir="rtl">
 
@@ -238,159 +150,37 @@ Released under the [MIT License](LICENSE).
 
 [English](#english) · [فارسی](#persian) · [Русский](#russian)
 
-**📋 کپی** &nbsp;←&nbsp; **🛡️ Privacy Guard** &nbsp;←&nbsp; **🌐 منابع Threat Intel** &nbsp;←&nbsp; **🎯 یک حکم روشن**
-
-### کپی کن، در یک ثانیه بفهم.
+**کپی / کشیدن و رها کردن** &nbsp;←&nbsp; **Privacy Guard** &nbsp;←&nbsp; **موتورهای هوش تهدید** &nbsp;←&nbsp; **یک حکم روشن و قابل‌توضیح**
 
 </div>
 
-**IOC Lens** یک ابزار چندسکویی سبک و حریم‌خصوصی‌محور برای تحلیلگران SOC و مدافعان امنیتی است. یک آدرس IP، دامنه، URL یا هش فایل را کپی کنید و بدون باز کردن چندین تب مرورگر، یک حکم روشن و قابل‌توضیح از چند منبع threat intelligence بگیرید.
+**IOC Lens** یک ابزار چندسکویی سبک و حریم‌خصوصی‌محور برای تحلیلگران SOC و مدافعان امنیتی است. آدرس IP، دامنه، URL، هش یا فایل را کپی، اشتراک‌گذاری، رها یا اسکن QR کنید و هم‌زمان از چندین منبع هوش تهدید یک حکم شفاف و قابل‌استناد بگیرید.
 
-> 🚧 IOC Lens در حال توسعه‌ی فعال است. ویژگی‌ها و قابلیت‌ها با گذر زمان گسترش پیدا می‌کنند و ممکن است تغییر کنند.
+## ویژگی‌های کلیدی
 
-## 💡 چرا IOC Lens؟
+- **تریاژ فوری بدون نیاز به کلید API**: اتصال مستقیم به **۱۱ موتور رایگان بدون کلید** (URLhaus، MalwareBazaar، ThreatFox، RDAP، Cloudflare DoH، Shodan InternetDB، AlienVault OTX، RIPE Stat، crt.sh، Feodo Tracker و ipwho.is).
+- **پشتیبانی اختیاری از ۴ موتور با کلید API**: امکان ثبت کلیدهای VirusTotal، AbuseIPDB، Pulsedive و IPQualityScore در بخش تنظیمات.
+- **محاسبه امن و جریانی هش فایل (SHA-256)**: هش فایل‌ها بدون آپلود باینری و با بافر جریانی ۶۴ کیلوبایتی به‌صورت کاملاً محلی محاسبه می‌شود.
+- **سپر حریم خصوصی (Privacy Guard) و قوانین سفارشی**: مسدودسازی خودکار IPهای داخلی (RFC 1918، CGNAT، loopback، link-local، IPv6 ULA/NAT64/6to4، فرم‌های هشت‌تایی/هگز) و دامنه‌های داخلی (`.local`، `.lan`، `.internal`، `.corp`، `.home`، `.home.arpa`، `.localhost`، `.onion`) به همراه امکان افزودن دامنه و CIDR دلخواه کاربر.
+- **ذخیره‌سازی رمزنگاری‌شده محلی**: نگهداری کلیدهای API و تاریخچه با رمزنگاری AES-256-GCM / Android Keystore / iOS Keychain و بدون هیچ سرور میانی یا تله‌متری.
+- **پشتیبانی کامل از سه زبان فارسی (RTL)، انگلیسی و روسی** و دو تم تاریک و روشن استاندارد.
 
-بررسی یک نشانگر مشکوک معمولاً یعنی کپی کردن، باز کردن چند وب‌سایت، چندبار paste کردن و مقایسه‌ی دستی پاسخ‌های مختلف. IOC Lens همه‌ی این کارها را در یک مرحله انجام می‌دهد.
-
-| بدون IOC Lens | با IOC Lens |
-|---|---|
-| چند تب، چند ورود به سایت | یک جست‌وجوی سریع |
-| پاسخ‌های متفاوت برای مقایسه‌ی دستی | یک حکم ترکیبی و توضیح‌داده‌شده |
-| خطر paste کردن اطلاعات داخلی در سایت‌های بیرونی | نشانگرهای داخلی روی دستگاه شما می‌مانند |
-| پلتفرم‌های سنگین برای یک بررسی سریع | یک برنامه‌ی کوچک و سریع روی هر دستگاه |
-
-## ✨ ویژگی‌های کلی
-
-- ⚡ **فوری**: نتیجه‌ی آنچه تازه کپی کرده‌اید در حدود یک ثانیه
-- 🌐 **چند منبع، یک پاسخ**: ترکیب نتایج چند سرویس رایگان threat intelligence همراه با توضیح
-- 🔎 **قابل‌توضیح**: هر حکم نشان می‌دهد کدام منابع و چرا در آن نقش داشته‌اند
-- 🛡️ **حریم خصوصی اول**: نشانگرهای داخلی هرگز از دستگاه شما خارج نمی‌شوند
-- 🔑 **کلیدها دست خودتان است**: بدون حساب کاربری، بدون تله‌متری، کلیدها فقط محلی
-- 🪶 **سبک و بومی**: کوچک و سریع، برای **ویندوز، مک، لینوکس، اندروید و iOS**
-- 🔓 **متن‌باز** با مجوز MIT
-
-## 📥 نصب
-
-1. **[صفحه‌ی Releases](https://github.com/mr-coder20/ioc-lens/releases)** را باز کنید.
-2. در بخش **Assets** آخرین نسخه، فایل مخصوص سیستم خود را دانلود کنید:
-
-   | سیستم | فایل |
-   |---|---|
-   | 🪟 ویندوز | `.msi` |
-   | 🍎 مک | `.dmg` |
-   | 🐧 لینوکس | `.deb` |
-   | 🤖 اندروید | `.apk` |
-   | 📱 iOS | لینک TestFlight / App Store (در توضیحات نسخه) |
-
-3. نصب کنید:
-
-<details>
-<summary><b>🪟 ویندوز</b></summary>
-
-1. فایل `.msi` دانلودشده را اجرا کنید و مراحل نصب را ادامه دهید.
-2. اگر **SmartScreen** هشدار داد (نسخه‌های اولیه ممکن است امضا نداشته باشند)، **More info ← Run anyway** را بزنید.
-3. **IOC Lens** را از منوی Start اجرا کنید. برنامه در system tray قرار می‌گیرد.
-
-</details>
-
-<details>
-<summary><b>🍎 مک</b></summary>
-
-1. فایل `.dmg` را باز کنید و **IOC Lens** را به **Applications** بکشید.
-2. اگر macOS گفت توسعه‌دهنده تأیید نشده، در اولین اجرا **راست‌کلیک روی برنامه ← Open ← Open** را بزنید.
-3. مجوزهایی را که macOS می‌خواهد بدهید (مثلاً برای میانبر سراسری).
-
-</details>
-
-<details>
-<summary><b>🐧 لینوکس</b></summary>
-
-1. بسته را نصب کنید:
-   ```bash
-   sudo apt install ./<نام-فایل-دانلودشده>.deb
-   ```
-2. **IOC Lens** را از منوی برنامه‌ها اجرا کنید.
-3. در GNOME اگر آیکون tray را نمی‌بینید، افزونه‌ی *AppIndicator* را نصب کنید.
-
-</details>
-
-<details>
-<summary><b>🤖 اندروید</b></summary>
-
-1. فایل `.apk` را روی گوشی دانلود کنید (یا از کامپیوتر منتقل کنید) و روی آن بزنید.
-2. هنگام درخواست، نصب برنامه از این منبع (مرورگر یا فایل‌منیجر) را مجاز کنید.
-3. **IOC Lens** را باز کنید. با اشتراک‌گذاری متن به آن (**Share ← IOC Lens**) یا paste کردن در برنامه، نشانگر را بررسی کنید.
-
-</details>
-
-<details>
-<summary><b>📱 iOS</b></summary>
-
-برنامه‌های iOS از روی فایل دانلودی نصب نمی‌شوند. وقتی **لینک TestFlight / App Store** در توضیحات نسخه (یا صفحه‌ی Releases) منتشر شد از آن استفاده کنید، سپس **IOC Lens** را باز کنید و نشانگر را share یا paste کنید.
-
-</details>
-
-> 🔐 **توصیه‌شده:** مقدار SHA-256 فایل دانلودشده را با `SHA256SUMS.txt` همان نسخه مقایسه کنید.
-
-## 🚀 شروع کار
-
-1. به **Settings ← Providers** بروید و برای حداقل یک منبع (مثلاً VirusTotal، AbuseIPDB، AlienVault OTX یا abuse.ch URLhaus) یک **کلید API رایگان** وارد کنید. هر سرویس روی وب‌سایت خودش کلید رایگان می‌دهد.
-2. هر نشانگری را کپی کنید: IP، دامنه، URL یا هش فایل.
-3. روی دسکتاپ از میانبری که در Settings نوشته شده استفاده کنید یا روی آیکون tray کلیک کنید. روی موبایل، متن را به IOC Lens share کنید یا در برنامه paste کنید. حکم شما در چند لحظه نمایش داده می‌شود.
-
-## 🎯 درک حکم‌ها
+## درک حکم‌ها
 
 | حکم | معنی |
 |---|---|
-| 🟢 **Clean** | تشخیص معناداری وجود ندارد |
-| 🟡 **Low risk** | سیگنال ضعیف یا قدیمی؛ در بافت بررسی کنید |
-| 🟠 **Suspicious** | تشخیص‌های قابل‌توجه؛ ارزش بررسی دارد |
-| 🔴 **Malicious** | تشخیص قوی و تأییدشده توسط چند منبع |
-| ⚪ **No data** | برای منابع فعال شما ناشناخته است. این **معادل امن بودن نیست** |
+| **پاک (Clean)** | بررسی‌شده و بدون نشانه مخرب |
+| **ریسک پایین** | سیگنال ضعیف یا اطلاعاتی؛ نیازمند بررسی در بافت |
+| **مشکوک** | تشخیص قابل‌توجه؛ نیازمند بررسی دقیق‌تر |
+| **مخرب** | تشخیص قوی و تأییدشده توسط موتورهای امنیتی |
+| **بدون داده (No data)** | ناشناخته برای منابع فعال یا خطای شبکه — **هرگز به معنای امن بودن نیست** |
 
-حکم فقط ابزار کمکی تریاژ است، نه قضاوت نهایی. همیشه تحلیل خودتان را هم اعمال کنید.
+## حریم خصوصی و امنیت
 
-## 🛡️ حریم خصوصی و امنیت
-
-- **Privacy Guard** نشانگرهای خصوصی و داخلی (مثل IPهای داخلی و نام دامنه‌های داخلی) را قبل از ارسال هر چیزی مسدود می‌کند. می‌توانید قوانین خودتان را هم اضافه کنید.
-- فقط خود نشانگر و فقط به منابعی که فعال کرده‌اید، از طریق HTTPS ارسال می‌شود.
-- **بدون بک‌اند، بدون حساب کاربری، بدون تله‌متری.**
-- کلیدهای API در ذخیره‌ی امن سیستم‌عامل شما نگهداری می‌شوند.
-- آسیب‌پذیری پیدا کردید؟ لطفاً [SECURITY.md](SECURITY.md) را بخوانید.
-
-## ❓ پرسش‌های متداول
-
-<details>
-<summary><b>IOC Lens رایگان است؟</b></summary>
-
-بله. متن‌باز است و با مجوز MIT منتشر می‌شود. سرویس‌های threat intelligence که از آن‌ها پرس‌وجو می‌شود کلید API رایگان ارائه می‌دهند؛ شرایط و محدودیت‌های خودشان اعمال می‌شود.
-</details>
-
-<details>
-<summary><b>اطلاعات من برای شما ارسال می‌شود؟</b></summary>
-
-خیر. سروری برای IOC Lens وجود ندارد. جست‌وجوها مستقیماً از کامپیوتر شما به منابعی که فعال کرده‌اید می‌روند.
-</details>
-
-<details>
-<summary><b>چرا «No data» و نه «Clean»؟</b></summary>
-
-نبودن در یک پایگاه‌داده یعنی امن بودن نیست. زیرساخت‌های جدید اغلب ناشناخته‌اند، پس IOC Lens هرگز نبودِ نتیجه را به‌عنوان «پاک» نشان نمی‌دهد.
-</details>
-
-<details>
-<summary><b>میانبر کار نمی‌کند.</b></summary>
-
-ممکن است برنامه‌ی دیگری از همان میانبر استفاده کند. آن را در Settings تغییر دهید یا به‌جایش از آیکون tray استفاده کنید.
-</details>
-
-## 🤝 مشارکت
-
-ایده، گزارش باگ، منبع جدید، ترجمه و کد همگی خوش‌آمدند. [CONTRIBUTING.md](CONTRIBUTING.md) را بخوانید، یک [issue](https://github.com/mr-coder20/ioc-lens/issues) باز کنید یا pull request بفرستید.
-
-**⭐ اگر IOC Lens وقتتان را گرفته، یک ستاره به پیدا شدنش توسط مدافعان دیگر کمک می‌کند.**
-
-منتشرشده با [مجوز MIT](LICENSE).
+- **Privacy Guard** نشانگرهای خصوصی و قوانین سفارشی شما را پیش از هرگونه درخواست شبکه‌ای روی دستگاه مسدود می‌کند.
+- تنها خود نشانگر و فقط به موتورهای فعال‌شده از طریق HTTPS ارسال می‌شود.
+- **بدون بک‌اند، بدون حساب کاربری و بدون تله‌متری.**
+- برای گزارش آسیب‌پذیری‌ها فایل [SECURITY.md](SECURITY.md) را ببینید.
 
 <div align="left"><a href="#persian">↑ بازگشت به بالا</a></div>
 
@@ -400,174 +190,40 @@ Released under the [MIT License](LICENSE).
 
 <a id="russian"></a>
 
-# 🇷🇺 Русский
+# Русский
 
 <div align="center">
 
 [English](#english) · [فارسی](#persian) · [Русский](#russian)
 
-**📋 Копируй** &nbsp;→&nbsp; **🛡️ Privacy Guard** &nbsp;→&nbsp; **🌐 Источники threat intel** &nbsp;→&nbsp; **🎯 Один понятный вердикт**
-
-### Скопируй. Узнай за секунду.
+**Копировать / Перетащить** &nbsp;→&nbsp; **Privacy Guard** &nbsp;→&nbsp; **Источники Threat Intel** &nbsp;→&nbsp; **Единый понятный вердикт**
 
 </div>
 
-**IOC Lens** — лёгкое кроссплатформенное приложение для аналитиков SOC и защитников, в котором приватность на первом месте. Скопируйте IP-адрес, домен, URL или хеш файла и получите один понятный, объяснимый вердикт сразу от нескольких источников threat intelligence, не открывая десяток вкладок.
+**IOC Lens** — лёгкое кроссплатформенное приложение для аналитиков SOC и защитников с фокусом на приватность. Вставьте, отправьте, перетащите или отсканируйте через QR-камеру IP-адрес, домен, URL, хеш или файл и получите единый объяснимый вердикт из нескольких источников сразу.
 
-> 🚧 IOC Lens активно развивается. Функции и возможности будут расширяться и меняться со временем.
+## Ключевые возможности
 
-## 💡 Зачем нужен IOC Lens
+- **Мгновенная проверка без API-ключей**: **11 бесплатных движков** работают сразу из коробки (URLhaus, MalwareBazaar, ThreatFox, RDAP, Cloudflare DoH, Shodan InternetDB, AlienVault OTX, RIPE Stat, crt.sh, Feodo Tracker, ipwho.is).
+- **4 дополнительных движка с API-ключами**: опциональная настройка VirusTotal, AbuseIPDB, Pulsedive и IPQualityScore в настройках.
+- **Потоковое хеширование файлов (SHA-256)**: локальный расчёт хешей буфером по 64 КБ без загрузки файлов на сторонние серверы.
+- **Privacy Guard и пользовательские правила**: локальная блокировка внутренних IPv4/IPv6 (RFC 1918, CGNAT, loopback, link-local, ULA, NAT64, 6to4, восьмеричные/шестнадцатеричные формы), внутренних доменов (`.local`, `.lan`, `.internal`, `.corp`, `.home`, `.home.arpa`, `.localhost`, `.onion`) и собственных правил доменов/CIDR.
+- **Локальное шифрование**: ключи и история хранятся локально в зашифрованном виде (Android Keystore AES-256-GCM, Desktop AES-256-GCM с правами только для владельца, iOS Keychain) без бэкенда и телеметрии.
 
-Проверка подозрительного индикатора обычно означает: скопировать, открыть несколько сайтов, вставлять снова и снова и вручную сравнивать разные ответы. IOC Lens делает всё это одним действием.
-
-| Без IOC Lens | С IOC Lens |
-|---|---|
-| Несколько вкладок, несколько входов в аккаунты | Одна быстрая проверка |
-| Разные ответы, которые нужно сравнивать вручную | Один объединённый и объяснённый вердикт |
-| Риск вставить внутренние данные на сторонние сайты | Внутренние индикаторы остаются на вашем компьютере |
-| Тяжёлые платформы ради быстрой проверки | Небольшое и быстрое приложение на любом устройстве |
-
-## ✨ Главное
-
-- ⚡ **Мгновенно**: проверка только что скопированного примерно за секунду
-- 🌐 **Много источников, один ответ**: результаты нескольких бесплатных сервисов threat intelligence, объединённые и объяснённые
-- 🔎 **Объяснимо**: каждый вердикт показывает, какие источники и почему повлияли на результат
-- 🛡️ **Приватность прежде всего**: внутренние индикаторы никогда не покидают ваш компьютер
-- 🔑 **Ваши ключи под вашим контролем**: без аккаунта, без телеметрии, ключи хранятся локально
-- 🪶 **Лёгкое и нативное**: небольшое и быстрое, для **Windows, macOS, Linux, Android и iOS**
-- 🔓 **Открытый исходный код** под лицензией MIT
-
-## 📥 Установка
-
-1. Откройте **[страницу Releases](https://github.com/mr-coder20/ioc-lens/releases)**.
-2. В разделе **Assets** последнего релиза скачайте файл для вашей системы:
-
-   | Система | Файл |
-   |---|---|
-   | 🪟 Windows | `.msi` |
-   | 🍎 macOS | `.dmg` |
-   | 🐧 Linux | `.deb` |
-   | 🤖 Android | `.apk` |
-   | 📱 iOS | Ссылка TestFlight / App Store (см. описание релиза) |
-
-3. Установите:
-
-<details>
-<summary><b>🪟 Windows</b></summary>
-
-1. Запустите скачанный установщик `.msi` и следуйте мастеру.
-2. Если **SmartScreen** выдаст предупреждение (ранние сборки могут быть без подписи), выберите **Подробнее → Выполнить в любом случае**.
-3. Запустите **IOC Lens** из меню «Пуск». Приложение живёт в системном трее.
-
-</details>
-
-<details>
-<summary><b>🍎 macOS</b></summary>
-
-1. Откройте `.dmg` и перетащите **IOC Lens** в **Программы**.
-2. При первом запуске, если macOS сообщит, что не может проверить разработчика, щёлкните по приложению **правой кнопкой → Открыть → Открыть**.
-3. Выдайте разрешения, которые запросит macOS (например, для глобального сочетания клавиш).
-
-</details>
-
-<details>
-<summary><b>🐧 Linux</b></summary>
-
-1. Установите пакет:
-   ```bash
-   sudo apt install ./<скачанный-файл>.deb
-   ```
-2. Запустите **IOC Lens** из меню приложений.
-3. В GNOME установите расширение *AppIndicator*, если не видите значок в трее.
-
-</details>
-
-<details>
-<summary><b>🤖 Android</b></summary>
-
-1. Скачайте `.apk` на телефон (или перенесите с компьютера) и нажмите на файл.
-2. Когда система спросит, разрешите установку приложений из этого источника (браузера или файлового менеджера).
-3. Откройте **IOC Lens**. Проверьте индикатор, отправив текст в приложение (**Поделиться → IOC Lens**) или вставив его внутри приложения.
-
-</details>
-
-<details>
-<summary><b>📱 iOS</b></summary>
-
-Приложения для iOS нельзя установить из скачанного файла. Воспользуйтесь **ссылкой TestFlight / App Store** из описания релиза (или со страницы Releases), когда она появится, затем откройте **IOC Lens** и отправьте или вставьте индикатор.
-
-</details>
-
-> 🔐 **Рекомендуется:** сверьте SHA-256 скачанного файла с `SHA256SUMS.txt` из того же релиза.
-
-## 🚀 Быстрый старт
-
-1. Откройте **Settings → Providers** и добавьте **бесплатный API-ключ** хотя бы для одного источника (например, VirusTotal, AbuseIPDB, AlienVault OTX или abuse.ch URLhaus). Каждый сервис выдаёт бесплатные ключи на своём сайте.
-2. Скопируйте любой индикатор: IP, домен, URL или хеш файла.
-3. На компьютере используйте сочетание клавиш из Settings или нажмите на значок в трее. На телефоне отправьте текст в IOC Lens или вставьте его в приложении. Вердикт появится через мгновение.
-
-## 🎯 Как читать вердикты
+## Как читать вердикты
 
 | Вердикт | Значение |
 |---|---|
-| 🟢 **Clean** | Значимых обнаружений нет |
-| 🟡 **Low risk** | Слабые или старые сигналы; оцените в контексте |
-| 🟠 **Suspicious** | Заметные обнаружения; стоит проверить |
-| 🔴 **Malicious** | Сильные обнаружения, подтверждённые несколькими источниками |
-| ⚪ **No data** | Неизвестно включённым источникам. Это **не значит «безопасно»** |
-
-Вердикт — помощник для триажа, а не окончательное суждение. Всегда применяйте собственный анализ.
-
-## 🛡️ Приватность и безопасность
-
-- **Privacy Guard** блокирует приватные и внутренние индикаторы (например, внутренние IP-адреса и внутренние доменные имена) до отправки чего-либо наружу. Можно добавить собственные правила.
-- Отправляется только сам индикатор и только включённым вами источникам, по HTTPS.
-- **Без бэкенда, без аккаунта, без телеметрии.**
-- API-ключи хранятся в защищённом хранилище вашей операционной системы.
-- Нашли уязвимость? Пожалуйста, прочитайте [SECURITY.md](SECURITY.md).
-
-## ❓ Частые вопросы
-
-<details>
-<summary><b>IOC Lens бесплатный?</b></summary>
-
-Да. Это проект с открытым кодом под лицензией MIT. Сервисы threat intelligence, к которым он обращается, предлагают бесплатные API-ключи; действуют их собственные условия и ограничения.
-</details>
-
-<details>
-<summary><b>Мои данные отправляются вам?</b></summary>
-
-Нет. Сервера IOC Lens не существует. Запросы идут напрямую с вашего компьютера к включённым вами источникам.
-</details>
-
-<details>
-<summary><b>Почему «No data», а не «Clean»?</b></summary>
-
-Отсутствие в базе данных не означает безопасность. Новая инфраструктура часто неизвестна, поэтому IOC Lens никогда не выдаёт отсутствие результата за «чисто».
-</details>
-
-<details>
-<summary><b>Сочетание клавиш не работает.</b></summary>
-
-Возможно, то же сочетание занято другим приложением. Измените его в Settings или используйте значок в трее.
-</details>
-
-## 🤝 Участие в проекте
-
-Идеи, отчёты об ошибках, новые источники, переводы и код — всё приветствуется. Прочитайте [CONTRIBUTING.md](CONTRIBUTING.md), создайте [issue](https://github.com/mr-coder20/ioc-lens/issues) или отправьте pull request.
-
-**⭐ Если IOC Lens экономит ваше время, звезда поможет другим защитникам его найти.**
-
-Распространяется по [лицензии MIT](LICENSE).
-
-<div align="right"><a href="#russian">↑ Наверх</a></div>
+| **Чисто** | Проверено, угроз не обнаружено |
+| **Низкий риск** | Слабые или информационные сигналы |
+| **Подозрительно** | Заметные срабатывания; требуется проверка |
+| **Вредоносно** | Подтверждённое обнаружение угрозы |
+| **Нет данных** | Неизвестно источникам или сбой сети — **не означает «безопасно»** |
 
 ---
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=mr-coder20/ioc-lens&type=Date)](https://star-history.com/#mr-coder20/ioc-lens&Date)
-
-**Made with ❤️ for defenders**
+**Built for defenders · MIT License**
 
 </div>

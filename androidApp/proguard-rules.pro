@@ -1,21 +1,32 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+-keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,InnerClasses,EnclosingMethod
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve IOC Lens domain models and kotlinx.serialization serializers
+-keep class io.github.mrcoder20.ioclens.domain.model.** { *; }
+-keep class io.github.mrcoder20.ioclens.domain.vision.** { *; }
+-keepclassmembers class io.github.mrcoder20.ioclens.** {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# kotlinx.serialization
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+-keepclassmembers class kotlinx.serialization.json.** { *; }
+-dontwarn kotlinx.serialization.**
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <methods>;
+}
+-keepclassmembers class * {
+    @kotlinx.serialization.Serializable <fields>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Ktor Client CIO & Coroutines
+-keep class io.ktor.** { *; }
+-dontwarn io.ktor.**
+-dontwarn kotlinx.atomicfu.**
+-dontwarn org.slf4j.**
+-dontwarn java.lang.management.**
+-dontwarn sun.misc.Unsafe
+
+# ZXing & CameraX
+-keep class com.google.zxing.** { *; }
+-keep class androidx.camera.** { *; }

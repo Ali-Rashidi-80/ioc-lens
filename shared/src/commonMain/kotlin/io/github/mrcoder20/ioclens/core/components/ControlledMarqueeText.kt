@@ -72,9 +72,9 @@ fun ControlledMarqueeText(
         }
 
         val pxPerSec = with(density) { velocityDpPerSecond.dp.toPx() }
-        val durationMs = ((overflowPx / pxPerSec) * 1000).toInt().coerceIn(600, 6000)
-        val returnDurationMs = (durationMs * 0.7f).toInt().coerceIn(400, 4000)
-        val targetTranslation = if (isRtl) overflowPx else -overflowPx
+        val durationMs = MarqueeMath.computeControlledDurationMs(overflowPx, pxPerSec)
+        val returnDurationMs = MarqueeMath.computeReturnDurationMs(durationMs)
+        val targetTranslation = MarqueeMath.computeControlledTargetTranslation(overflowPx, isRtl)
 
         while (isActive) {
             try {
@@ -123,7 +123,7 @@ fun ControlledMarqueeText(
                     placeable.width.coerceAtLeast(constraints.minWidth)
                 }
                 val containerW = boxWidth.toFloat()
-                val detectedOverflow = (textW - containerW).coerceAtLeast(0f)
+                val detectedOverflow = MarqueeMath.computeOverflowPx(textW, containerW)
 
                 if (kotlin.math.abs(detectedOverflow - overflowPx) > 1f) {
                     overflowPx = detectedOverflow

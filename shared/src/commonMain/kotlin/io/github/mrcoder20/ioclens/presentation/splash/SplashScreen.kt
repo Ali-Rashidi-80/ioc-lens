@@ -35,17 +35,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mrcoder20.ioclens.core.components.CyberPolygonBackground
-import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
 import io.github.mrcoder20.ioclens.core.components.LiquidmorphicBackground
 import io.github.mrcoder20.ioclens.core.components.LottiePreloader
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
-import io.github.mrcoder20.ioclens.core.theme.BackgroundDark
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
+import io.github.mrcoder20.ioclens.core.theme.rememberMonospaceFontFamily
 import ioclens.shared.generated.resources.Res
 import ioclens.shared.generated.resources.app_logo_mark
 import kotlinx.coroutines.delay
@@ -61,21 +60,21 @@ import kotlin.time.Duration.Companion.milliseconds
 fun SplashScreen(
     appLanguage: AppLanguage,
     onSplashFinished: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    skipDelay: Boolean = false
 ) {
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     var progress by remember { mutableFloatStateOf(0f) }
 
-    // 5-second timer and background preload task
-    LaunchedEffect(Unit) {
-        // Step 1: Preload Lottie JSON animations into RAM cache
+    LaunchedEffect(skipDelay) {
         launch {
             LottiePreloader.preloadAll()
         }
 
-        // Step 2: Smooth 3.3s Progress Bar (100 ticks x 33ms = 3300ms)
-        val totalDurationMs = 2000L
+        val totalDurationMs = if (skipDelay) 220L else 1800L
         val stepIntervalMs = 20L
-        val totalSteps = totalDurationMs / stepIntervalMs
+        val totalSteps = (totalDurationMs / stepIntervalMs).coerceAtLeast(1L)
 
         for (step in 1..totalSteps) {
             delay(stepIntervalMs.milliseconds)
@@ -111,9 +110,9 @@ fun SplashScreen(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            BackgroundDark,
-                            PrimaryCyan.copy(alpha = 0.22f),
-                            PrimaryCyan.copy(alpha = 0.08f),
+                            palette.backgroundCanvas,
+                            palette.accentPrimary.copy(alpha = 0.22f),
+                            palette.accentPrimary.copy(alpha = 0.08f),
                             Color.Transparent
                         )
                     )
@@ -143,7 +142,7 @@ fun SplashScreen(
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    PrimaryCyan.copy(alpha = 0.35f),
+                                    palette.accentPrimary.copy(alpha = 0.35f),
                                     Color.Transparent
                                 )
                             )
@@ -168,7 +167,7 @@ fun SplashScreen(
                 Text(
                     text = "IOC ",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = Color.White,
+                    color = palette.textPrimary,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = if (isCompact) 28.sp else 38.sp,
                     letterSpacing = 1.sp
@@ -176,7 +175,7 @@ fun SplashScreen(
                 Text(
                     text = "LENS",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = PrimaryCyan,
+                    color = palette.accentPrimary,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = if (isCompact) 28.sp else 38.sp,
                     letterSpacing = 1.sp
@@ -196,8 +195,8 @@ fun SplashScreen(
                         .fillMaxWidth()
                         .height(3.dp)
                         .clip(RoundedCornerShape(2.dp)),
-                    color = PrimaryCyan,
-                    trackColor = Color(0xFF131C30).copy(alpha = 0.6f)
+                    color = palette.accentPrimary,
+                    trackColor = palette.surfaceInset.copy(alpha = 0.7f)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -205,8 +204,8 @@ fun SplashScreen(
                 Text(
                     text = LocalizationProvider.formatScore((progress * 100).toInt(), appLanguage),
                     style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = PrimaryCyan.copy(alpha = 0.85f),
+                    fontFamily = monoFont,
+                    color = palette.accentPrimary.copy(alpha = 0.85f),
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
                 )

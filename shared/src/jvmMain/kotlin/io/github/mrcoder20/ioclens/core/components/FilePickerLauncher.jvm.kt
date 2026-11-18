@@ -1,6 +1,7 @@
 package io.github.mrcoder20.ioclens.core.components
 
 import androidx.compose.runtime.Composable
+import io.github.mrcoder20.ioclens.logDiagnostic
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -43,7 +44,7 @@ actual fun rememberFilePickerLauncher(
                             }
                         } catch (t: Throwable) {
                             nativeDialogAttempted = false
-                            System.err.println("Native FileDialog failed, falling back to JFileChooser: ${t.message}")
+                            logDiagnostic("FilePickerJvm", "Native FileDialog failed, falling back to JFileChooser", t)
                         }
                     }
 
@@ -60,7 +61,7 @@ actual fun rememberFilePickerLauncher(
                                 pickedName = chooser.selectedFile.name
                             }
                         } catch (t: Throwable) {
-                            System.err.println("Swing JFileChooser fallback failed: ${t.message}")
+                            logDiagnostic("FilePickerJvm", "Swing JFileChooser fallback failed", t)
                         }
                     }
 
@@ -68,7 +69,7 @@ actual fun rememberFilePickerLauncher(
                         onFileSelected(pickedPath, pickedName)
                     }
                 } catch (t: Throwable) {
-                    System.err.println("FilePicker error suppressed: ${t.message}")
+                    logDiagnostic("FilePickerJvm", "FilePicker error suppressed", t)
                 } finally {
                     isSinglePickerOpen.set(false)
                 }
@@ -117,7 +118,7 @@ actual fun rememberBatchFilePickerLauncher(
                             }
                         } catch (t: Throwable) {
                             nativeDialogAttempted = false
-                            System.err.println("Native FileDialog multi-mode failed: ${t.message}")
+                            logDiagnostic("FilePickerJvm", "Native FileDialog multi-mode failed", t)
                         }
                     }
 
@@ -138,7 +139,7 @@ actual fun rememberBatchFilePickerLauncher(
                                 }
                             }
                         } catch (t: Throwable) {
-                            System.err.println("Swing JFileChooser multi-selection failed: ${t.message}")
+                            logDiagnostic("FilePickerJvm", "Swing JFileChooser multi-selection failed", t)
                         }
                     }
 
@@ -146,7 +147,7 @@ actual fun rememberBatchFilePickerLauncher(
                         onFilesSelected(picked)
                     }
                 } catch (t: Throwable) {
-                    System.err.println("Batch FilePicker error: ${t.message}")
+                    logDiagnostic("FilePickerJvm", "Batch FilePicker error", t)
                 } finally {
                     isBatchPickerOpen.set(false)
                 }

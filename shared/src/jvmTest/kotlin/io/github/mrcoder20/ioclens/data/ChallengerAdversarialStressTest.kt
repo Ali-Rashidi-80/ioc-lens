@@ -10,6 +10,9 @@ import io.github.mrcoder20.ioclens.domain.parser.IOCParser
 import io.github.mrcoder20.ioclens.domain.parser.PrivacyGuardValidator
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,6 +20,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChallengerAdversarialStressTest {
 
     private val parser = IOCParser()
@@ -36,10 +40,13 @@ class ChallengerAdversarialStressTest {
         )
 
         var networkCalls = 0
-        val throwingEngine = MockEngine { request ->
-            networkCalls++
-            throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
-        }
+        val throwingEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                networkCalls++
+                throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
+            }
+        })
         val client = HttpClient(throwingEngine)
         val repository = ZeroKeyThreatIntelRepositoryImpl(client = client)
 
@@ -92,10 +99,13 @@ class ChallengerAdversarialStressTest {
         )
 
         var networkCalls = 0
-        val throwingEngine = MockEngine { request ->
-            networkCalls++
-            throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
-        }
+        val throwingEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                networkCalls++
+                throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
+            }
+        })
         val client = HttpClient(throwingEngine)
         val repository = ZeroKeyThreatIntelRepositoryImpl(client = client)
 
@@ -163,10 +173,13 @@ class ChallengerAdversarialStressTest {
         )
 
         var networkCalls = 0
-        val throwingEngine = MockEngine { request ->
-            networkCalls++
-            throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
-        }
+        val throwingEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                networkCalls++
+                throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
+            }
+        })
         val client = HttpClient(throwingEngine)
         val repository = ZeroKeyThreatIntelRepositoryImpl(client = client)
 
@@ -208,10 +221,13 @@ class ChallengerAdversarialStressTest {
         )
 
         var networkCalls = 0
-        val throwingEngine = MockEngine { request ->
-            networkCalls++
-            throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
-        }
+        val throwingEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                networkCalls++
+                throw AssertionError("SECURITY VIOLATION: Network call leaked to ${request.url}")
+            }
+        })
         val client = HttpClient(throwingEngine)
         val repository = ZeroKeyThreatIntelRepositoryImpl(client = client)
 

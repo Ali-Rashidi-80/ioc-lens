@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
 import io.github.mrcoder20.ioclens.core.theme.PrimaryCyanVariant
 import kotlin.math.floor
 
@@ -38,9 +38,10 @@ fun WormDotsIndicator(
     modifier: Modifier = Modifier,
     dotSize: Dp = 10.dp,
     spacing: Dp = 10.dp,
-    activeColor: Color = PrimaryCyan,
-    strokeColor: Color = Color(0xFF334155)
+    activeColor: Color = LocalIocColors.current.accentPrimary,
+    strokeColor: Color = LocalIocColors.current.borderStrong
 ) {
+    val palette = LocalIocColors.current
     val totalWidth = (dotSize * pageCount) + (spacing * (pageCount - 1))
 
     Box(
@@ -117,7 +118,11 @@ fun WormDotsIndicator(
                         colors = listOf(activeColor, PrimaryCyanVariant)
                     )
                 )
-                .border(0.8.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(50)),
+                .border(
+                    0.8.dp,
+                    if (palette.isDark) Color.White.copy(alpha = 0.6f) else palette.borderStrong,
+                    RoundedCornerShape(50)
+                ),
             contentAlignment = Alignment.Center
         ) {
             // Fantasy Micro-Glow Core Dot
@@ -125,7 +130,7 @@ fun WormDotsIndicator(
                 modifier = Modifier
                     .size(4.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.9f))
+                    .background(palette.onAccentPrimary.copy(alpha = 0.92f))
             )
         }
     }

@@ -36,12 +36,12 @@ fun LiquidGlowBackground(
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasSize = size
 
-            // In Light Mode: draw an ambient daylight wash from top
+            // In Light Mode: draw clean slate daylight ambient wash from top
             if (!isDark) {
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0.0f to Color.White.copy(alpha = 0.65f),
-                        0.4f to Color.White.copy(alpha = 0.20f),
+                        0.0f to accent.copy(alpha = 0.06f),
+                        0.45f to Color.White.copy(alpha = 0.55f),
                         1.0f to Color.Transparent
                     ),
                     size = canvasSize

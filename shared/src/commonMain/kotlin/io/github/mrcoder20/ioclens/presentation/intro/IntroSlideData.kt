@@ -94,7 +94,7 @@ object IntroSlideData {
                 IntroSlide(
                     id = 3,
                     badgeText = "10 источников угроз",
-                    title = "Единый вердикт из мировых баز",
+                    title = "Единый вердикт из мировых баз",
                     subtitle = "URLhaus · MalwareBazaar · ThreatFox · Shodan ...",
                     description = "Объединение сигналов 10 ведущих глобальных сервисов threat intelligence в один понятный вердикт с подробной детализацией.",
                     iconEmoji = "🌐"

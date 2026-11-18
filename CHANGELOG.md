@@ -1,6 +1,20 @@
 # Changelog
 All notable changes follow [Keep a Changelog](https://keepachangelog.com) and [SemVer](https://semver.org).
 
+## [1.1.0] - 2026-11-18
+
+### Added
+- **15 Threat Intelligence Engines**: 11 Zero-Key engines (including **Feodo Tracker (abuse.ch)** and **ipwho.is**) plus 4 optional user-configured API-key engines, backed by 2 MB bounded response streaming, per-engine circuit-breaker cooldowns, SingleFlight query deduplication, and honest unprobed latency telemetry (`hasProbed = false` until probed).
+- **Self-Contained Typography, Themes & Tri-Lingual Localization**: 5 bundled local TTF font families in `composeResources/font/`, Light/Dark/Classic semantic palettes via `LocalIocColors`, and complete English, Persian (RTL), and Russian localization with BiDi isolation.
+- **Native iOS Platform Parity**: Keychain (`SecItem*`) secret backing, `UIDocumentPickerViewController` file selection, Apple Vision (`VNDetectBarcodesRequest`) QR/barcode decoding, camera capture, and `.onOpenURL` share ingestion.
+
+### Changed
+- **Encrypted & Protected Local Persistence**: Upgraded JVM storage to `AES-256-GCM` with owner-only POSIX/Windows ACLs, Android storage to Android Keystore with safe `AndroidStorageContext.init()` initialization, iOS storage to Keychain + `NSFileProtectionComplete`, and diagnostic logs to redacted rotating log files (`~/.ioclens/logs/app.log`).
+- **Release Tooling & Build Hardening**: Switched Android release builds to env-driven keystore signing with R8 minification & `shrinkResources`, configured self-contained desktop installers (`icon-512.png`, `upgradeUuid`, `bundleID`), and hardened `copy_release_artifacts.py` with `argparse`, symlink/traversal guards, and `SHA256SUMS.txt`.
+
+### Fixed
+- **Security & Input Hardening**: Blocked Windows UNC/SMB/WebDAV paths in Desktop DnD/CLI prior to filesystem probing, disabled unsafe cross-origin HTTP redirects (`followRedirects = false`), stripped IPv6 `%zoneId` injections, expanded Privacy Guard (compressed IPv6, NAT64, 6to4, `ff00::/8`, `.home.arpa`, `.onion`, custom user rules), enforced 20 MB & `12000px / 36M px` image bounds in Quishing/Vision decoders, and unified temporary-file cleanup across platforms.
+
 ## [1.0.0] - 2026-11-08
 
 ### Added

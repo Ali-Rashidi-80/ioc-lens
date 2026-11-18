@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,10 +54,10 @@ import io.github.mrcoder20.ioclens.core.components.SlideAnimatedGraphic
 import io.github.mrcoder20.ioclens.core.components.TypewriterText
 import io.github.mrcoder20.ioclens.core.components.slider.OnboardingSlider
 import io.github.mrcoder20.ioclens.core.components.slider.PageTransitionStyle
-import io.github.mrcoder20.ioclens.core.components.slider.shouldShowOnboardingSkip
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import io.github.mrcoder20.ioclens.core.localization.LocalizationProvider
-import io.github.mrcoder20.ioclens.core.theme.PrimaryCyan
+import io.github.mrcoder20.ioclens.core.theme.LocalIocColors
+import io.github.mrcoder20.ioclens.core.theme.rememberMonospaceFontFamily
 import io.github.mrcoder20.ioclens.domain.model.IntroSlide
 import kotlin.math.abs
 
@@ -123,28 +122,32 @@ fun IntroScreen(
 
             // 3. Onboarding Slider Container with Parallax Zoom GPU Transition & Worm Dots
             val currentStrings = remember(uiState.currentLanguage) { LocalizationProvider.getStrings(uiState.currentLanguage) }
+            val palette = LocalIocColors.current
+            val monoFont = rememberMonospaceFontFamily()
             OnboardingSlider(
                 items = uiState.slides,
                 pagerState = pagerState,
                 transitionStyle = PageTransitionStyle.PARALLAX_ZOOM,
                 doneText = currentStrings.done,
                 nextText = currentStrings.next,
+                skipText = currentStrings.skip,
                 onFinishClicked = handleFinish,
+                onSkipClicked = handleSkip,
                 topBarContent = {
                     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
                     val titleBadge = @Composable {
                         Surface(
-                            color = PrimaryCyan.copy(alpha = 0.15f),
+                            color = palette.accentPrimary.copy(alpha = 0.14f),
                             shape = RoundedCornerShape(6.dp),
-                            border = androidx.compose.foundation.BorderStroke(0.8.dp, PrimaryCyan.copy(alpha = 0.35f))
+                            border = androidx.compose.foundation.BorderStroke(0.8.dp, palette.accentPrimary.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = "IOC LENS",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = PrimaryCyan,
+                                fontFamily = monoFont,
+                                color = palette.accentPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp
                             )
@@ -162,14 +165,14 @@ fun IntroScreen(
                                         .clip(CircleShape)
                                         .clickable { onClose() }
                                         .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                    color = palette.surfaceCard.copy(alpha = 0.88f),
                                     shape = CircleShape,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, palette.borderStrong)
                                 ) {
                                     Text(
                                         text = "✕",
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        color = Color.White,
+                                        color = palette.textPrimary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
                                     )
@@ -183,9 +186,9 @@ fun IntroScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { isLanguageMenuExpanded = true }
                                         .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                    color = palette.surfaceCard.copy(alpha = 0.88f),
                                     shape = RoundedCornerShape(8.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, palette.borderSubtle)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
@@ -196,13 +199,13 @@ fun IntroScreen(
                                         Text(
                                             text = uiState.currentLanguage.displayName,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White,
+                                            color = palette.textPrimary,
                                             fontWeight = FontWeight.Medium,
                                             fontSize = 11.sp
                                         )
                                         Text(
                                             text = "▾",
-                                            color = PrimaryCyan,
+                                            color = palette.accentPrimary,
                                             fontSize = 10.sp
                                         )
                                     }
@@ -211,7 +214,7 @@ fun IntroScreen(
                                 DropdownMenu(
                                     expanded = isLanguageMenuExpanded,
                                     onDismissRequest = { isLanguageMenuExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF0F172A))
+                                    modifier = Modifier.background(palette.surfaceCard)
                                 ) {
                                     AppLanguage.entries.forEach { lang ->
                                         DropdownMenuItem(
@@ -223,7 +226,7 @@ fun IntroScreen(
                                                     CountryFlag(language = lang, modifier = Modifier.size(16.dp))
                                                     Text(
                                                         text = lang.displayName,
-                                                        color = if (lang == uiState.currentLanguage) PrimaryCyan else Color.White,
+                                                        color = if (lang == uiState.currentLanguage) palette.accentPrimary else palette.textPrimary,
                                                         fontWeight = if (lang == uiState.currentLanguage) FontWeight.Bold else FontWeight.Normal
                                                     )
                                                 }
@@ -243,14 +246,14 @@ fun IntroScreen(
                                         .clip(CircleShape)
                                         .clickable { onClose() }
                                         .pointerHoverIcon(PointerIcon.Hand),
-                                    color = Color(0xFF0E1424).copy(alpha = 0.85f),
+                                    color = palette.surfaceCard.copy(alpha = 0.88f),
                                     shape = CircleShape,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, palette.borderStrong)
                                 ) {
                                     Text(
                                         text = "✕",
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        color = Color.White,
+                                        color = palette.textPrimary,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp
                                     )
@@ -288,24 +291,26 @@ private fun IntroSlideCard(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val palette = LocalIocColors.current
+    val monoFont = rememberMonospaceFontFamily()
     // Translucent Glassmorphic Card
     Card(
         modifier = modifier.fillMaxSize(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0C1322).copy(alpha = 0.38f)
+            containerColor = palette.surfaceCard.copy(alpha = if (palette.isDark) 0.55f else 0.96f)
         ),
         border = androidx.compose.foundation.BorderStroke(
             1.2.dp,
             Brush.linearGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.28f),
-                    PrimaryCyan.copy(alpha = 0.45f),
-                    Color.Black.copy(alpha = 0.5f)
+                    palette.borderStrong,
+                    palette.accentPrimary.copy(alpha = 0.45f),
+                    palette.borderSubtle
                 )
             )
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (palette.isDark) 0.dp else 4.dp)
     ) {
         val scrollState = rememberScrollState()
 
@@ -338,9 +343,9 @@ private fun IntroSlideCard(
 
             // Status Badge Pill
             Surface(
-                color = Color(0xFF16233B).copy(alpha = 0.85f),
+                color = palette.surfaceInset.copy(alpha = 0.9f),
                 shape = RoundedCornerShape(50),
-                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
+                border = androidx.compose.foundation.BorderStroke(1.dp, palette.accentPrimary.copy(alpha = 0.35f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
@@ -351,13 +356,13 @@ private fun IntroSlideCard(
                         modifier = Modifier
                             .size(5.dp)
                             .clip(CircleShape)
-                            .background(PrimaryCyan)
+                            .background(palette.accentPrimary)
                     )
                     Text(
                         text = slide.badgeText,
-                        color = PrimaryCyan,
+                        color = palette.accentPrimary,
                         style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = monoFont,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 11.sp
                     )
@@ -370,7 +375,7 @@ private fun IntroSlideCard(
             Text(
                 text = slide.title,
                 style = MaterialTheme.typography.headlineMedium,
-                color = Color(0xFFF9FAFB),
+                color = palette.textPrimary,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 fontSize = 20.sp,
@@ -385,7 +390,7 @@ private fun IntroSlideCard(
                 Text(
                     text = slide.subtitle,
                     style = MaterialTheme.typography.titleMedium,
-                    color = PrimaryCyan,
+                    color = palette.accentPrimary,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     fontSize = 12.5.sp
@@ -398,7 +403,7 @@ private fun IntroSlideCard(
             TypewriterText(
                 text = slide.description,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF9CA3AF),
+                color = palette.textSecondary,
                 textAlign = TextAlign.Center,
                 fontSize = 13.5.sp,
                 lineHeight = 20.sp

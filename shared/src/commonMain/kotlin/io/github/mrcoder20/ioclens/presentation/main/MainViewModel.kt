@@ -3,6 +3,7 @@ package io.github.mrcoder20.ioclens.presentation.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.mrcoder20.ioclens.domain.usecase.GetAppSettingsUseCase
+import io.github.mrcoder20.ioclens.domain.usecase.SetIntroCompletedUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,7 +11,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MainViewModel(
-    private val getAppSettingsUseCase: GetAppSettingsUseCase
+    private val getAppSettingsUseCase: GetAppSettingsUseCase,
+    private val setIntroCompletedUseCase: SetIntroCompletedUseCase? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -25,6 +27,7 @@ class MainViewModel(
     }
 
     fun resetIntroForReplay() {
+        setIntroCompletedUseCase?.invoke(completed = false)
         _uiState.update { it.copy(isSplashFinished = true) }
     }
 

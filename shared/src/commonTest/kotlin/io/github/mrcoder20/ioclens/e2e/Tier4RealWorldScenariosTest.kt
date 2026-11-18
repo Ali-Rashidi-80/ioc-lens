@@ -25,6 +25,7 @@ import io.github.mrcoder20.ioclens.presentation.home.HomeEvent
 import io.github.mrcoder20.ioclens.presentation.home.HomeViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -97,33 +98,36 @@ class Tier4RealWorldScenariosTest {
         assertFalse(parsed.isInternal)
 
         // 2. Mock Threat Intelligence Engines Responses
-        val mockEngine = MockEngine { request ->
-            val urlStr = request.url.toString()
-            when {
-                urlStr.contains("urlhaus-api.abuse.ch") -> {
-                    respond(
-                        content = """{"query_status": "ok", "url_status": "online", "threat": "malware_download", "tags": ["emotet"]}""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
+        val mockEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                val urlStr = request.url.toString()
+                when {
+                    urlStr.contains("urlhaus-api.abuse.ch") -> {
+                        respond(
+                            content = """{"query_status": "ok", "url_status": "online", "threat": "malware_download", "tags": ["emotet"]}""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    urlStr.contains("otx.alienvault.com") -> {
+                        respond(
+                            content = """{"pulse_info": {"count": 4, "pulses": [{"name": "Phishing Campaign"}]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    urlStr.contains("threatfox-api.abuse.ch") -> {
+                        respond(
+                            content = """{"query_status": "ok", "data": [{"threat_type": "botnet_c2", "confidence_level": 90}]}""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
                 }
-                urlStr.contains("otx.alienvault.com") -> {
-                    respond(
-                        content = """{"pulse_info": {"count": 4, "pulses": [{"name": "Phishing Campaign"}]}}""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
-                }
-                urlStr.contains("threatfox-api.abuse.ch") -> {
-                    respond(
-                        content = """{"query_status": "ok", "data": [{"threat_type": "botnet_c2", "confidence_level": 90}]}""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
-                }
-                else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
             }
-        }
+        })
 
         val client = HttpClient(mockEngine)
         val aggregator = ThreatIntelAggregator(client)
@@ -227,25 +231,28 @@ class Tier4RealWorldScenariosTest {
         assertEquals(HashAlgorithm.SHA256, parsed.algorithm)
         assertEquals(wannaCrySha256, parsed.normalizedValue)
 
-        val mockEngine = MockEngine { request ->
-            when {
-                request.url.toString().contains("mb-api.abuse.ch") -> {
-                    respond(
-                        content = """{"query_status": "ok", "data": [{"sha256_hash": "$wannaCrySha256", "signature": "WannaCry", "file_type": "exe"}]}""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
+        val mockEngine = MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                when {
+                    request.url.toString().contains("mb-api.abuse.ch") -> {
+                        respond(
+                            content = """{"query_status": "ok", "data": [{"sha256_hash": "$wannaCrySha256", "signature": "WannaCry", "file_type": "exe"}]}""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    request.url.toString().contains("threatfox-api.abuse.ch") -> {
+                        respond(
+                            content = """{"query_status": "ok", "data": [{"threat_type": "payload", "malware": "win.wannacry", "confidence_level": 100}]}""",
+                            status = HttpStatusCode.OK,
+                            headers = jsonHeaders
+                        )
+                    }
+                    else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
                 }
-                request.url.toString().contains("threatfox-api.abuse.ch") -> {
-                    respond(
-                        content = """{"query_status": "ok", "data": [{"threat_type": "payload", "malware": "win.wannacry", "confidence_level": 100}]}""",
-                        status = HttpStatusCode.OK,
-                        headers = jsonHeaders
-                    )
-                }
-                else -> respond("{}", HttpStatusCode.OK, jsonHeaders)
             }
-        }
+        })
 
         val client = HttpClient(mockEngine)
         val aggregator = ThreatIntelAggregator(client)

@@ -4,6 +4,12 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>IOC Lens uses the camera solely offline to scan QR codes and barcodes for local phishing analysis.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>IOC Lens inspects user-selected barcode images locally without uploading them.</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

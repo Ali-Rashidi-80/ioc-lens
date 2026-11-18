@@ -1,6 +1,7 @@
 package io.github.mrcoder20.ioclens
 
 import android.os.Build
+import android.util.Log
 import io.github.mrcoder20.ioclens.core.localization.AppLanguage
 import java.util.Locale
 
@@ -16,5 +17,17 @@ actual fun getSystemLanguage(): AppLanguage {
         "fa" -> AppLanguage.PERSIAN
         "ru" -> AppLanguage.RUSSIAN
         else -> AppLanguage.ENGLISH
+    }
+}
+
+actual fun currentTimeMillis(): Long = System.currentTimeMillis()
+
+actual fun logDiagnostic(tag: String, message: String, throwable: Throwable?) {
+    runCatching {
+        if (throwable != null) {
+            Log.w("IOCLens/$tag", message, throwable)
+        } else {
+            Log.i("IOCLens/$tag", message)
+        }
     }
 }

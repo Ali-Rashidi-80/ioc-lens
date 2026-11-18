@@ -1,14 +1,17 @@
+@file:Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
+
 package io.github.mrcoder20.ioclens.domain.security
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.UByteVar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import platform.CoreCrypto.CC_MD5_CTX
@@ -21,18 +24,29 @@ import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.CoreCrypto.CC_SHA256_Final
 import platform.CoreCrypto.CC_SHA256_Init
 import platform.CoreCrypto.CC_SHA256_Update
+import platform.posix.S_IFMT
+import platform.posix.S_IFREG
 import platform.posix.fclose
+import platform.posix.ferror
+import platform.posix.fileno
 import platform.posix.fopen
 import platform.posix.fread
+import platform.posix.fstat
+import platform.posix.stat
 
 actual class ChunkedStreamHasher actual constructor() : StreamHasher {
     @OptIn(ExperimentalForeignApi::class)
-    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.Default) {
+    actual override suspend fun hashFile(filePath: String): FileHashResult = withContext(Dispatchers.IO) {
         val filePtr = fopen(filePath, "rb")
-            ?: throw IllegalArgumentException("Cannot open file at: $filePath")
+            ?: throw IllegalArgumentException("Selected file does not exist or cannot be opened")
 
         try {
             memScoped {
+                val st = alloc<stat>()
+                if (fstat(fileno(filePtr), st.ptr) != 0 || (st.st_mode.toInt() and S_IFMT) != S_IFREG) {
+                    throw IllegalArgumentException("Selected target is not a regular readable file")
+                }
+
                 val sha256Ctx = alloc<CC_SHA256_CTX>()
                 CC_SHA256_Init(sha256Ctx.ptr)
 
@@ -51,6 +65,9 @@ actual class ChunkedStreamHasher actual constructor() : StreamHasher {
                         CC_MD5_Update(md5Ctx.ptr, buffer, bytesRead.convert())
                         totalBytes += bytesRead.toLong()
                     } else {
+                        if (ferror(filePtr) != 0) {
+                            throw IllegalStateException("I/O error while streaming file for hashing")
+                        }
                         break
                     }
                 }
@@ -79,5 +96,3 @@ actual class ChunkedStreamHasher actual constructor() : StreamHasher {
         }
     }
 }
-
-

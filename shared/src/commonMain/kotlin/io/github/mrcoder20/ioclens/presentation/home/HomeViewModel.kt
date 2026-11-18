@@ -43,6 +43,7 @@ class HomeViewModel(
         HomeUiState(
             appTheme = initialSettings.appTheme,
             appLanguage = initialSettings.appLanguage,
+            privacyGuardEnabled = initialSettings.privacyGuardEnabled,
             scanHistory = initialHistory
         )
     )
@@ -52,11 +53,58 @@ class HomeViewModel(
     private var hashJob: Job? = null
     private var currentGeneration: Long = 0L
     private var errorDismissJob: Job? = null
+    private var feedbackDismissJob: Job? = null
     private var queueIdSequence: Long = 0L
 
     private fun nextQueueId(index: Int = 0): String {
         queueIdSequence++
         return "queue_${queueIdSequence}_$index"
+    }
+
+    private fun isManagedTemporaryFile(filePath: String, explicitFlag: Boolean): Boolean {
+        if (explicitFlag) return true
+        val normalized = filePath.replace('\\', '/')
+        val fileName = normalized.substringAfterLast('/')
+        val hasManagedPrefix = fileName.startsWith("share_") ||
+            fileName.startsWith("picked_") ||
+            fileName.startsWith("shared_stream_") ||
+            fileName.startsWith("batch_") ||
+            fileName.startsWith("ioc_drop_") ||
+            fileName.startsWith("ioc_pick_")
+        if (!hasManagedPrefix) return false
+        val lowerPath = normalized.lowercase()
+        return lowerPath.contains("/cache/") ||
+            lowerPath.contains("/tmp/") ||
+            lowerPath.contains("/temp/")
+    }
+
+    private fun setStatusFeedback(message: String?, autoDismissDelayMs: Long = 2600L) {
+        feedbackDismissJob?.cancel()
+        _uiState.update { it.copy(statusFeedbackMessage = message) }
+        if (!message.isNullOrBlank() && autoDismissDelayMs > 0) {
+            feedbackDismissJob = viewModelScope.launch {
+                delay(autoDismissDelayMs)
+                _uiState.update { state ->
+                    if (state.statusFeedbackMessage == message) {
+                        state.copy(statusFeedbackMessage = null)
+                    } else state
+                }
+            }
+        }
+    }
+
+    private fun updateQueueItem(
+        itemId: String?,
+        transform: (FileQueueItem) -> FileQueueItem
+    ) {
+        if (itemId == null) return
+        _uiState.update { state ->
+            state.copy(
+                fileQueue = state.fileQueue.map { item ->
+                    if (item.id == itemId) transform(item) else item
+                }
+            )
+        }
     }
 
     private fun setTimedErrorMessage(message: String?, autoDismissDelayMs: Long = 4000L) {
@@ -91,7 +139,8 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         appTheme = settings.appTheme,
-                        appLanguage = settings.appLanguage
+                        appLanguage = settings.appLanguage,
+                        privacyGuardEnabled = settings.privacyGuardEnabled
                     )
                 }
             }
@@ -158,6 +207,33 @@ class HomeViewModel(
             HomeEvent.ClearFileQueue -> {
                 clearFileQueue()
             }
+            is HomeEvent.RemoveQueueItem -> {
+                val removed = _uiState.value.fileQueue.firstOrNull { it.id == event.itemId }
+                _uiState.update { state ->
+                    state.copy(
+                        fileQueue = state.fileQueue.filterNot { it.id == event.itemId },
+                        activeQueueItemId = if (state.activeQueueItemId == event.itemId) null else state.activeQueueItemId
+                    )
+                }
+                if (removed != null && isManagedTemporaryFile(removed.filePath, removed.isTemporary)) {
+                    temporaryFileCleaner.cleanIfTemporary(removed.filePath)
+                }
+            }
+            is HomeEvent.RetryQueueItem -> {
+                val targetItem = _uiState.value.fileQueue.firstOrNull { it.id == event.itemId }
+                if (targetItem != null && targetItem.status == QueueItemStatus.ERROR) {
+                    _uiState.update { state ->
+                        state.copy(
+                            fileQueue = state.fileQueue.map { item ->
+                                if (item.id == event.itemId) {
+                                    item.copy(status = QueueItemStatus.QUEUED, errorMessage = null)
+                                } else item
+                            }
+                        )
+                    }
+                    startQueueProcessing()
+                }
+            }
             is HomeEvent.SelectQueueItemVerdict -> {
                 event.item.verdict?.let { verdict ->
                     _uiState.update {
@@ -184,6 +260,14 @@ class HomeViewModel(
             HomeEvent.AnalyzeClicked -> {
                 analyzeQuery()
             }
+            HomeEvent.ReScanIndicator -> {
+                val target = _uiState.value.targetIndicator?.rawValue?.ifBlank { null }
+                    ?: _uiState.value.queryInput.trim()
+                if (target.isNotBlank()) {
+                    cancelScan()
+                    executeAnalyzeQuery(target, currentGeneration)
+                }
+            }
             HomeEvent.CancelScan -> {
                 cancelScan()
             }
@@ -191,6 +275,17 @@ class HomeViewModel(
                 cancelScan()
                 clearErrorMessage()
                 _uiState.update { it.copy(queryInput = "", targetIndicator = null, activeVerdict = null) }
+            }
+            is HomeEvent.SelectSampleQuery -> {
+                clearErrorMessage()
+                _uiState.update { it.copy(queryInput = event.sample) }
+                analyzeQuery()
+            }
+            is HomeEvent.ShowStatusFeedback -> {
+                setStatusFeedback(event.message)
+            }
+            HomeEvent.DismissStatusFeedback -> {
+                setStatusFeedback(null, autoDismissDelayMs = 0L)
             }
             HomeEvent.ToggleProviderDeck -> {
                 _uiState.update { it.copy(isProviderDeckExpanded = !it.isProviderDeckExpanded) }
@@ -225,7 +320,10 @@ class HomeViewModel(
                 settingsRepository.deleteScanHistoryItem(event.verdict.indicator.rawValue)
                 _uiState.update { current ->
                     current.copy(
-                        scanHistory = current.scanHistory.filter { it.indicator.rawValue != event.verdict.indicator.rawValue }
+                        scanHistory = current.scanHistory.filterNot {
+                            it.indicator.rawValue == event.verdict.indicator.rawValue ||
+                                it.indicator.normalizedValue == event.verdict.indicator.normalizedValue
+                        }
                     )
                 }
             }
@@ -273,9 +371,15 @@ class HomeViewModel(
         }
     }
 
-    private fun hashAndAnalyzeFile(filePath: String, fileName: String, isTemporary: Boolean = false) {
+    private fun hashAndAnalyzeFile(
+        filePath: String,
+        fileName: String,
+        isTemporary: Boolean = false,
+        queueItemId: String? = null
+    ) {
         cancelScan()
         val generation = currentGeneration
+        val managedTemporary = isManagedTemporaryFile(filePath, isTemporary)
 
         clearErrorMessage()
         _uiState.update {
@@ -290,6 +394,9 @@ class HomeViewModel(
             try {
                 val hashResult = streamHasher.hashFile(filePath)
                 if (generation == currentGeneration) {
+                    updateQueueItem(queueItemId) { item ->
+                        item.copy(sha256 = hashResult.sha256, status = QueueItemStatus.TRIAGING)
+                    }
                     _uiState.update {
                         it.copy(
                             isHashingFile = false,
@@ -297,14 +404,19 @@ class HomeViewModel(
                             queryInput = hashResult.sha256
                         )
                     }
-                    executeAnalyzeQuery(hashResult.sha256, generation)
+                    executeAnalyzeQuery(hashResult.sha256, generation, queueItemId = queueItemId)
                 }
             } catch (e: CancellationException) {
                 if (generation == currentGeneration) {
+                    val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
+                    updateQueueItem(queueItemId) { item ->
+                        item.copy(status = QueueItemStatus.ERROR, errorMessage = strings.cancelScan)
+                    }
                     _uiState.update {
                         it.copy(
                             isHashingFile = false,
-                            hashingFileName = null
+                            hashingFileName = null,
+                            activeQueueItemId = if (it.activeQueueItemId == queueItemId) null else it.activeQueueItemId
                         )
                     }
                 }
@@ -312,16 +424,21 @@ class HomeViewModel(
             } catch (e: Exception) {
                 if (generation == currentGeneration) {
                     val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
+                    val errText = "${strings.streamHashingFailed}: ${e.message ?: "error"}"
+                    updateQueueItem(queueItemId) { item ->
+                        item.copy(status = QueueItemStatus.ERROR, errorMessage = errText)
+                    }
                     _uiState.update {
                         it.copy(
                             isHashingFile = false,
-                            hashingFileName = null
+                            hashingFileName = null,
+                            activeQueueItemId = if (it.activeQueueItemId == queueItemId) null else it.activeQueueItemId
                         )
                     }
-                    setTimedErrorMessage("${strings.streamHashingFailed}: ${e.message ?: "error"}")
+                    setTimedErrorMessage(errText)
                 }
             } finally {
-                if (isTemporary) {
+                if (managedTemporary) {
                     temporaryFileCleaner.cleanIfTemporary(filePath)
                 }
                 if (generation == currentGeneration) {
@@ -347,7 +464,7 @@ class HomeViewModel(
         executeAnalyzeQuery(input, generation)
     }
 
-    private fun executeAnalyzeQuery(input: String, generation: Long) {
+    private fun executeAnalyzeQuery(input: String, generation: Long, queueItemId: String? = null) {
         val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
         val indicator = analyzeIndicatorUseCase.parseIndicator(input)
 
@@ -375,22 +492,43 @@ class HomeViewModel(
                     }
                 }
                 if (generation == currentGeneration) {
+                    val maxEntries = settingsRepository.getSettings().maxHistoryEntries.coerceAtLeast(1)
+                    var persistedHistory: List<TriageVerdict> = emptyList()
                     _uiState.update { state ->
                         val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
                             it.indicator.normalizedValue == verdict.indicator.normalizedValue
-                        }).take(20)
-                        settingsRepository.saveScanHistory(updatedHistory)
+                        }).take(maxEntries)
+                        persistedHistory = updatedHistory
                         state.copy(
                             isLoading = false,
                             activeVerdict = verdict,
-                            scanHistory = updatedHistory
+                            scanHistory = updatedHistory,
+                            activeQueueItemId = if (state.activeQueueItemId == queueItemId) null else state.activeQueueItemId,
+                            fileQueue = if (queueItemId != null) {
+                                state.fileQueue.map { item ->
+                                    if (item.id == queueItemId) {
+                                        item.copy(status = QueueItemStatus.DONE, verdict = verdict, errorMessage = null)
+                                    } else item
+                                }
+                            } else state.fileQueue
                         )
                     }
+                    settingsRepository.saveScanHistory(persistedHistory)
                 }
             } catch (e: CancellationException) {
                 if (generation == currentGeneration) {
+                    updateQueueItem(queueItemId) { item ->
+                        item.copy(status = QueueItemStatus.ERROR, errorMessage = strings.cancelScan)
+                    }
                     // Cooperative coroutine cancellation: clean exit, no error banner
-                    _uiState.update { it.copy(isLoading = false, targetIndicator = null, scanFinishedEngines = 0) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            targetIndicator = null,
+                            scanFinishedEngines = 0,
+                            activeQueueItemId = if (it.activeQueueItemId == queueItemId) null else it.activeQueueItemId
+                        )
+                    }
                 }
                 throw e
             } catch (e: Exception) {
@@ -401,7 +539,16 @@ class HomeViewModel(
                         e.message?.contains("Network", ignoreCase = true) == true || e.message?.contains("Connect", ignoreCase = true) == true -> strings.errorNetwork
                         else -> e.message ?: strings.errorNetwork
                     }
-                    _uiState.update { it.copy(isLoading = false, targetIndicator = null) }
+                    updateQueueItem(queueItemId) { item ->
+                        item.copy(status = QueueItemStatus.ERROR, errorMessage = errorMsg)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            targetIndicator = null,
+                            activeQueueItemId = if (it.activeQueueItemId == queueItemId) null else it.activeQueueItemId
+                        )
+                    }
                     setTimedErrorMessage(errorMsg)
                 }
             } finally {
@@ -418,16 +565,17 @@ class HomeViewModel(
         if (files.isEmpty()) return
         if (files.size == 1) {
             val first = files.first()
-            hashAndAnalyzeFile(first.path, first.name, isTemporary)
+            val managedTemp = isManagedTemporaryFile(first.path, isTemporary)
             val queueItem = FileQueueItem(
                 id = nextQueueId(0),
                 filePath = first.path,
                 fileName = first.name,
                 fileSizeBytes = first.sizeBytes,
                 status = QueueItemStatus.HASHING,
-                isTemporary = isTemporary
+                isTemporary = managedTemp
             )
-            _uiState.update { it.copy(fileQueue = listOf(queueItem)) }
+            _uiState.update { it.copy(fileQueue = listOf(queueItem), activeQueueItemId = queueItem.id) }
+            hashAndAnalyzeFile(first.path, first.name, managedTemp, queueItemId = queueItem.id)
             return
         }
 
@@ -438,7 +586,7 @@ class HomeViewModel(
                 fileName = file.name,
                 fileSizeBytes = file.sizeBytes,
                 status = QueueItemStatus.QUEUED,
-                isTemporary = isTemporary
+                isTemporary = isManagedTemporaryFile(file.path, isTemporary)
             )
         }
 
@@ -455,94 +603,124 @@ class HomeViewModel(
     private fun startQueueProcessing() {
         if (queueJob?.isActive == true) return
         queueJob = viewModelScope.launch(Dispatchers.Default) {
-            _uiState.update { it.copy(isProcessingQueue = true) }
-
-            while (isActive) {
-                val nextItem = _uiState.value.fileQueue.firstOrNull { it.status == QueueItemStatus.QUEUED }
-                if (nextItem == null) break
-
-                _uiState.update { state ->
-                    state.copy(
-                        activeQueueItemId = nextItem.id,
-                        fileQueue = state.fileQueue.map {
-                            if (it.id == nextItem.id) it.copy(status = QueueItemStatus.HASHING) else it
-                        }
-                    )
-                }
-
-                val hash = try {
-                    val res = streamHasher.hashFile(nextItem.filePath)
-                    res.sha256
-                } catch (_: Exception) {
-                    null
-                }
-
-                if (hash == null) {
-                    _uiState.update { state ->
-                        state.copy(
-                            fileQueue = state.fileQueue.map {
-                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.ERROR, errorMessage = "Failed to calculate SHA-256") else it
-                            }
-                        )
-                    }
-                    if (nextItem.isTemporary) {
-                        temporaryFileCleaner.cleanIfTemporary(nextItem.filePath)
-                    }
-                    continue
-                }
-
-                _uiState.update { state ->
-                    state.copy(
-                        fileQueue = state.fileQueue.map {
-                            if (it.id == nextItem.id) it.copy(sha256 = hash, status = QueueItemStatus.TRIAGING) else it
-                        }
-                    )
-                }
-
-                val verdict = try {
-                    val indicator = Indicator(hash, hash, IndicatorType.FILE_HASH)
-                    analyzeIndicatorUseCase(indicator)
-                } catch (_: Exception) {
-                    null
-                }
-
-                if (verdict != null) {
-                    _uiState.update { state ->
-                        val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
-                            it.indicator.normalizedValue == verdict.indicator.normalizedValue
-                        }).take(20)
-                        settingsRepository.saveScanHistory(updatedHistory)
-                        state.copy(
-                            scanHistory = updatedHistory,
-                            activeVerdict = if (state.activeVerdict == null) verdict else state.activeVerdict,
-                            targetIndicator = if (state.targetIndicator == null) verdict.indicator else state.targetIndicator,
-                            fileQueue = state.fileQueue.map {
-                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.DONE, verdict = verdict) else it
-                            }
-                        )
-                    }
-                } else {
-                    _uiState.update { state ->
-                        state.copy(
-                            fileQueue = state.fileQueue.map {
-                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.ERROR, errorMessage = "Triage engines unreachable") else it
-                            }
-                        )
-                    }
-                }
-
-                if (nextItem.isTemporary) {
-                    temporaryFileCleaner.cleanIfTemporary(nextItem.filePath)
+            val batchVerdictCache = mutableMapOf<String, TriageVerdict>()
+            _uiState.value.fileQueue.forEach { existing ->
+                val sha = existing.sha256
+                val verdict = existing.verdict
+                if (existing.status == QueueItemStatus.DONE && sha != null && verdict != null) {
+                    batchVerdictCache[sha] = verdict
                 }
             }
+            _uiState.update { it.copy(isProcessingQueue = true) }
 
-            _uiState.update { it.copy(isProcessingQueue = false, activeQueueItemId = null) }
+            try {
+                while (isActive) {
+                    val nextItem = _uiState.value.fileQueue.firstOrNull { it.status == QueueItemStatus.QUEUED }
+                    if (nextItem == null) break
+
+                    val strings = LocalizationProvider.getStrings(_uiState.value.appLanguage)
+                    _uiState.update { state ->
+                        state.copy(
+                            activeQueueItemId = nextItem.id,
+                            fileQueue = state.fileQueue.map {
+                                if (it.id == nextItem.id) it.copy(status = QueueItemStatus.HASHING, errorMessage = null) else it
+                            }
+                        )
+                    }
+
+                    val hash = nextItem.sha256 ?: try {
+                        streamHasher.hashFile(nextItem.filePath).sha256
+                    } catch (ce: CancellationException) {
+                        throw ce
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    if (hash == null) {
+                        _uiState.update { state ->
+                            state.copy(
+                                fileQueue = state.fileQueue.map {
+                                    if (it.id == nextItem.id) {
+                                        it.copy(status = QueueItemStatus.ERROR, errorMessage = strings.streamHashingFailed)
+                                    } else it
+                                }
+                            )
+                        }
+                        continue
+                    }
+
+                    _uiState.update { state ->
+                        state.copy(
+                            fileQueue = state.fileQueue.map {
+                                if (it.id == nextItem.id) it.copy(sha256 = hash, status = QueueItemStatus.TRIAGING) else it
+                            }
+                        )
+                    }
+
+                    val cachedVerdict = batchVerdictCache[hash]
+                    val verdict = cachedVerdict ?: try {
+                        val indicator = Indicator(hash, hash, IndicatorType.FILE_HASH)
+                        analyzeIndicatorUseCase(indicator)
+                    } catch (ce: CancellationException) {
+                        throw ce
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    if (verdict != null) {
+                        batchVerdictCache[hash] = verdict
+                        val maxEntries = settingsRepository.getSettings().maxHistoryEntries.coerceAtLeast(1)
+                        var persistedHistory: List<TriageVerdict> = emptyList()
+                        _uiState.update { state ->
+                            val updatedHistory = (listOf(verdict) + state.scanHistory.filterNot {
+                                it.indicator.normalizedValue == verdict.indicator.normalizedValue
+                            }).take(maxEntries)
+                            persistedHistory = updatedHistory
+                            state.copy(
+                                scanHistory = updatedHistory,
+                                activeVerdict = if (state.activeVerdict == null) verdict else state.activeVerdict,
+                                targetIndicator = if (state.targetIndicator == null) verdict.indicator else state.targetIndicator,
+                                fileQueue = state.fileQueue.map {
+                                    if (it.id == nextItem.id) {
+                                        it.copy(status = QueueItemStatus.DONE, verdict = verdict, errorMessage = null)
+                                    } else it
+                                }
+                            )
+                        }
+                        settingsRepository.saveScanHistory(persistedHistory)
+                        if (isManagedTemporaryFile(nextItem.filePath, nextItem.isTemporary)) {
+                            temporaryFileCleaner.cleanIfTemporary(nextItem.filePath)
+                        }
+                    } else {
+                        _uiState.update { state ->
+                            state.copy(
+                                fileQueue = state.fileQueue.map {
+                                    if (it.id == nextItem.id) {
+                                        it.copy(status = QueueItemStatus.ERROR, errorMessage = strings.errorNetwork)
+                                    } else it
+                                }
+                            )
+                        }
+                    }
+                }
+            } finally {
+                _uiState.update { it.copy(isProcessingQueue = false, activeQueueItemId = null) }
+            }
+        }
+    }
+
+    private fun cleanTemporaryQueueFiles(items: List<FileQueueItem>) {
+        items.forEach { item ->
+            if (isManagedTemporaryFile(item.filePath, item.isTemporary)) {
+                temporaryFileCleaner.cleanIfTemporary(item.filePath)
+            }
         }
     }
 
     private fun clearFileQueue() {
         queueJob?.cancel()
         queueJob = null
+        val snapshot = _uiState.value.fileQueue
         _uiState.update {
             it.copy(
                 fileQueue = emptyList(),
@@ -550,5 +728,11 @@ class HomeViewModel(
                 activeQueueItemId = null
             )
         }
+        cleanTemporaryQueueFiles(snapshot)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        cleanTemporaryQueueFiles(_uiState.value.fileQueue)
     }
 }

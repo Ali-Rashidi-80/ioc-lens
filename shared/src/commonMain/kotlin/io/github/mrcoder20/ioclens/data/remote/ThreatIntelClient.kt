@@ -1,10 +1,12 @@
 package io.github.mrcoder20.ioclens.data.remote
 
+import io.github.mrcoder20.ioclens.currentTimeMillis
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.model.Indicator
 import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.SourceResult
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
+import io.github.mrcoder20.ioclens.domain.parser.PrivacyGuardValidator
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -12,28 +14,68 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.parameters
 import io.ktor.util.encodeBase64
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+
+private const val MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024 // 2 MB ceiling per provider response
 
 val jsonParser = Json {
     ignoreUnknownKeys = true
     isLenient = true
     coerceInputValues = true
+}
+
+fun JsonElement?.asJsonObjectOrNull(): JsonObject? = this as? JsonObject
+
+fun JsonElement?.asJsonArrayOrNull(): JsonArray? = this as? JsonArray
+
+private fun sanitizeHeaderSecret(raw: String): String {
+    return raw.trim().replace("\r", "").replace("\n", "")
+}
+
+suspend fun HttpResponse.readBoundedText(maxBytes: Int = MAX_HTTP_RESPONSE_BYTES): String? {
+    val channel = bodyAsChannel()
+    val chunks = mutableListOf<ByteArray>()
+    var totalBytes = 0
+    val buffer = ByteArray(16 * 1024)
+    while (!channel.isClosedForRead) {
+        val read = channel.readAvailable(buffer, 0, buffer.size)
+        if (read == -1) break
+        if (read == 0) continue
+        if (totalBytes + read > maxBytes) {
+            return null
+        }
+        chunks.add(buffer.copyOf(read))
+        totalBytes += read
+    }
+    if (totalBytes == 0) return ""
+    val combined = ByteArray(totalBytes)
+    var offset = 0
+    for (chunk in chunks) {
+        chunk.copyInto(combined, offset)
+        offset += chunk.size
+    }
+    return combined.decodeToString()
 }
 
 fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult {
@@ -44,7 +86,8 @@ fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult 
             detectionsCount = 0,
             totalEngineCount = 0,
             summary = "Rate limit exceeded (HTTP 429): API quota reached, retry later",
-            isRateLimited = true
+            isRateLimited = true,
+            isError = true
         )
         HttpStatusCode.InternalServerError,
         HttpStatusCode.BadGateway,
@@ -54,7 +97,8 @@ fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult 
             verdict = VerdictLevel.NO_DATA,
             detectionsCount = 0,
             totalEngineCount = 0,
-            summary = "Server error (HTTP ${status.value} ${status.description}): Provider temporarily unavailable"
+            summary = "Server error (HTTP ${status.value} ${status.description}): Provider temporarily unavailable",
+            isError = true
         )
         HttpStatusCode.Unauthorized,
         HttpStatusCode.Forbidden -> SourceResult(
@@ -62,14 +106,16 @@ fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult 
             verdict = VerdictLevel.NO_DATA,
             detectionsCount = 0,
             totalEngineCount = 0,
-            summary = "Authentication failed (HTTP ${status.value}): Invalid or unauthorized API key"
+            summary = "Authentication failed (HTTP ${status.value}): Invalid or unauthorized API key",
+            isError = true
         )
         else -> SourceResult(
             providerName = providerName,
             verdict = VerdictLevel.NO_DATA,
             detectionsCount = 0,
             totalEngineCount = 0,
-            summary = "HTTP ${status.value}: ${status.description}"
+            summary = "HTTP ${status.value}: ${status.description}",
+            isError = true
         )
     }
 }
@@ -77,7 +123,7 @@ fun handleHttpError(providerName: String, status: HttpStatusCode): SourceResult 
 fun safeParseJsonObject(text: String): JsonObject? {
     if (text.isBlank()) return null
     return try {
-        jsonParser.parseToJsonElement(text).jsonObject
+        jsonParser.parseToJsonElement(text).asJsonObjectOrNull()
     } catch (_: Exception) {
         null
     }
@@ -116,8 +162,10 @@ class UrlhausProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted URLhaus response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "URLhaus response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted URLhaus response payload", isError = true)
 
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
@@ -137,7 +185,7 @@ class UrlhausProvider : ThreatIntelProvider {
                 SourceResult(name, VerdictLevel.CLEAN, 0, 1, "No active malware payloads recorded in URLhaus")
             }
             queryStatus.contains("rate_limit", ignoreCase = true) -> {
-                SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Rate limit exceeded (HTTP 429): API quota reached, retry later", isRateLimited = true)
+                SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Rate limit exceeded (HTTP 429): API quota reached, retry later", isRateLimited = true, isError = true)
             }
             else -> {
                 SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "URLhaus: $queryStatus")
@@ -168,14 +216,16 @@ class MalwareBazaarProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted MalwareBazaar response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "MalwareBazaar response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted MalwareBazaar response payload", isError = true)
 
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
         return when {
             queryStatus == "ok" -> {
-                val dataObj = body["data"]?.jsonArray?.firstOrNull()?.jsonObject ?: body
+                val dataObj = body["data"].asJsonArrayOrNull()?.firstOrNull().asJsonObjectOrNull() ?: body
                 val signature = dataObj["signature"]?.jsonPrimitive?.contentOrNull ?: "Known Malware"
                 val fileType = dataObj["file_type"]?.jsonPrimitive?.contentOrNull ?: "sample"
                 SourceResult(
@@ -220,16 +270,18 @@ class ThreatFoxProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted ThreatFox response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "ThreatFox response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted ThreatFox response payload", isError = true)
 
         val queryStatus = body["query_status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
 
         return when {
             queryStatus == "ok" -> {
-                val dataList = body["data"]?.jsonArray
+                val dataList = body["data"].asJsonArrayOrNull()
                 val matchCount = dataList?.size ?: 1
-                val firstMatch = dataList?.firstOrNull()?.jsonObject
+                val firstMatch = dataList?.firstOrNull().asJsonObjectOrNull()
                 val threatType = firstMatch?.get("threat_type")?.jsonPrimitive?.contentOrNull ?: "malicious_ioc"
                 val confidence = firstMatch?.get("confidence_level")?.jsonPrimitive?.intOrNull ?: 100
                 SourceResult(
@@ -250,7 +302,7 @@ class ThreatFoxProvider : ThreatIntelProvider {
     }
 }
 
-// 4. RDAP Network Registration (Zero-Key)
+// 4. RDAP Network Registration (Zero-Key) with SSRF-guarded HTTPS redirect handling
 class RdapProvider : ThreatIntelProvider {
     override val name = "RDAP / Registry"
     override val isZeroKey = true
@@ -261,7 +313,22 @@ class RdapProvider : ThreatIntelProvider {
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val path = if (indicator.type == IndicatorType.IP_ADDRESS) "ip" else "domain"
-        val response = client.get("https://rdap.org/$path/${indicator.normalizedValue}")
+        val encodedIndicator = indicator.normalizedValue.encodeURLPathPart()
+        var targetUrl = "https://rdap.org/$path/$encodedIndicator"
+        var response = client.get(targetUrl)
+        var hops = 0
+
+        while (response.status.value in setOf(301, 302, 303, 307, 308) && hops < 2) {
+            val location = response.headers[HttpHeaders.Location]?.trim().orEmpty()
+            if (!location.startsWith("https://", ignoreCase = true) ||
+                PrivacyGuardValidator.isPrivateOrInternal(location, settings.customPrivacyRules)
+            ) {
+                return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "RDAP redirect blocked by security policy", isError = true)
+            }
+            targetUrl = location
+            response = client.get(targetUrl)
+            hops++
+        }
 
         if (response.status == HttpStatusCode.NotFound) {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unregistered or no RDAP record (HTTP 404)")
@@ -270,8 +337,10 @@ class RdapProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted RDAP response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "RDAP response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted RDAP response payload", isError = true)
 
         val handle = body["handle"]?.jsonPrimitive?.contentOrNull
         val netName = body["name"]?.jsonPrimitive?.contentOrNull ?: handle ?: "Allocated Network"
@@ -302,8 +371,10 @@ class CloudflareDnsProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted DNS response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "DNS response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted DNS response payload", isError = true)
 
         val dnsStatus = body["Status"]?.jsonPrimitive?.intOrNull ?: -1
 
@@ -329,7 +400,8 @@ class ShodanInternetDbProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val response = client.get("https://internetdb.shodan.io/${indicator.normalizedValue}")
+        val encodedIp = indicator.normalizedValue.encodeURLPathPart()
+        val response = client.get("https://internetdb.shodan.io/$encodedIp")
 
         if (response.status == HttpStatusCode.NotFound) {
             return SourceResult(
@@ -344,12 +416,14 @@ class ShodanInternetDbProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Shodan InternetDB response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Shodan response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Shodan InternetDB response payload", isError = true)
 
-        val vulns = (body["vulns"] ?: body["cves"])?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
-        val ports = body["ports"]?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
-        val hostnames = body["hostnames"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        val vulns = (body["vulns"] ?: body["cves"]).asJsonArrayOrNull()?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        val ports = body["ports"].asJsonArrayOrNull()?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
+        val hostnames = body["hostnames"].asJsonArrayOrNull()?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
 
         val verdict = when {
             vulns.isNotEmpty() -> VerdictLevel.MALICIOUS
@@ -373,7 +447,7 @@ class ShodanInternetDbProvider : ThreatIntelProvider {
     }
 }
 
-// 7. AlienVault OTX Public API (Zero-Key)
+// 7. AlienVault OTX Public API (Zero-Key + Optional API Key)
 class AlienVaultOtxProvider : ThreatIntelProvider {
     override val name = "AlienVault OTX"
     override val isZeroKey = true
@@ -384,14 +458,14 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
         val (section, value) = when (indicator.type) {
-            IndicatorType.DOMAIN -> "domain" to indicator.normalizedValue
-            IndicatorType.IP_ADDRESS -> (if (indicator.normalizedValue.contains(':')) "IPv6" else "IPv4") to indicator.normalizedValue
-            IndicatorType.FILE_HASH -> "file" to indicator.normalizedValue
+            IndicatorType.DOMAIN -> "domain" to indicator.normalizedValue.encodeURLPathPart()
+            IndicatorType.IP_ADDRESS -> (if (indicator.normalizedValue.contains(':')) "IPv6" else "IPv4") to indicator.normalizedValue.encodeURLPathPart()
+            IndicatorType.FILE_HASH -> "file" to indicator.normalizedValue.encodeURLPathPart()
             IndicatorType.URL -> "url" to indicator.normalizedValue.encodeURLPathPart()
             IndicatorType.UNKNOWN -> return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Unknown indicator")
         }
 
-        val apiKey = settings.alienVaultApiKey.trim()
+        val apiKey = sanitizeHeaderSecret(settings.alienVaultApiKey)
         val response = client.get("https://otx.alienvault.com/api/v1/indicators/$section/$value/general") {
             if (apiKey.isNotBlank()) {
                 header("X-OTX-API-KEY", apiKey)
@@ -404,11 +478,13 @@ class AlienVaultOtxProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "AlienVault OTX response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload", isError = true)
 
-        val pulseInfo = body["pulse_info"]?.jsonObject
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload: missing pulse_info")
+        val pulseInfo = body["pulse_info"].asJsonObjectOrNull()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid AlienVault OTX response payload: missing pulse_info", isError = true)
 
         val pulseCount = pulseInfo["count"]?.jsonPrimitive?.intOrNull ?: 0
 
@@ -446,11 +522,13 @@ class RipeStatProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid RIPE Stat response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "RIPE Stat response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid RIPE Stat response payload", isError = true)
 
-        val data = body["data"]?.jsonObject
-        val asns = data?.get("asns")?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+        val data = body["data"].asJsonObjectOrNull()
+        val asns = data?.get("asns").asJsonArrayOrNull()?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
         val prefix = data?.get("prefix")?.jsonPrimitive?.contentOrNull ?: "Unknown Prefix"
 
         val asnStr = if (asns.isNotEmpty()) asns.joinToString { "AS$it" } else "Unannounced ASN"
@@ -486,15 +564,17 @@ class CrtShProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val text = response.bodyAsText().trim()
+        val text = (response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Certificate Transparency response exceeded safety size cap", isError = true)).trim()
         if (text.isEmpty() || text == "[]") {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "No SSL certificates logged in Certificate Transparency")
         }
 
         val certCount = try {
-            jsonParser.parseToJsonElement(text).jsonArray.size
+            jsonParser.parseToJsonElement(text).asJsonArrayOrNull()?.size
+                ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Certificate Transparency response payload", isError = true)
         } catch (_: Exception) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Certificate Transparency response payload")
+            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid Certificate Transparency response payload", isError = true)
         }
 
         return SourceResult(
@@ -517,14 +597,17 @@ class IpWhoIsProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val response = client.get("https://ipwho.is/${indicator.normalizedValue}")
+        val encodedIp = indicator.normalizedValue.encodeURLPathPart()
+        val response = client.get("https://ipwho.is/$encodedIp")
 
         if (response.status != HttpStatusCode.OK) {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid ipwho.is response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "ipwho.is response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid ipwho.is response payload", isError = true)
 
         val success = body["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         if (!success) {
@@ -532,13 +615,13 @@ class IpWhoIsProvider : ThreatIntelProvider {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "ipwho.is: $message")
         }
 
-        val security = body["security"]?.jsonObject
+        val security = body["security"].asJsonObjectOrNull()
         val isTor = security?.get("tor")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         val isProxy = security?.get("proxy")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         val isVpn = security?.get("vpn")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         val isAnonymous = security?.get("anonymous")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
 
-        val connection = body["connection"]?.jsonObject
+        val connection = body["connection"].asJsonObjectOrNull()
         val isp = connection?.get("isp")?.jsonPrimitive?.contentOrNull ?: "Unknown ISP"
         val country = body["country"]?.jsonPrimitive?.contentOrNull ?: ""
 
@@ -564,10 +647,18 @@ class IpWhoIsProvider : ThreatIntelProvider {
     }
 }
 
-// 10. abuse.ch Feodo Tracker (Zero-Key C2 Botnet & IP Reputation)
+// 11. abuse.ch Feodo Tracker (Zero-Key C2 Botnet & IP Reputation) with TTL memory cache
 class FeodoTrackerProvider(
-    private val endpointUrl: String = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+    private val endpointUrl: String = "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
+    private val cacheTtlMs: Long = 10 * 60 * 1000L
 ) : ThreatIntelProvider {
+    private data class FeodoEntry(val malware: String, val status: String, val port: Int?)
+
+    private val cacheMutex = Mutex()
+    private var cachedEntries: Map<String, FeodoEntry>? = null
+    private var cachedEngine: Any? = null
+    private var cacheExpiresAtMs: Long = 0L
+
     override val name = "Feodo Tracker (abuse.ch)"
     override val isZeroKey = true
 
@@ -576,26 +667,51 @@ class FeodoTrackerProvider(
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val response = try {
-            client.get(endpointUrl)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Feodo Tracker unavailable: ${e.message ?: "Network error"}")
+        val now = currentTimeMillis()
+        val existingCache = cacheMutex.withLock {
+            if (cachedEntries != null && cachedEngine === client.engine && now < cacheExpiresAtMs) cachedEntries else null
         }
 
-        if (response.status != HttpStatusCode.OK) {
-            return handleHttpError(name, response.status)
-        }
+        val entries = existingCache ?: run {
+            val response = try {
+                client.get(endpointUrl)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Feodo Tracker unavailable: ${e.message ?: "Network error"}", isError = true)
+            }
 
-        val text = response.bodyAsText().trim()
-        if (text.isEmpty() || text == "[]") {
-            return SourceResult(name, VerdictLevel.CLEAN, 0, 1, "No active C2 botnets recorded in Feodo Tracker")
-        }
+            if (response.status != HttpStatusCode.OK) {
+                return handleHttpError(name, response.status)
+            }
 
-        val jsonArray = try {
-            jsonParser.parseToJsonElement(text).jsonArray
-        } catch (_: Exception) {
-            return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Feodo Tracker response payload")
+            val text = (response.readBoundedText(maxBytes = 4 * 1024 * 1024)
+                ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Feodo Tracker response exceeded safety size cap", isError = true)).trim()
+            if (text.isEmpty() || text == "[]") {
+                return SourceResult(name, VerdictLevel.CLEAN, 0, 1, "No active C2 botnets recorded in Feodo Tracker")
+            }
+
+            val jsonArray = try {
+                jsonParser.parseToJsonElement(text).asJsonArrayOrNull()
+                    ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Feodo Tracker response payload", isError = true)
+            } catch (_: Exception) {
+                return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Feodo Tracker response payload", isError = true)
+            }
+
+            val parsedMap = buildMap {
+                jsonArray.mapNotNull { it.asJsonObjectOrNull() }.forEach { obj ->
+                    val ip = obj["ip_address"]?.jsonPrimitive?.contentOrNull?.lowercase()?.trim() ?: return@forEach
+                    val malware = obj["malware"]?.jsonPrimitive?.contentOrNull ?: "Botnet C2"
+                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: "active"
+                    val port = obj["port"]?.jsonPrimitive?.intOrNull
+                    put(ip, FeodoEntry(malware, status, port))
+                }
+            }
+            cacheMutex.withLock {
+                cachedEntries = parsedMap
+                cachedEngine = client.engine
+                cacheExpiresAtMs = currentTimeMillis() + cacheTtlMs
+            }
+            parsedMap
         }
 
         val raw = indicator.normalizedValue.trim()
@@ -604,21 +720,16 @@ class FeodoTrackerProvider(
             raw.count { it == ':' } == 1 -> raw.substringBefore(':').lowercase()
             else -> raw.substringBefore('%').lowercase()
         }
-        val match = jsonArray.mapNotNull { it as? JsonObject }.firstOrNull { obj ->
-            obj["ip_address"]?.jsonPrimitive?.contentOrNull?.lowercase() == targetIp
-        }
+        val match = entries[targetIp]
 
         return if (match != null) {
-            val malware = match["malware"]?.jsonPrimitive?.contentOrNull ?: "Botnet C2"
-            val status = match["status"]?.jsonPrimitive?.contentOrNull ?: "active"
-            val port = match["port"]?.jsonPrimitive?.intOrNull
-            val portSuffix = if (port != null) ":$port" else ""
+            val portSuffix = if (match.port != null) ":${match.port}" else ""
             SourceResult(
                 providerName = name,
                 verdict = VerdictLevel.MALICIOUS,
                 detectionsCount = 1,
                 totalEngineCount = 1,
-                summary = "Feodo Tracker confirmed C2 botnet node: $malware ($status$portSuffix)"
+                summary = "Feodo Tracker confirmed C2 botnet node: ${match.malware} (${match.status}$portSuffix)"
             )
         } else {
             SourceResult(
@@ -632,8 +743,7 @@ class FeodoTrackerProvider(
     }
 }
 
-// 6. VirusTotal (Authenticated - Legacy)
-@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
+// 12. VirusTotal (Authenticated - Optional)
 class VirusTotalProvider : ThreatIntelProvider {
     override val name = "VirusTotal"
     override val isZeroKey = false
@@ -643,15 +753,16 @@ class VirusTotalProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val apiKey = settings.virusTotalApiKey.trim()
+        val apiKey = sanitizeHeaderSecret(settings.virusTotalApiKey)
         if (apiKey.isBlank()) {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "API Key required (Configure in Settings)")
         }
 
+        val encoded = indicator.normalizedValue.encodeURLPathPart()
         val endpoint = when (indicator.type) {
-            IndicatorType.FILE_HASH -> "https://www.virustotal.com/api/v3/files/${indicator.normalizedValue}"
-            IndicatorType.IP_ADDRESS -> "https://www.virustotal.com/api/v3/ip_addresses/${indicator.normalizedValue}"
-            IndicatorType.DOMAIN -> "https://www.virustotal.com/api/v3/domains/${indicator.normalizedValue}"
+            IndicatorType.FILE_HASH -> "https://www.virustotal.com/api/v3/files/$encoded"
+            IndicatorType.IP_ADDRESS -> "https://www.virustotal.com/api/v3/ip_addresses/$encoded"
+            IndicatorType.DOMAIN -> "https://www.virustotal.com/api/v3/domains/$encoded"
             IndicatorType.URL -> {
                 val urlId = indicator.normalizedValue.encodeBase64().trimEnd('=').replace('+', '-').replace('/', '_')
                 "https://www.virustotal.com/api/v3/urls/$urlId"
@@ -670,10 +781,12 @@ class VirusTotalProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted VirusTotal response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "VirusTotal response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted VirusTotal response payload", isError = true)
 
-        val stats = body["data"]?.jsonObject?.get("attributes")?.jsonObject?.get("last_analysis_stats")?.jsonObject
+        val stats = body["data"].asJsonObjectOrNull()?.get("attributes").asJsonObjectOrNull()?.get("last_analysis_stats").asJsonObjectOrNull()
         val malicious = stats?.get("malicious")?.jsonPrimitive?.intOrNull ?: 0
         val suspicious = stats?.get("suspicious")?.jsonPrimitive?.intOrNull ?: 0
         val harmless = stats?.get("harmless")?.jsonPrimitive?.intOrNull ?: 0
@@ -697,8 +810,7 @@ class VirusTotalProvider : ThreatIntelProvider {
     }
 }
 
-// 7. AbuseIPDB (Authenticated - Legacy)
-@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
+// 13. AbuseIPDB (Authenticated - Optional)
 class AbuseIpDbProvider : ThreatIntelProvider {
     override val name = "AbuseIPDB"
     override val isZeroKey = false
@@ -708,7 +820,7 @@ class AbuseIpDbProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val apiKey = settings.abuseIpDbApiKey.trim()
+        val apiKey = sanitizeHeaderSecret(settings.abuseIpDbApiKey)
         if (apiKey.isBlank()) {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "API Key required (Configure in Settings)")
         }
@@ -724,10 +836,12 @@ class AbuseIpDbProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted AbuseIPDB response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "AbuseIPDB response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted AbuseIPDB response payload", isError = true)
 
-        val data = body["data"]?.jsonObject
+        val data = body["data"].asJsonObjectOrNull()
         val score = data?.get("abuseConfidenceScore")?.jsonPrimitive?.intOrNull ?: 0
         val reports = data?.get("totalReports")?.jsonPrimitive?.intOrNull ?: 0
 
@@ -748,9 +862,7 @@ class AbuseIpDbProvider : ThreatIntelProvider {
     }
 }
 
-
-// 9. Pulsedive (Authenticated - Legacy)
-@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
+// 14. Pulsedive (Authenticated - Optional)
 class PulsediveProvider : ThreatIntelProvider {
     override val name = "Pulsedive"
     override val isZeroKey = false
@@ -760,7 +872,7 @@ class PulsediveProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val apiKey = settings.pulsediveApiKey.trim()
+        val apiKey = sanitizeHeaderSecret(settings.pulsediveApiKey)
         val response = client.get("https://pulsedive.com/api/info.php") {
             parameter("indicator", indicator.normalizedValue)
             if (apiKey.isNotBlank()) parameter("key", apiKey)
@@ -770,8 +882,10 @@ class PulsediveProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Pulsedive response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Pulsedive response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted Pulsedive response payload", isError = true)
 
         val error = body["error"]?.jsonPrimitive?.contentOrNull
         if (error != null) {
@@ -782,7 +896,8 @@ class PulsediveProvider : ThreatIntelProvider {
                 0,
                 0,
                 if (isRate) "Rate limit exceeded (HTTP 429): API quota reached, retry later" else "Pulsedive: $error",
-                isRateLimited = isRate
+                isRateLimited = isRate,
+                isError = true
             )
         }
 
@@ -799,7 +914,7 @@ class PulsediveProvider : ThreatIntelProvider {
             else -> VerdictLevel.NO_DATA
         }
 
-        val threats = body["threats"]?.jsonArray?.size ?: 0
+        val threats = body["threats"].asJsonArrayOrNull()?.size ?: 0
         return SourceResult(
             name,
             verdict,
@@ -810,8 +925,7 @@ class PulsediveProvider : ThreatIntelProvider {
     }
 }
 
-// 10. IPQualityScore (Authenticated - Legacy)
-@Deprecated("Retired in M1: Zero-Key Threat Intel Architecture.", level = DeprecationLevel.WARNING)
+// 15. IPQualityScore (Authenticated - Optional)
 class IpQualityScoreProvider : ThreatIntelProvider {
     override val name = "IPQualityScore"
     override val isZeroKey = false
@@ -821,12 +935,14 @@ class IpQualityScoreProvider : ThreatIntelProvider {
     }
 
     override suspend fun query(client: HttpClient, indicator: Indicator, settings: AppSettings): SourceResult {
-        val apiKey = settings.ipQualityScoreApiKey.trim()
+        val apiKey = sanitizeHeaderSecret(settings.ipQualityScoreApiKey)
         if (apiKey.isBlank()) {
             return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "API Key required (Configure in Settings)")
         }
 
-        val response = client.get("https://www.ipqualityscore.com/api/json/ip/$apiKey/${indicator.normalizedValue}") {
+        val encodedKey = apiKey.encodeURLPathPart()
+        val encodedIp = indicator.normalizedValue.encodeURLPathPart()
+        val response = client.get("https://www.ipqualityscore.com/api/json/ip/$encodedKey/$encodedIp") {
             parameter("strictness", "1")
         }
 
@@ -834,8 +950,10 @@ class IpQualityScoreProvider : ThreatIntelProvider {
             return handleHttpError(name, response.status)
         }
 
-        val body = safeParseJsonObject(response.bodyAsText())
-            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted IPQualityScore response payload")
+        val text = response.readBoundedText()
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "IPQualityScore response exceeded safety size cap", isError = true)
+        val body = safeParseJsonObject(text)
+            ?: return SourceResult(name, VerdictLevel.NO_DATA, 0, 0, "Invalid or corrupted IPQualityScore response payload", isError = true)
 
         val success = body["success"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true
         if (!success) {
@@ -847,7 +965,8 @@ class IpQualityScoreProvider : ThreatIntelProvider {
                 0,
                 0,
                 if (isRate) "Rate limit exceeded (HTTP 429): API quota reached, retry later" else "IPQualityScore: $message",
-                isRateLimited = isRate
+                isRateLimited = isRate,
+                isError = true
             )
         }
 

@@ -13,6 +13,7 @@ import io.github.mrcoder20.ioclens.data.remote.ThreatFoxProvider
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelAggregator
 import io.github.mrcoder20.ioclens.data.remote.ThreatIntelProvider
 import io.github.mrcoder20.ioclens.data.remote.UrlhausProvider
+import io.github.mrcoder20.ioclens.data.remote.createDefaultZeroKeyProviders
 import io.github.mrcoder20.ioclens.data.repository.ZeroKeyThreatIntelRepositoryImpl
 import io.github.mrcoder20.ioclens.domain.model.AppSettings
 import io.github.mrcoder20.ioclens.domain.model.Indicator
@@ -20,12 +21,15 @@ import io.github.mrcoder20.ioclens.domain.model.IndicatorType
 import io.github.mrcoder20.ioclens.domain.model.VerdictLevel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import java.util.Collections
 import kotlin.test.Test
@@ -169,19 +173,27 @@ class ZeroKeyProviderAdversarialStressTest {
     // =========================================================================
     // 5. Heavy Concurrent Load (50 Calls) Under Total Rate Limiting
     // =========================================================================
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testHeavyConcurrentLoadUnderTotalRateLimiting() = runTest {
-        val rateLimitedClient = HttpClient(MockEngine {
-            respond(
-                content = """{"error": "Too Many Requests", "retry_after": 60}""",
-                status = HttpStatusCode.TooManyRequests,
-                headers = jsonHeaders
+        val rateLimitedClient = HttpClient(
+            MockEngine(
+                MockEngineConfig().apply {
+                    dispatcher = StandardTestDispatcher(testScheduler)
+                    addHandler {
+                        respond(
+                            content = """{"error": "Too Many Requests", "retry_after": 60}""",
+                            status = HttpStatusCode.TooManyRequests,
+                            headers = jsonHeaders
+                        )
+                    }
+                }
             )
-        })
+        )
 
         val aggregator = ThreatIntelAggregator(
             client = rateLimitedClient,
-            providers = DEFAULT_ZERO_KEY_PROVIDERS
+            providers = createDefaultZeroKeyProviders()
         )
         val repository = ZeroKeyThreatIntelRepositoryImpl(
             client = rateLimitedClient,

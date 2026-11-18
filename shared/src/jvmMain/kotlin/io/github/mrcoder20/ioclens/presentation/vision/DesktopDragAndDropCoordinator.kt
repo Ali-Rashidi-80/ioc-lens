@@ -1,5 +1,6 @@
 package io.github.mrcoder20.ioclens.presentation.vision
 
+import io.github.mrcoder20.ioclens.logDiagnostic
 import java.awt.Component
 import java.awt.Image
 import java.awt.datatransfer.DataFlavor
@@ -9,7 +10,9 @@ import java.awt.dnd.DropTargetDragEvent
 import java.awt.dnd.DropTargetDropEvent
 import java.awt.dnd.DropTargetEvent
 import java.awt.dnd.DropTargetListener
+import java.awt.dnd.InvalidDnDOperationException
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Enterprise Desktop Drag-and-Drop Coordinator:
@@ -49,26 +52,65 @@ object DesktopDragAndDropCoordinator {
         }
     }
 
+    fun isUnsafeRemotePath(rawPath: String): Boolean {
+        val trimmed = rawPath.trim().removeSurrounding("\"")
+        if (trimmed.isEmpty()) return false
+        if (trimmed.startsWith("\\\\") || trimmed.startsWith("//")) return true
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("\\\\?\\unc\\")) return true
+        if (lower.contains("@ssl") && lower.contains("davwwwroot")) return true
+        if (lower.startsWith("file://")) {
+            val afterScheme = trimmed.substring(7)
+            if (afterScheme.startsWith("/")) return false
+            val authority = afterScheme.substringBefore('/').substringBefore('\\').lowercase()
+            if (authority.isNotEmpty() && authority != "localhost") return true
+        }
+        return false
+    }
+
     /**
-     * Parses dropped raw text, file URI, or URI list into a valid local File.
+     * Parses dropped raw text, file URI, or URI list into a valid local File, rejecting UNC/SMB paths before probing I/O.
      */
     fun parseDroppedTextToFile(rawText: String): File? {
         if (rawText.isBlank()) return null
         for (rawLine in rawText.lines()) {
             val line = rawLine.trim()
             if (line.isBlank() || line.startsWith("#")) continue
+            if (isUnsafeRemotePath(line)) continue
             val candidate = runCatching {
                 if (line.startsWith("file:", ignoreCase = true)) {
-                    File(java.net.URI(line))
+                    val uri = java.net.URI(line)
+                    val auth = uri.authority?.lowercase().orEmpty()
+                    if (auth.isNotEmpty() && auth != "localhost") return@runCatching null
+                    File(uri)
                 } else {
                     File(line.removeSurrounding("\""))
                 }
             }.getOrNull()
-            if (candidate != null && candidate.isFile && candidate.exists()) {
+            if (candidate != null && !isUnsafeRemotePath(candidate.path) && candidate.isFile && candidate.exists()) {
                 return candidate
             }
         }
         return null
+    }
+
+    private val lastDragWarnEpochMs = AtomicLong(0L)
+
+    private fun acceptDragSafely(dtde: DropTargetDragEvent) {
+        try {
+            val action = resolveDropAction(dtde.sourceActions, dtde.dropAction)
+            dtde.acceptDrag(action)
+        } catch (_: InvalidDnDOperationException) {
+            // Expected AWT drag-state race during OLE transitions; never call rejectDrag()
+        } catch (_: IllegalArgumentException) {
+            // Expected transient invalid source/drop action mask; never call rejectDrag()
+        } catch (t: Throwable) {
+            val now = System.currentTimeMillis()
+            val prev = lastDragWarnEpochMs.get()
+            if (now - prev >= 5_000L && lastDragWarnEpochMs.compareAndSet(prev, now)) {
+                logDiagnostic("DesktopDnD", "Unexpected drag event error", t)
+            }
+        }
     }
 
     /**
@@ -82,35 +124,25 @@ object DesktopDragAndDropCoordinator {
     ): DropTargetListener {
         return object : DropTargetListener {
             override fun dragEnter(dtde: DropTargetDragEvent) {
-                try {
-                    val action = resolveDropAction(dtde.sourceActions, dtde.dropAction)
-                    dtde.acceptDrag(action)
-                } catch (_: Throwable) {
-                    // Never call rejectDrag() to avoid showing the prohibited cursor
-                }
+                acceptDragSafely(dtde)
             }
 
             override fun dragOver(dtde: DropTargetDragEvent) {
-                try {
-                    val action = resolveDropAction(dtde.sourceActions, dtde.dropAction)
-                    dtde.acceptDrag(action)
-                } catch (_: Throwable) {}
+                acceptDragSafely(dtde)
             }
 
             override fun dropActionChanged(dtde: DropTargetDragEvent) {
-                try {
-                    val action = resolveDropAction(dtde.sourceActions, dtde.dropAction)
-                    dtde.acceptDrag(action)
-                } catch (_: Throwable) {}
+                acceptDragSafely(dtde)
             }
 
-            override fun dragExit(dte: DropTargetEvent) {}
+            override fun dragExit(dte: DropTargetEvent) = Unit
 
             override fun drop(evt: DropTargetDropEvent) {
                 val action = resolveDropAction(evt.sourceActions, evt.dropAction)
                 try {
                     evt.acceptDrop(action)
-                } catch (_: Throwable) {
+                } catch (t: Throwable) {
+                    logDiagnostic("DesktopDnD", "Failed to accept DnD drop", t)
                     return
                 }
 
@@ -118,11 +150,11 @@ object DesktopDragAndDropCoordinator {
                 try {
                     val transferable = evt.transferable
 
-                    // 1. Files flavor (File Explorer / Desktop)
+                    // 1. Files flavor (File Explorer / Desktop) — block UNC/SMB paths before File.exists()
                     if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         val files = (transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<*>)
                             ?.filterIsInstance<File>()
-                            ?.filter { it.exists() }
+                            ?.filter { !isUnsafeRemotePath(it.path) && it.exists() }
                             .orEmpty()
                         if (files.isNotEmpty()) {
                             handled = true
@@ -177,10 +209,10 @@ object DesktopDragAndDropCoordinator {
                         }
                     }
                 } catch (t: Throwable) {
-                    System.err.println("[IOCLens] DnD drop error: ${t.message}")
+                    logDiagnostic("DesktopDnD", "DnD drop error", t)
                 } finally {
                     if (!handled) {
-                        try { evt.dropComplete(false) } catch (_: Throwable) {}
+                        try { evt.dropComplete(false) } catch (t: Throwable) { logDiagnostic("DesktopDnD", "dropComplete(false) failed", t) }
                     }
                 }
             }

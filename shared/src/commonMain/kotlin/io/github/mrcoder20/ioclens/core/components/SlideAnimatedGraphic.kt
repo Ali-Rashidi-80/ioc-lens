@@ -38,7 +38,11 @@ import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
+import io.github.mrcoder20.ioclens.core.concurrency.PlatformLock
+import io.github.mrcoder20.ioclens.core.concurrency.withLock
+import io.github.mrcoder20.ioclens.logDiagnostic
 import ioclens.shared.generated.resources.Res
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -49,23 +53,35 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  */
 @OptIn(ExperimentalResourceApi::class)
 object LottiePreloader {
+    private val cacheLock = PlatformLock()
     private val jsonCache = mutableMapOf<String, String>()
     private val compositionCache = mutableMapOf<String, LottieComposition>()
 
-    fun getCachedJson(fileName: String): String? = jsonCache[fileName]
-    fun getCachedComposition(fileName: String): LottieComposition? = compositionCache[fileName]
+    fun getCachedJson(fileName: String): String? = cacheLock.withLock { jsonCache[fileName] }
+    fun getCachedComposition(fileName: String): LottieComposition? = cacheLock.withLock { compositionCache[fileName] }
 
     suspend fun getOrLoadJson(fileName: String): String? = withContext(Dispatchers.Default) {
-        jsonCache[fileName]?.let { return@withContext it }
-        runCatching {
+        cacheLock.withLock { jsonCache[fileName] }?.let { return@withContext it }
+        val loaded = try {
             Res.readBytes(fileName).decodeToString()
-        }.getOrNull()?.also {
-            jsonCache[fileName] = it
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logDiagnostic("LottiePreloader", "Failed to load animation resource $fileName", e)
+            null
         }
+        if (loaded != null) {
+            cacheLock.withLock {
+                jsonCache[fileName] = loaded
+            }
+        }
+        loaded
     }
 
     fun cacheComposition(fileName: String, composition: LottieComposition) {
-        compositionCache[fileName] = composition
+        cacheLock.withLock {
+            compositionCache[fileName] = composition
+        }
     }
 
     suspend fun preloadAll() = withContext(Dispatchers.Default) {
@@ -75,7 +91,8 @@ object LottiePreloader {
             "files/anim_network.json",
             "files/anim_key.json"
         ).forEach { fileName ->
-            if (!jsonCache.containsKey(fileName)) {
+            val alreadyCached = cacheLock.withLock { jsonCache.containsKey(fileName) }
+            if (!alreadyCached) {
                 getOrLoadJson(fileName)
             }
         }

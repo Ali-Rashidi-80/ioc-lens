@@ -13,9 +13,6 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.kotlinx.coroutinesSwing)
 
-    implementation("net.java.dev.jna:jna:5.19.1")
-    implementation("net.java.dev.jna:jna-platform:5.19.1")
-
     implementation(libs.compose.uiToolingPreview)
 
     testImplementation(libs.kotlin.test)
@@ -41,6 +38,7 @@ compose.desktop {
 
             windows {
                 iconFile.set(project.file("../docs/assets/logo/icon.ico"))
+                upgradeUuid = "a8e5d7b2-4e8a-4d5e-b53f-9d1a0c7f3b4e"
                 shortcut = true
                 menu = true
                 menuGroup = "IOC Lens"
@@ -49,11 +47,12 @@ compose.desktop {
             }
             macOS {
                 iconFile.set(project.file("../docs/assets/logo/icon.icns"))
+                bundleID = "io.github.mrcoder20.ioclens"
                 dockName = "IOC Lens"
                 appCategory = "public.app-category.developer-tools"
             }
             linux {
-                iconFile.set(project.file("../docs/assets/logo/icon.png"))
+                iconFile.set(project.file("../docs/assets/logo/icon-512.png"))
                 shortcut = true
                 menuGroup = "Utility"
             }

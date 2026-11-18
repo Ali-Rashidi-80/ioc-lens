@@ -4,16 +4,25 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.MultiFormatReader
+import com.google.zxing.ReaderException
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.multi.GenericMultipleBarcodeReader
+import io.github.mrcoder20.ioclens.logDiagnostic
+import io.github.mrcoder20.ioclens.presentation.vision.DesktopDragAndDropCoordinator
 import java.awt.Image
+import java.awt.RenderingHints
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.File
 import javax.imageio.ImageIO
+import kotlin.math.max
+
+private const val JVM_MAX_VISION_IMAGE_BYTES = 20L * 1024L * 1024L
+private const val JVM_MAX_IMAGE_DIMENSION = 12_000
+private const val JVM_MAX_IMAGE_PIXELS = 36_000_000L
 
 actual class PlatformVisualDecoder actual constructor() {
 
@@ -24,13 +33,46 @@ actual class PlatformVisualDecoder actual constructor() {
     )
 
     actual fun decodeBarcodeFromBytes(imageBytes: ByteArray): List<BarcodePayload> {
-        if (imageBytes.isEmpty()) return emptyList()
+        if (imageBytes.isEmpty() || imageBytes.size.toLong() > JVM_MAX_VISION_IMAGE_BYTES) {
+            return emptyList()
+        }
         return try {
-            val bufferedImage = ImageIO.read(ByteArrayInputStream(imageBytes)) ?: return emptyList()
+            val bufferedImage = decodeSafeBoundedBufferedImage(imageBytes) ?: return emptyList()
             decodeBufferedImage(bufferedImage)
         } catch (e: Exception) {
+            logDiagnostic("JvmVisualDecoder", "Failed to decode barcode image bytes", e)
             emptyList()
         }
+    }
+
+    private fun decodeSafeBoundedBufferedImage(imageBytes: ByteArray): BufferedImage? {
+        ImageIO.createImageInputStream(ByteArrayInputStream(imageBytes))?.use { iis ->
+            val readers = ImageIO.getImageReaders(iis)
+            if (!readers.hasNext()) return null
+            val reader = readers.next()
+            try {
+                reader.input = iis
+                val width = reader.getWidth(0)
+                val height = reader.getHeight(0)
+                if (width <= 0 || height <= 0 ||
+                    width > JVM_MAX_IMAGE_DIMENSION || height > JVM_MAX_IMAGE_DIMENSION ||
+                    width.toLong() * height.toLong() > JVM_MAX_IMAGE_PIXELS
+                ) {
+                    logDiagnostic("JvmVisualDecoder", "Rejected oversized image raster: ${width}x$height")
+                    return null
+                }
+                val param = reader.defaultReadParam
+                val maxSide = max(width, height)
+                if (maxSide > 1920) {
+                    val step = (maxSide / 1920).coerceAtLeast(1)
+                    param.setSourceSubsampling(step, step, 0, 0)
+                }
+                return reader.read(0, param)
+            } finally {
+                reader.dispose()
+            }
+        }
+        return null
     }
 
     fun decodeFromClipboard(): List<BarcodePayload> {
@@ -38,15 +80,18 @@ actual class PlatformVisualDecoder actual constructor() {
             val clipboard = Toolkit.getDefaultToolkit().systemClipboard
             if (clipboard.isDataFlavorAvailable(DataFlavor.imageFlavor)) {
                 val img = clipboard.getData(DataFlavor.imageFlavor) as? Image ?: return emptyList()
-                val buffered = toBufferedImage(img)
+                val buffered = toBufferedImage(img) ?: return emptyList()
                 decodeBufferedImage(buffered)
             } else if (clipboard.isDataFlavorAvailable(DataFlavor.javaFileListFlavor)) {
                 val files = clipboard.getData(DataFlavor.javaFileListFlavor) as? List<*> ?: return emptyList()
                 for (item in files) {
                     val file = item as? File ?: continue
-                    if (isImageFile(file)) {
-                        val img = ImageIO.read(file) ?: continue
-                        val res = decodeBufferedImage(img)
+                    if (!DesktopDragAndDropCoordinator.isUnsafeRemotePath(file.path) &&
+                        isImageFile(file) &&
+                        file.isFile &&
+                        file.length() in 1L..JVM_MAX_VISION_IMAGE_BYTES
+                    ) {
+                        val res = decodeBarcodeFromBytes(file.readBytes())
                         if (res.isNotEmpty()) return res
                     }
                 }
@@ -55,6 +100,7 @@ actual class PlatformVisualDecoder actual constructor() {
                 emptyList()
             }
         } catch (e: Exception) {
+            logDiagnostic("JvmVisualDecoder", "Failed to read barcode from clipboard", e)
             emptyList()
         }
     }
@@ -74,29 +120,51 @@ actual class PlatformVisualDecoder actual constructor() {
                 val payload = QuishingAnalyzer.analyze(result.text, type)
                 results.add(payload)
             }
-        } catch (e: Exception) {
+        } catch (_: ReaderException) {
             try {
                 val singleReader = MultiFormatReader()
                 val result = singleReader.decode(bitmap, hints)
                 val type = mapZxingFormat(result.barcodeFormat)
                 val payload = QuishingAnalyzer.analyze(result.text, type)
                 results.add(payload)
-            } catch (ex: Exception) {
+            } catch (_: ReaderException) {
                 // No barcode detected in frame
+            } catch (ex: Exception) {
+                logDiagnostic("JvmVisualDecoder", "Unexpected single-frame decode failure", ex)
             }
+        } catch (e: Exception) {
+            logDiagnostic("JvmVisualDecoder", "Unexpected multi-frame decode failure", e)
         }
 
         return results
     }
 
-    private fun toBufferedImage(img: Image): BufferedImage {
-        if (img is BufferedImage) return img
-        val width = img.getWidth(null).coerceAtLeast(1)
-        val height = img.getHeight(null).coerceAtLeast(1)
+    private fun toBufferedImage(img: Image): BufferedImage? {
+        if (img is BufferedImage) {
+            if (img.width <= 0 || img.height <= 0 ||
+                img.width > JVM_MAX_IMAGE_DIMENSION || img.height > JVM_MAX_IMAGE_DIMENSION ||
+                img.width.toLong() * img.height.toLong() > JVM_MAX_IMAGE_PIXELS
+            ) {
+                return null
+            }
+            return img
+        }
+        val width = img.getWidth(null)
+        val height = img.getHeight(null)
+        if (width <= 0 || height <= 0 ||
+            width > JVM_MAX_IMAGE_DIMENSION || height > JVM_MAX_IMAGE_DIMENSION ||
+            width.toLong() * height.toLong() > JVM_MAX_IMAGE_PIXELS
+        ) {
+            return null
+        }
         val bimage = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val bGr = bimage.createGraphics()
-        bGr.drawImage(img, 0, 0, null)
-        bGr.dispose()
+        try {
+            bGr.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            bGr.drawImage(img, 0, 0, null)
+        } finally {
+            bGr.dispose()
+        }
         return bimage
     }
 
@@ -112,8 +180,12 @@ actual class PlatformVisualDecoder actual constructor() {
 
         val scaled = BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB)
         val g2d = scaled.createGraphics()
-        g2d.drawImage(image.getScaledInstance(newW, newH, Image.SCALE_SMOOTH), 0, 0, null)
-        g2d.dispose()
+        try {
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            g2d.drawImage(image, 0, 0, newW, newH, null)
+        } finally {
+            g2d.dispose()
+        }
         return scaled
     }
 
